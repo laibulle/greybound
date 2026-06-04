@@ -1,12 +1,51 @@
 use iced::widget::{
     button, checkbox, column, container, progress_bar, row, scrollable, slider, text,
 };
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Background, Color, Element, Length, Vector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
     Amp,
     Pedal,
+}
+
+struct SkeuoButton;
+
+impl button::StyleSheet for SkeuoButton {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, _style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: Some(Background::Color(Color::from_rgb(0.22, 0.20, 0.17))),
+            border_radius: 16.0.into(),
+            border_width: 1.0,
+            border_color: Color::from_rgb(0.80, 0.75, 0.62),
+            shadow_offset: Vector::new(0.0, 3.0),
+            text_color: Color::from_rgb(0.95, 0.92, 0.82),
+            ..button::Appearance::default()
+        }
+    }
+}
+
+struct SkeuoContainer(Color);
+
+impl container::StyleSheet for SkeuoContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::WHITE),
+            background: Some(Background::Color(self.0)),
+            border_radius: 18.0.into(),
+            border_width: 1.0,
+            border_color: Color::from_rgb(0.70, 0.63, 0.51),
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn skeuo_container(background: Color) -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(SkeuoContainer(background)))
 }
 
 #[derive(Debug, Clone)]
@@ -141,31 +180,35 @@ impl VoxBoxUi {
     pub fn view(&self) -> Element<'_, Message> {
         let selected = &self.devices[self.selected_index];
 
-        let control_panel = column![
-            text(&selected.name).size(26),
-            text(match selected.kind {
-                DeviceKind::Amp => "Amp",
-                DeviceKind::Pedal => "Pedal",
-            })
-            .size(16),
-            self.render_control("Gain", selected.gain, Message::GainChanged, "%"),
-            self.render_control("Bass", selected.bass, Message::BassChanged, "%"),
-            self.render_control("Treble", selected.treble, Message::TrebleChanged, "%"),
-            self.render_control("Cut", selected.cut, Message::CutChanged, "%"),
-            self.render_control("Output", selected.master, Message::MasterChanged, "%"),
-            row![
-                checkbox("Bypass", selected.bypassed, Message::ToggleBypass),
-                text(if selected.bypassed {
-                    "bypassed"
-                } else {
-                    "active"
+        let control_panel = container(
+            column![
+                text(&selected.name).size(26),
+                text(match selected.kind {
+                    DeviceKind::Amp => "Amp",
+                    DeviceKind::Pedal => "Pedal",
                 })
                 .size(16),
+                self.render_control("Gain", selected.gain, Message::GainChanged, "%"),
+                self.render_control("Bass", selected.bass, Message::BassChanged, "%"),
+                self.render_control("Treble", selected.treble, Message::TrebleChanged, "%"),
+                self.render_control("Cut", selected.cut, Message::CutChanged, "%"),
+                self.render_control("Output", selected.master, Message::MasterChanged, "%"),
+                row![
+                    checkbox("Bypass", selected.bypassed, Message::ToggleBypass),
+                    text(if selected.bypassed {
+                        "bypassed"
+                    } else {
+                        "active"
+                    })
+                    .size(16),
+                ]
+                .spacing(12)
+                .align_items(Alignment::Center),
             ]
-            .spacing(12)
-            .align_items(Alignment::Center),
-        ]
-        .spacing(14)
+            .spacing(14)
+            .padding(10),
+        )
+        .style(skeuo_container(Color::from_rgb(0.17, 0.15, 0.12)))
         .padding(20)
         .width(Length::FillPortion(3));
 
@@ -180,6 +223,7 @@ impl VoxBoxUi {
                             .horizontal_alignment(iced::alignment::Horizontal::Left),
                     )
                     .on_press(Message::SelectDevice(index))
+                    .style(iced::theme::Button::custom(SkeuoButton))
                     .padding(12)
                     .width(Length::Fill),
                 )
@@ -188,6 +232,7 @@ impl VoxBoxUi {
 
         let sidebar = container(scrollable(chain_buttons).width(Length::Fill))
             .padding(10)
+            .style(skeuo_container(Color::from_rgb(0.15, 0.13, 0.10)))
             .width(Length::FillPortion(1));
 
         let meters = column![
