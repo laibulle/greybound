@@ -225,50 +225,188 @@ impl VoxBoxUi {
         .align_items(Alignment::Center)
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        let selected = &self.devices[self.selected_index];
-
-        let control_panel = container(
+    fn render_knob(&self, label: &str, value: f32) -> Element<'_, Message> {
+        container(
             column![
-                text(&selected.name).size(26),
-                text(match selected.kind {
-                    DeviceKind::Amp => "Amp",
-                    DeviceKind::Pedal => "Pedal",
-                })
-                .size(16),
-                self.render_control("Gain", selected.gain, Message::GainChanged, "%"),
-                self.render_control("Bass", selected.bass, Message::BassChanged, "%"),
-                self.render_control("Treble", selected.treble, Message::TrebleChanged, "%"),
-                self.render_control("Cut", selected.cut, Message::CutChanged, "%"),
-                self.render_control("Output", selected.master, Message::MasterChanged, "%"),
+                container(text(format!("{:.0}", value * 10.0)).size(16))
+                    .width(Length::Fixed(52.0))
+                    .height(Length::Fixed(52.0))
+                    .center_x()
+                    .center_y()
+                    .style(skeuo_container(Color::from_rgb(0.20, 0.18, 0.15)))
+                    .padding(8),
+                text(label).size(12),
+            ]
+            .spacing(8)
+            .align_items(Alignment::Center),
+        )
+        .style(skeuo_container(Color::from_rgb(0.24, 0.20, 0.16)))
+        .padding(10)
+        .width(Length::Fixed(84.0))
+        .into()
+    }
+
+    fn render_amp_faceplate(&self, selected: &DeviceState) -> Element<'_, Message> {
+        let status_color = if selected.bypassed {
+            Color::from_rgb(0.66, 0.12, 0.12)
+        } else {
+            Color::from_rgb(0.20, 0.76, 0.24)
+        };
+
+        container(
+            column![
                 row![
-                    checkbox("Bypass", selected.bypassed, Message::ToggleBypass),
-                    text(if selected.bypassed {
-                        "bypassed"
-                    } else {
-                        "active"
-                    })
-                    .size(16),
+                    column![
+                        text(&selected.name).size(24),
+                        text("Classic Tube Tone").size(14),
+                    ]
+                    .spacing(4)
+                    .width(Length::Fill),
+                    container(
+                        text(if selected.bypassed { "MUTE" } else { "LIVE" })
+                            .size(14)
+                            .horizontal_alignment(iced::alignment::Horizontal::Center),
+                    )
+                    .padding(10)
+                    .style(skeuo_container(status_color))
+                    .width(Length::Fixed(90.0)),
+                ]
+                .spacing(16)
+                .align_items(Alignment::Center),
+                row![
+                    self.render_knob("Gain", selected.gain),
+                    self.render_knob("Bass", selected.bass),
+                    self.render_knob("Treble", selected.treble),
+                    self.render_knob("Cut", selected.cut),
+                    self.render_knob("Master", selected.master),
                 ]
                 .spacing(12)
                 .align_items(Alignment::Center),
             ]
-            .spacing(14)
-            .padding(10),
+            .spacing(20),
         )
-        .style(skeuo_container(Color::from_rgb(0.17, 0.15, 0.12)))
+        .style(skeuo_container(Color::from_rgb(0.12, 0.10, 0.08)))
+        .padding(16)
+        .width(Length::Fill)
+        .into()
+    }
+
+    fn render_pedal_box(&self, selected: &DeviceState) -> Element<'_, Message> {
+        let pedal_color = Color::from_rgb(0.14, 0.11, 0.09);
+        let led_color = if selected.bypassed {
+            Color::from_rgb(0.60, 0.06, 0.06)
+        } else {
+            Color::from_rgb(0.14, 0.92, 0.38)
+        };
+
+        container(
+            column![
+                text(&selected.name).size(22),
+                row![
+                    container(text(if selected.bypassed { "OFF" } else { "ON" }).size(14))
+                        .padding(10)
+                        .style(skeuo_container(Color::from_rgb(0.10, 0.09, 0.08))),
+                    container(text(" "))
+                        .width(Length::Fixed(16.0))
+                        .height(Length::Fixed(16.0))
+                        .style(skeuo_container(led_color))
+                        .padding(4),
+                    text("Stomp Switch").size(14),
+                ]
+                .spacing(12)
+                .align_items(Alignment::Center),
+                row![
+                    self.render_knob("Gain", selected.gain),
+                    self.render_knob("Tone", selected.treble),
+                    self.render_knob("Level", selected.master),
+                ]
+                .spacing(14)
+                .align_items(Alignment::Center),
+            ]
+            .spacing(18),
+        )
+        .style(skeuo_container(pedal_color))
+        .padding(16)
+        .width(Length::Fill)
+        .into()
+    }
+
+    pub fn view(&self) -> Element<'_, Message> {
+        let selected = &self.devices[self.selected_index];
+
+        let main_panel = if selected.kind == DeviceKind::Amp {
+            self.render_amp_faceplate(selected)
+        } else {
+            self.render_pedal_box(selected)
+        };
+
+        let control_panel = container(
+            column![
+                main_panel,
+                container(
+                    column![
+                        self.render_control("Gain", selected.gain, Message::GainChanged, "%"),
+                        self.render_control("Bass", selected.bass, Message::BassChanged, "%"),
+                        self.render_control("Treble", selected.treble, Message::TrebleChanged, "%"),
+                        self.render_control("Cut", selected.cut, Message::CutChanged, "%"),
+                        self.render_control("Output", selected.master, Message::MasterChanged, "%"),
+                        row![
+                            checkbox("Bypass", selected.bypassed, Message::ToggleBypass),
+                            text(if selected.bypassed {
+                                "bypassed"
+                            } else {
+                                "active"
+                            })
+                            .size(16),
+                        ]
+                        .spacing(12)
+                        .align_items(Alignment::Center),
+                    ]
+                    .spacing(14)
+                    .padding(14),
+                )
+                .style(skeuo_container(Color::from_rgb(0.18, 0.16, 0.13)))
+                .width(Length::Fill),
+            ]
+            .spacing(20)
+            .padding(12),
+        )
+        .style(skeuo_container(Color::from_rgb(0.16, 0.14, 0.11)))
         .padding(20)
         .width(Length::FillPortion(3));
 
         let chain_buttons = self.devices.iter().enumerate().fold(
-            column![text("Signal Chain").size(20)],
+            column![text("Pedalboard").size(20)],
             |column, (index, device)| {
+                let label_color = if device.kind == DeviceKind::Amp {
+                    Color::from_rgb(0.78, 0.68, 0.45)
+                } else {
+                    Color::from_rgb(0.54, 0.76, 0.98)
+                };
+
                 column.push(
                     button(
-                        text(&device.name)
-                            .size(16)
-                            .width(Length::Fill)
-                            .horizontal_alignment(iced::alignment::Horizontal::Left),
+                        column![
+                            row![
+                                container(text(match device.kind {
+                                    DeviceKind::Amp => "HEAD",
+                                    DeviceKind::Pedal => "PEDAL",
+                                })
+                                .size(10)
+                                .horizontal_alignment(iced::alignment::Horizontal::Center))
+                                .padding(6)
+                                .style(skeuo_container(label_color)),
+                                text(&device.name)
+                                    .size(16)
+                                    .width(Length::Fill)
+                                    .horizontal_alignment(iced::alignment::Horizontal::Left),
+                            ]
+                            .spacing(10)
+                            .align_items(Alignment::Center),
+                            text(if device.bypassed { "bypassed" } else { "active" })
+                                .size(12),
+                        ]
+                        .spacing(6),
                     )
                     .on_press(Message::SelectDevice(index))
                     .style(iced::theme::Button::custom(SkeuoButton))
