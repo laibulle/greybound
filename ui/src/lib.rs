@@ -44,6 +44,53 @@ impl container::StyleSheet for SkeuoContainer {
     }
 }
 
+struct SkeuoSlider;
+
+impl slider::StyleSheet for SkeuoSlider {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, _style: &Self::Style) -> slider::Appearance {
+        slider::Appearance {
+            rail: slider::Rail {
+                colors: (
+                    Color::from_rgb(0.44, 0.40, 0.35),
+                    Color::from_rgb(0.15, 0.13, 0.10),
+                ),
+                width: 8.0,
+                border_radius: 10.0.into(),
+            },
+            handle: slider::Handle {
+                shape: slider::HandleShape::Circle { radius: 10.0 },
+                color: Color::from_rgb(0.95, 0.92, 0.82),
+                border_width: 2.0,
+                border_color: Color::from_rgb(0.48, 0.43, 0.34),
+            },
+        }
+    }
+
+    fn hovered(&self, _style: &Self::Style) -> slider::Appearance {
+        self.active(_style)
+    }
+
+    fn dragging(&self, _style: &Self::Style) -> slider::Appearance {
+        self.active(_style)
+    }
+}
+
+struct SkeuoProgressBar;
+
+impl progress_bar::StyleSheet for SkeuoProgressBar {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> progress_bar::Appearance {
+        progress_bar::Appearance {
+            background: Background::Color(Color::from_rgb(0.13, 0.11, 0.09)),
+            bar: Background::Color(Color::from_rgb(0.82, 0.75, 0.60)),
+            border_radius: 10.0.into(),
+        }
+    }
+}
+
 fn skeuo_container(background: Color) -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(SkeuoContainer(background)))
 }
@@ -170,7 +217,8 @@ impl VoxBoxUi {
             text(label).size(16).width(Length::Fixed(100.0)),
             slider(0.0..=1.0, value, on_change)
                 .step(0.001)
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .style(iced::theme::Slider::Custom(Box::new(SkeuoSlider))),
             text(format!("{:.0}{}", value * 100.0, unit)).width(Length::Fixed(60.0)),
         ]
         .spacing(12)
@@ -240,12 +288,14 @@ impl VoxBoxUi {
             row![
                 column![
                     text("Input"),
-                    progress_bar(0.0..=1.0, selected.gain.clamp(0.0, 1.0)),
+                    progress_bar(0.0..=1.0, selected.gain.clamp(0.0, 1.0))
+                        .style(iced::theme::ProgressBar::Custom(Box::new(SkeuoProgressBar))),
                 ]
                 .spacing(6),
                 column![
                     text("Output"),
-                    progress_bar(0.0..=1.0, selected.master.clamp(0.0, 1.0)),
+                    progress_bar(0.0..=1.0, selected.master.clamp(0.0, 1.0))
+                        .style(iced::theme::ProgressBar::Custom(Box::new(SkeuoProgressBar))),
                 ]
                 .spacing(6),
             ]
