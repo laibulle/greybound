@@ -24,7 +24,8 @@ in [`tests/fixtures/ac30/`](tests/fixtures/ac30/README.md). Run it with
 
 The topology and major time constants now follow those references, but the
 triodes, EL84 banks, phase inverter, transformer, and supply remain compact
-behavioral models. The nonlinear stages are not yet oversampled.
+behavioral models. The complete amp core runs internally at 2x sample rate
+through linear-phase half-band filters to reduce nonlinear aliasing.
 
 ## Build
 
@@ -85,9 +86,9 @@ make standalone-with-ir
 ```
 
 The CLAP/VST3 plugin exposes the same feature as the default-off `Speaker IR`
-parameter. It reports a fixed 256-sample latency so switching the IR on does not
-change timing; when the IR is off, convolution is skipped and only the matching
-dry delay runs.
+parameter. It reports the fixed amp-oversampling plus 256-sample speaker-stage
+latency, so switching the IR on does not change timing; when the IR is off,
+convolution is skipped and only the matching dry delay runs.
 
 ## Standalone controls and presets
 

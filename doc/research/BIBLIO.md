@@ -29,9 +29,24 @@ Citation: Schmitz, T., & Embrechts, J. J. (2018). Real Time Emulation of Paramet
 
 What it refers to: This paper represents the pure Black-Box AI modeling methodology. It investigates using Recurrent Neural Networks (specifically LSTMs) to predict the output of a tube amplifier stage directly from raw data, including adapting to knob parameter changes (like gain). It serves as a benchmark for pure data-driven approaches vs. our physical structural modeling.
 
-5. The Cutting Edge: Deep Gray-Box (Neural WDF)
+5. Multiple Nonlinearities in Neural WDFs
 File: DAFx24_paper_45.pdf
 
 Citation: Massi, O., Manino, E., & Bernardini, A. (2024). Wave Digital Modeling of Circuits with Multiple One-Port Nonlinearities Based on Lipschitz-Bounded Neural Networks. In Proceedings of the 27th International Conference on Digital Audio Effects (DAFx-24).
 
-What it refers to: The frontier of virtual analog. Solving multiple non-linear components simultaneously in WDF normally requires heavy iterative solvers (like Newton-Raphson), which completely destroy real-time mobile CPU budgets. This paper replaces those costly mathematical equations with miniature Lipschitz-Bounded Neural Networks. By mathematically bounding the network's constraints, they guarantee that the neural network will never cause the audio filter to explode, allowing ultra-fast execution of complex distortion stages.
+What it refers to: This paper models nonlinear one-port scattering relations with
+Lipschitz-bounded neural networks inside a Wave Digital circuit containing
+multiple nonlinearities. The Lipschitz constraint preserves sufficient
+fixed-point convergence conditions for the Scattering Iterative Method (SIM).
+Its validation circuit is a four-diode ring modulator, not a tube amplifier.
+The neural blocks do not eliminate iteration: the reported optimized SIM still
+uses an average of seven iterations per sample, compared with 37 using fixed
+port resistances.
+
+Relevance to VoxBox: This becomes directly applicable only if a future
+component-level WDF implementation couples several nonlinear one-port devices
+through a shared scattering junction. The current VoxBox model instead
+cascades independent behavioral tube nonlinearities with linear filters, so it
+has no nonlinear delay-free loop for SIM to solve. Tube stages and output
+transformers are also generally multi-port and may require vector WDF or other
+models beyond the one-port method studied here.

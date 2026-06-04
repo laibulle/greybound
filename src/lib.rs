@@ -1,7 +1,7 @@
 pub mod amp;
 pub mod ir;
 
-use amp::{AmpControls, VoxAmp};
+use amp::{AmpControls, VoxAmp, AMP_LATENCY};
 use ir::{SpeakerStage, CONVOLUTION_LATENCY};
 use nih_plug::prelude::*;
 use std::sync::Arc;
@@ -133,7 +133,7 @@ impl Plugin for VoxBox {
                     .unwrap_or_else(|_| SpeakerStage::bypassed())
             })
             .collect();
-        context.set_latency_samples(CONVOLUTION_LATENCY as u32);
+        context.set_latency_samples((AMP_LATENCY + CONVOLUTION_LATENCY) as u32);
         true
     }
 

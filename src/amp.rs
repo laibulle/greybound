@@ -1,5 +1,9 @@
 use rill_core_wdf::{filters::RcPole, WdfElement};
 
+pub const AMP_LATENCY: usize = 16;
+const OVERSAMPLING_FACTOR: f32 = 2.0;
+const HALF_BAND_TAPS: usize = 33;
+
 #[derive(Clone, Copy)]
 pub struct AmpControls {
     pub volume: f32,
@@ -12,8 +16,45 @@ pub struct AmpControls {
 /// Real-time graybox model of a JMI AC30/6 fitted with the OS/010 Top Boost unit.
 ///
 /// The processing stages follow the reference topology while keeping the
-/// nonlinear tube and transformer behavior deliberately compact.
+/// nonlinear tube and transformer behavior deliberately compact. The complete
+/// amp runs at 2x sample rate to reduce aliasing from every nonlinear stage.
 pub struct VoxAmp {
+    upsampler: FirFilter,
+    core: AmpCore,
+    downsampler: FirFilter,
+}
+
+impl VoxAmp {
+    pub fn new(sample_rate: f32) -> Self {
+        let coefficients = half_band_coefficients();
+        Self {
+            upsampler: FirFilter::new(coefficients),
+            core: AmpCore::new(sample_rate * OVERSAMPLING_FACTOR),
+            downsampler: FirFilter::new(coefficients),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.upsampler.reset();
+        self.core.reset();
+        self.downsampler.reset();
+    }
+
+    #[inline]
+    pub fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
+        let upsampled = self.upsampler.process(input * OVERSAMPLING_FACTOR);
+        let output = self
+            .downsampler
+            .process(self.core.process(upsampled, controls));
+
+        let upsampled = self.upsampler.process(0.0);
+        self.downsampler
+            .process(self.core.process(upsampled, controls));
+        output
+    }
+}
+
+struct AmpCore {
     sample_rate: f32,
     input_coupling: WdfHighpass,
     first_cathode_bypass: WdfHighpass,
@@ -28,8 +69,8 @@ pub struct VoxAmp {
     supply_sag: EnvelopeFollower,
 }
 
-impl VoxAmp {
-    pub fn new(sample_rate: f32) -> Self {
+impl AmpCore {
+    fn new(sample_rate: f32) -> Self {
         Self {
             sample_rate,
             input_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
@@ -46,12 +87,12 @@ impl VoxAmp {
         }
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         *self = Self::new(self.sample_rate);
     }
 
     #[inline]
-    pub fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
+    fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
         let input = self.input_coupling.process(input);
 
         // OS/010 uses a 500k volume control with a 100pF bright capacitor.
@@ -95,6 +136,66 @@ impl VoxAmp {
         let transformer = self.transformer_lowpass.process(transformer);
         transformer * controls.output
     }
+}
+
+struct FirFilter {
+    coefficients: [f32; HALF_BAND_TAPS],
+    history: [f32; HALF_BAND_TAPS],
+    position: usize,
+}
+
+impl FirFilter {
+    fn new(coefficients: [f32; HALF_BAND_TAPS]) -> Self {
+        Self {
+            coefficients,
+            history: [0.0; HALF_BAND_TAPS],
+            position: 0,
+        }
+    }
+
+    #[inline]
+    fn process(&mut self, input: f32) -> f32 {
+        self.history[self.position] = input;
+        let mut output = 0.0;
+        let mut history_position = self.position;
+        for coefficient in self.coefficients {
+            output += coefficient * self.history[history_position];
+            history_position = if history_position == 0 {
+                HALF_BAND_TAPS - 1
+            } else {
+                history_position - 1
+            };
+        }
+        self.position = (self.position + 1) % HALF_BAND_TAPS;
+        output
+    }
+
+    fn reset(&mut self) {
+        self.history.fill(0.0);
+        self.position = 0;
+    }
+}
+
+fn half_band_coefficients() -> [f32; HALF_BAND_TAPS] {
+    let center = (HALF_BAND_TAPS - 1) as f32 * 0.5;
+    let mut coefficients = [0.0; HALF_BAND_TAPS];
+    let mut sum = 0.0;
+    for (index, coefficient) in coefficients.iter_mut().enumerate() {
+        let offset = index as f32 - center;
+        let sinc = if offset == 0.0 {
+            0.5
+        } else {
+            (std::f32::consts::PI * offset * 0.5).sin() / (std::f32::consts::PI * offset)
+        };
+        let phase = std::f32::consts::TAU * index as f32 / (HALF_BAND_TAPS - 1) as f32;
+        let blackman = 0.42 - 0.5 * phase.cos() + 0.08 * (2.0 * phase).cos();
+        *coefficient = sinc * blackman;
+        sum += *coefficient;
+    }
+    for coefficient in &mut coefficients {
+        *coefficient /= sum;
+    }
+    coefficients
 }
 
 struct TopBoostToneStack {
@@ -187,6 +288,7 @@ fn el84_bank(input: f32) -> f32 {
 
 struct OnePoleLowpass {
     coefficient: f32,
+    cutoff: f32,
     state: f32,
 }
 
@@ -194,6 +296,7 @@ impl OnePoleLowpass {
     fn new(sample_rate: f32, cutoff: f32) -> Self {
         let mut filter = Self {
             coefficient: 0.0,
+            cutoff: f32::NAN,
             state: 0.0,
         };
         filter.set_cutoff(sample_rate, cutoff);
@@ -201,7 +304,10 @@ impl OnePoleLowpass {
     }
 
     fn set_cutoff(&mut self, sample_rate: f32, cutoff: f32) {
-        self.coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / sample_rate).exp();
+        if cutoff != self.cutoff {
+            self.coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / sample_rate).exp();
+            self.cutoff = cutoff;
+        }
     }
 
     #[inline]
@@ -343,5 +449,79 @@ mod tests {
         let driven_loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.10, driven);
 
         assert!(clean_loud / clean_quiet > driven_loud / driven_quiet);
+    }
+
+    #[test]
+    fn oversampling_latency_matches_reported_latency() {
+        let coefficients = half_band_coefficients();
+        let mut upsampler = FirFilter::new(coefficients);
+        let mut downsampler = FirFilter::new(coefficients);
+        let mut output = Vec::new();
+
+        for sample_idx in 0..64 {
+            let first = upsampler.process((sample_idx == 0) as u8 as f32 * OVERSAMPLING_FACTOR);
+            output.push(downsampler.process(first));
+            let second = upsampler.process(0.0);
+            downsampler.process(second);
+        }
+
+        let peak = output
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
+            .unwrap()
+            .0;
+        assert_eq!(peak, AMP_LATENCY);
+    }
+
+    #[test]
+    fn oversampling_reduces_high_frequency_aliasing() {
+        const SAMPLE_RATE: f32 = 48_000.0;
+        const INPUT_FREQUENCY: f32 = 10_000.0;
+        const ALIAS_FREQUENCY: f32 = 18_000.0;
+        const SAMPLES: usize = 24_000;
+
+        let mut driven = controls();
+        driven.volume = 1.0;
+        driven.treble = 1.0;
+        driven.cut = 0.0;
+
+        let mut base_rate = AmpCore::new(SAMPLE_RATE);
+        let mut oversampled = VoxAmp::new(SAMPLE_RATE);
+        let mut base_output = Vec::with_capacity(SAMPLES);
+        let mut oversampled_output = Vec::with_capacity(SAMPLES);
+        for sample_idx in 0..SAMPLES {
+            let input = (std::f32::consts::TAU * INPUT_FREQUENCY * sample_idx as f32 / SAMPLE_RATE)
+                .sin()
+                * 0.35;
+            base_output.push(base_rate.process(input, driven));
+            oversampled_output.push(oversampled.process(input, driven));
+        }
+
+        let base_alias = tone_magnitude(&base_output[SAMPLES / 2..], ALIAS_FREQUENCY, SAMPLE_RATE);
+        let oversampled_alias = tone_magnitude(
+            &oversampled_output[SAMPLES / 2..],
+            ALIAS_FREQUENCY,
+            SAMPLE_RATE,
+        );
+        assert!(
+            oversampled_alias < base_alias * 0.5,
+            "alias magnitude: base={base_alias}, oversampled={oversampled_alias}"
+        );
+    }
+
+    fn tone_magnitude(samples: &[f32], frequency: f32, sample_rate: f32) -> f32 {
+        let (real, imaginary) =
+            samples
+                .iter()
+                .enumerate()
+                .fold((0.0, 0.0), |(real, imaginary), (index, sample)| {
+                    let phase = std::f32::consts::TAU * frequency * index as f32 / sample_rate;
+                    (
+                        real + sample * phase.cos(),
+                        imaginary - sample * phase.sin(),
+                    )
+                });
+        (real * real + imaginary * imaginary).sqrt() * 2.0 / samples.len() as f32
     }
 }
