@@ -25,6 +25,9 @@ fn compares_voxbox_to_real_ac30_recording() {
         treble: pot("VOXBOX_AC30_TREBLE", 6.0),
         cut: pot("VOXBOX_AC30_CUT", 3.5),
         output: 1.0,
+        drive: 0.0,
+        presence: 0.0,
+        sag: 0.0,
     };
     let use_ir =
         env::var("VOXBOX_AC30_REFERENCE_KIND").unwrap_or_else(|_| "rig".to_owned()) != "amp";

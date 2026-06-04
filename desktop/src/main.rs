@@ -41,6 +41,9 @@ impl Application for Desktop {
                 cut: device.cut,
                 treble: device.treble,
                 output: device.master,
+                drive: 0.0,
+                presence: 0.0,
+                sag: 0.0,
             };
             self.plugin.set_ui_controls(controls);
         }

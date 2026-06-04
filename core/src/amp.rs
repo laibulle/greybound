@@ -12,6 +12,10 @@ pub struct AmpControls {
     pub treble: f32,
     pub cut: f32,
     pub output: f32,
+    // Dumble-specific extensions
+    pub drive: f32,    // additional preamp drive (0..1)
+    pub presence: f32, // high-frequency presence/shelf (0..1)
+    pub sag: f32,      // simulated power-supply sag (0..1)
 }
 
 /// Real-time graybox model of a JMI AC30/6 fitted with the OS/010 Top Boost unit.
@@ -128,7 +132,9 @@ impl AmpCore {
         let volume_output = input * volume + high * (1.0 - volume) * 0.18;
 
         let first_bypass = self.first_cathode_bypass.process(volume_output);
-        let first_drive = volume_output * 4.8 + first_bypass * 0.8;
+        let mut first_drive = volume_output * 4.8 + first_bypass * 0.8;
+        // Apply Dumble-style preamp drive control (adds gain into triode stage)
+        first_drive *= 1.0 + controls.drive * 0.6;
         let first_stage = triode_stage(first_drive, 0.16);
 
         // The second OS/010 triode is a cathode follower. It adds a small
@@ -160,9 +166,17 @@ impl AmpCore {
         let negative_bank = el84_bank(-drive - bias_shift * 0.045);
         let power_output = (positive_bank - negative_bank) * 0.72;
 
-        let transformer = self.transformer_highpass.process(power_output);
-        let transformer = self.transformer_lowpass.process(transformer);
-        transformer * controls.output
+        let mut transformer = self.transformer_highpass.process(power_output);
+        transformer = self.transformer_lowpass.process(transformer);
+
+        // Apply a subtle presence shelf (adds a small HF boost)
+        let mut out = transformer * controls.output;
+        out *= 1.0 + controls.presence * 0.03;
+
+        // Apply sag as gentle overall compression/attenuation
+        out *= 1.0 - (controls.sag * 0.12);
+
+        out
     }
 }
 
@@ -594,6 +608,9 @@ mod tests {
             treble: 0.5,
             cut: 0.5,
             output: 1.0,
+            drive: 0.0,
+            presence: 0.0,
+            sag: 0.0,
         }
     }
 

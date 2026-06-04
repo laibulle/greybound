@@ -181,6 +181,9 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let mut bass = 5.0;
     let mut treble = 6.0;
     let mut cut = 3.5;
+    let mut drive = 0.0;
+    let mut presence = 0.0;
+    let mut sag = 0.0;
     let mut input_db = 0.0;
     let mut output_db = -9.0;
     let mut ir = false;
@@ -213,18 +216,46 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
             "--preset" => {
                 let name = next_value(&mut args, "--preset")?.to_lowercase();
                 match name.as_str() {
-                    "dumble" => {
-                        // Dumble Overdrive Special preset values (approximate)
+                    "dumble" | "dumble-clean" => {
+                        // Dumble Overdrive Special - clean
                         volume = 6.5;
                         bass = 5.5;
                         treble = 6.0;
                         cut = 3.8;
                         output_db = -12.0;
+                        drive = 2.0;
+                        presence = 1.0;
+                        sag = 0.2;
+                        dumble_model = true;
+                    }
+                    "dumble-crunch" => {
+                        volume = 8.0;
+                        bass = 5.2;
+                        treble = 6.0;
+                        cut = 4.4;
+                        output_db = -14.0;
+                        drive = 4.5;
+                        presence = 1.5;
+                        sag = 0.3;
+                        dumble_model = true;
+                    }
+                    "dumble-driven" => {
+                        volume = 9.5;
+                        bass = 5.0;
+                        treble = 5.8;
+                        cut = 5.0;
+                        output_db = -16.0;
+                        drive = 7.5;
+                        presence = 2.0;
+                        sag = 0.45;
                         dumble_model = true;
                     }
                     _ => bail!("unknown preset '{name}'"),
                 }
             }
+            "--drive" => drive = parse_pot(&mut args, "--drive")?,
+            "--presence" => presence = parse_pot(&mut args, "--presence")?,
+            "--sag" => sag = parse_pot(&mut args, "--sag")?,
             "--monitor" => monitor = true,
             "--list-devices" => {
                 print_devices(host)?;
@@ -274,6 +305,9 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
             treble: treble / 10.0,
             cut: cut / 10.0,
             output: 10.0_f32.powf(output_db / 20.0),
+            drive: drive / 10.0,
+            presence: presence / 10.0,
+            sag: sag / 10.0,
         },
         input_db,
         input_gain: 10.0_f32.powf(input_db / 20.0),

@@ -176,6 +176,9 @@ impl Plugin for VoxBox {
                     cut: self.params.cut.smoothed.next(),
                     treble: self.params.tone.smoothed.next(),
                     output: self.params.master.smoothed.next(),
+                    drive: 0.0,
+                    presence: 0.0,
+                    sag: 0.0,
                 }
             };
 
