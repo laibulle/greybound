@@ -64,6 +64,7 @@ impl VoxAmp {
 }
 
 struct AmpCore {
+    model: AmpModel,
     sample_rate: f32,
     input_coupling: WdfHighpass,
     first_cathode_bypass: WdfHighpass,
@@ -77,9 +78,27 @@ struct AmpCore {
     supply_sag: EnvelopeFollower,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AmpModel {
+    Ac30,
+    Dumble,
+    Jcm800,
+}
+
+impl AmpModel {
+    fn from_name(name: &str) -> Self {
+        match name {
+            "dumble" => Self::Dumble,
+            "jcm800" | "jcm-800" | "marshall" => Self::Jcm800,
+            _ => Self::Ac30,
+        }
+    }
+}
+
 impl AmpCore {
     fn new(sample_rate: f32) -> Self {
         Self {
+            model: AmpModel::Ac30,
             sample_rate,
             input_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
             first_cathode_bypass: WdfHighpass::from_rc(sample_rate, 1_500.0, 25e-6),
@@ -95,11 +114,13 @@ impl AmpCore {
     }
 
     fn new_with_model(sample_rate: f32, model: &str) -> Self {
+        let model = AmpModel::from_name(model);
         // Provide alternate component values tuned to the Dumble Overdrive Special
         // where appropriate. This is a pragmatic graybox approximation rather
         // than a component-exact replication.
-        if model == "dumble" {
-            Self {
+        match model {
+            AmpModel::Dumble => Self {
+                model,
                 sample_rate,
                 input_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 68e-12),
                 first_cathode_bypass: WdfHighpass::from_rc(sample_rate, 2_200.0, 25e-6),
@@ -111,18 +132,39 @@ impl AmpCore {
                 transformer_lowpass: OnePoleLowpass::new(sample_rate, 14_000.0),
                 bias_envelope: EnvelopeFollower::new(sample_rate, 0.006, 0.140),
                 supply_sag: EnvelopeFollower::new(sample_rate, 0.018, 0.300),
-            }
-        } else {
-            Self::new(sample_rate)
+            },
+            AmpModel::Jcm800 => Self {
+                model,
+                sample_rate,
+                input_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 2.2e-9),
+                first_cathode_bypass: WdfHighpass::from_rc(sample_rate, 2_700.0, 680e-9),
+                bright_filter: OnePoleLowpass::new(sample_rate, 3_800.0),
+                tone_stack: TopBoostToneStack::new_with_caps(sample_rate, 470e-12, 22e-9, 22e-9),
+                phase_inverter_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 22e-9),
+                cut_filter: OnePoleLowpass::new(sample_rate, 8_000.0),
+                transformer_highpass: WdfHighpass::from_rc(sample_rate, 100_000.0, 22e-9),
+                transformer_lowpass: OnePoleLowpass::new(sample_rate, 9_500.0),
+                bias_envelope: EnvelopeFollower::new(sample_rate, 0.010, 0.180),
+                supply_sag: EnvelopeFollower::new(sample_rate, 0.020, 0.320),
+            },
+            AmpModel::Ac30 => Self::new(sample_rate),
         }
     }
 
     fn reset(&mut self) {
-        *self = Self::new(self.sample_rate);
+        *self = match self.model {
+            AmpModel::Ac30 => Self::new(self.sample_rate),
+            AmpModel::Dumble => Self::new_with_model(self.sample_rate, "dumble"),
+            AmpModel::Jcm800 => Self::new_with_model(self.sample_rate, "jcm800"),
+        };
     }
 
     #[inline]
     fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
+        if self.model == AmpModel::Jcm800 {
+            return self.process_jcm800(input, controls);
+        }
+
         let input = self.input_coupling.process(input);
 
         // OS/010 uses a 500k volume control with a 100pF bright capacitor.
@@ -177,6 +219,50 @@ impl AmpCore {
         out *= 1.0 - (controls.sag * 0.12);
 
         out
+    }
+
+    #[inline]
+    fn process_jcm800(&mut self, input: f32, controls: AmpControls) -> f32 {
+        let input = self.input_coupling.process(input);
+
+        let preamp = controls.volume * controls.volume;
+        let high = input - self.bright_filter.process(input);
+        let high_sensitivity = input * (0.28 + preamp * 1.42) + high * (1.0 - preamp) * 0.30;
+        let first_bypass = self.first_cathode_bypass.process(high_sensitivity);
+
+        let first_stage = triode_stage(high_sensitivity * 5.8 + first_bypass * 1.6, 0.10);
+        let cold_clipper_drive = first_stage * (3.2 + controls.drive * 4.4);
+        let cold_clipper = triode_stage(cold_clipper_drive, -0.22);
+        let recovery = triode_stage(cold_clipper * 2.6, 0.035);
+
+        let cathode_follower = cathode_follower(recovery * 0.92);
+        let middle = controls.cut.clamp(0.0, 1.0);
+        let mid_scoop = 0.58 + middle * 0.52;
+        let toned =
+            self.tone_stack
+                .process(cathode_follower * mid_scoop, controls.bass, controls.treble);
+
+        let pi_input = self.phase_inverter_coupling.process(toned * 4.1);
+        let phase_a = triode_stage(pi_input * 1.46, 0.025);
+        let phase_b = triode_stage(-pi_input * 1.42, -0.020);
+        let differential = (phase_a - phase_b) * 0.5;
+
+        let presence_hz = 2_200.0 + controls.presence * 7_500.0;
+        self.cut_filter.set_cutoff(self.sample_rate, presence_hz);
+        let presence_low = self.cut_filter.process(differential);
+        let presence = presence_low + (differential - presence_low) * (0.35 + controls.presence);
+
+        let current_demand = (presence.abs() * 1.95 - 0.54).max(0.0);
+        let bias_shift = self.bias_envelope.process(current_demand);
+        let sag = self.supply_sag.process(current_demand * current_demand);
+        let power_drive = presence * 1.95 / (1.0 + bias_shift * 0.35 + sag * 0.18);
+        let positive_bank = el34_bank(power_drive - bias_shift * 0.025);
+        let negative_bank = el34_bank(-power_drive - bias_shift * 0.022);
+        let power_output = (positive_bank - negative_bank) * 0.82;
+
+        let mut transformer = self.transformer_highpass.process(power_output);
+        transformer = self.transformer_lowpass.process(transformer);
+        transformer * controls.output * (1.0 - controls.sag * 0.10)
     }
 }
 
@@ -567,6 +653,13 @@ fn el84_bank(input: f32) -> f32 {
     compressed_current.tanh()
 }
 
+#[inline]
+fn el34_bank(input: f32) -> f32 {
+    let conducting = (input + 0.12).max(0.0);
+    let compressed_current = conducting * 1.05 / (1.0 + conducting * 0.16);
+    compressed_current.tanh()
+}
+
 struct OnePoleLowpass {
     coefficient: f32,
     cutoff: f32,
@@ -672,6 +765,58 @@ mod tests {
         {
             assert!(amp.process(sample, controls).is_finite());
         }
+    }
+
+    #[test]
+    fn jcm800_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "jcm800");
+        let mut controls = controls();
+        controls.volume = 0.9;
+        controls.bass = 0.62;
+        controls.treble = 0.60;
+        controls.cut = 0.54;
+        controls.drive = 0.7;
+        controls.presence = 0.62;
+        controls.sag = 0.35;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn reset_preserves_selected_model() {
+        let mut controls = controls();
+        controls.volume = 0.8;
+        controls.drive = 0.6;
+        controls.presence = 0.5;
+
+        let mut reset_jcm = VoxAmp::with_model(48_000.0, "jcm800");
+        reset_jcm.reset();
+        let mut fresh_jcm = VoxAmp::with_model(48_000.0, "jcm800");
+        let mut ac30 = VoxAmp::new(48_000.0);
+
+        let mut reset_sum = 0.0;
+        let mut fresh_sum = 0.0;
+        let mut ac30_sum = 0.0;
+        for sample_idx in 0..2_048 {
+            let input = (std::f32::consts::TAU * 440.0 * sample_idx as f32 / 48_000.0).sin() * 0.2;
+            let reset_output = reset_jcm.process(input, controls);
+            let fresh_output = fresh_jcm.process(input, controls);
+            let ac30_output = ac30.process(input, controls);
+            if sample_idx >= 512 {
+                reset_sum += reset_output * reset_output;
+                fresh_sum += fresh_output * fresh_output;
+                ac30_sum += ac30_output * ac30_output;
+            }
+        }
+
+        assert!((reset_sum - fresh_sum).abs() < 1e-6);
+        assert!((reset_sum - ac30_sum).abs() > 1e-4);
     }
 
     #[test]

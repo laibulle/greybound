@@ -91,6 +91,20 @@ standalone-dumble-driven: build
 		--preset dumble-driven --ir \
 		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
 
+standalone-jcm800: build
+	$(CLI) --device '$(DEVICE)' \
+		--input-channel $(INPUT_CHANNEL) --output-channels $(OUTPUT_CHANNELS) \
+		--sample-rate $(SAMPLE_RATE) --period-size $(PERIOD_SIZE) \
+		--preset jcm800 --ir \
+		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
+
+standalone-jcm800-driven: build
+	$(CLI) --device '$(DEVICE)' \
+		--input-channel $(INPUT_CHANNEL) --output-channels $(OUTPUT_CHANNELS) \
+		--sample-rate $(SAMPLE_RATE) --period-size $(PERIOD_SIZE) \
+		--preset jcm800-driven --ir --monitor \
+		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
+
 devices: build
 	$(CLI) --list-devices
 
@@ -106,4 +120,4 @@ desktop-release:
 run-desktop: desktop-release
 	$(DESKTOP)
 
-.PHONY: standalone-dumble standalone-dumble-ir
+.PHONY: standalone-dumble standalone-dumble-ir standalone-jcm800 standalone-jcm800-driven

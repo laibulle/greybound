@@ -120,6 +120,8 @@ make standalone-with-ir-clean
 make standalone-with-ir-edge
 make standalone-with-ir-crunch
 make standalone-with-ir-driven
+make standalone-jcm800
+make standalone-jcm800-driven
 ```
 
 All preset values remain overridable, for example:

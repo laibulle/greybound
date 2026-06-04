@@ -1,12 +1,14 @@
-# AC30 Top Boost and Dumble Overdrive Special schematic references
+# AC30 Top Boost, Dumble Overdrive Special, and JCM800 schematic references
 
-The folder contains two documented circuit references:
+The folder contains three documented circuit references:
 
 - `circuit-map.toml`: extracted topology map for the JMI AC30/6 OS/065 with OS/010 Top Boost.
 - `dumble-overdrive-special.toml`: extracted topology map for the Dumble Overdrive Special.
+- `jcm800-2203-2204.toml`: extracted topology map for the Marshall JCM800 2203/2204 Master Volume Lead.
 
 The AC30 model targets a JMI-era AC30/6 fitted with the optional Top Boost unit.
 The Dumble Overdrive Special model targets the boutique Dumble ODS head.
+The JCM800 model targets the 2203/2204 Master Volume Lead family.
 
 There was no single canonical AC30 circuit across all production years, so the
 reference is explicitly split into these original drawings:
@@ -34,3 +36,6 @@ ground paths, low cathode-follower source impedance, and the downstream load.
 - https://www.voxac30.org.uk/vox_ac30_circuit_diagrams.html
 - https://www.voxac30.org.uk/vox_ac30_top_boost_circuit.html
 - https://el34world.com/charts/Schematics/Files/Vox/Vox_Schematics.htm
+- https://www.drtube.com/marshall-jcm800/
+- https://stompboxelectronics.com/2023/12/16/the-marshall-tone-stacks/
+- https://www.marshall.com/id/en/product/jcm800-2203-vintage-reissue-head

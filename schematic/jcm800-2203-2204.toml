@@ -1,0 +1,42 @@
+target = "Marshall JCM800 2203/2204 Master Volume Lead"
+model_scope = "real-time graybox DSP topology, not component-exact SPICE"
+
+[references]
+schematic_index = "https://www.drtube.com/marshall-jcm800/"
+tone_stack_notes = "https://stompboxelectronics.com/2023/12/16/the-marshall-tone-stacks/"
+manufacturer_reissue = "https://www.marshall.com/id/en/product/jcm800-2203-vintage-reissue-head"
+
+[input]
+topology = "high-sensitivity input into cascaded ECC83 preamp"
+model = "tight high-pass coupling before preamp gain"
+
+[preamp]
+valves = "ECC83 / 12AX7"
+topology = "cascaded gain stages with bright preamp-volume behavior and cold-biased clipping stage"
+model = "three tanh triode stages with asymmetric cold-clipper bias and cathode-bypass high-pass emphasis"
+
+[tone_stack]
+family = "Marshall 2203/2204 TMB"
+treble_cap = "470 pF"
+bass_cap = "22 nF"
+mid_cap = "22 nF"
+slope_resistor = "33 kOhm"
+controls = "bass, middle, treble"
+model = "existing passive MNA stack retuned to 470 pF / 22 nF / 22 nF; middle is approximated as level into the stack"
+
+[master_volume]
+topology = "pre-phase-inverter master volume"
+model = "standalone preset gain staging plus output trim"
+
+[phase_inverter]
+topology = "ECC83 long-tail pair"
+model = "opposed asymmetric triode stages"
+
+[power_amp]
+output_tubes = "2x EL34 for 2204, 4x EL34 for 2203"
+topology = "fixed-bias push-pull output stage with negative feedback and presence control"
+model = "EL34 current-compression banks, dynamic bias shift, supply sag, transformer high-pass/low-pass"
+
+[presence]
+location = "power amp negative feedback loop"
+model = "high-frequency feedback release before EL34 stage"

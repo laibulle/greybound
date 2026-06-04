@@ -166,7 +166,7 @@ struct Args {
     output_db: f32,
     ir: bool,
     monitor: bool,
-    dumble_model: bool,
+    model: String,
 }
 
 fn main() -> Result<()> {
@@ -237,11 +237,7 @@ fn main() -> Result<()> {
 
     let controls = args.controls;
     let input_gain = args.input_gain;
-    let mut amp = if args.dumble_model {
-        VoxAmp::with_model(args.sample_rate as f32, "dumble")
-    } else {
-        VoxAmp::new(args.sample_rate as f32)
-    };
+    let mut amp = VoxAmp::with_model(args.sample_rate as f32, &args.model);
     let mut speaker = args
         .ir
         .then(|| SpeakerStage::from_embedded_ir(args.sample_rate))
@@ -316,7 +312,8 @@ fn main() -> Result<()> {
         if ir_enabled { "enabled" } else { "disabled" }
     );
     eprintln!(
-        "Controls: Input {:+.1} dB, Volume {:.1}, Bass {:.1}, Treble {:.1}, Cut {:.1}, Output {:+.1} dB",
+        "Controls: Model {}, Input {:+.1} dB, Volume {:.1}, Bass {:.1}, Treble {:.1}, Cut/Mid {:.1}, Output {:+.1} dB",
+        args.model,
         args.input_db,
         controls.volume * 10.0,
         controls.bass * 10.0,
@@ -349,7 +346,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let mut output_db = -9.0;
     let mut ir = false;
     let mut monitor = false;
-    let mut dumble_model = false;
+    let mut model = "ac30".to_owned();
     let mut args = env::args().skip(1);
 
     while let Some(arg) = args.next() {
@@ -387,7 +384,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                         drive = 2.0;
                         presence = 1.0;
                         sag = 0.2;
-                        dumble_model = true;
+                        model = "dumble".to_owned();
                     }
                     "dumble-crunch" => {
                         volume = 8.0;
@@ -398,7 +395,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                         drive = 4.5;
                         presence = 1.5;
                         sag = 0.3;
-                        dumble_model = true;
+                        model = "dumble".to_owned();
                     }
                     "dumble-driven" => {
                         volume = 9.5;
@@ -409,10 +406,40 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                         drive = 7.5;
                         presence = 2.0;
                         sag = 0.45;
-                        dumble_model = true;
+                        model = "dumble".to_owned();
+                    }
+                    "jcm800" | "jcm800-crunch" => {
+                        volume = 7.0;
+                        bass = 6.0;
+                        treble = 6.2;
+                        cut = 5.0;
+                        output_db = -18.0;
+                        drive = 4.0;
+                        presence = 5.5;
+                        sag = 0.25;
+                        model = "jcm800".to_owned();
+                    }
+                    "jcm800-driven" => {
+                        volume = 8.6;
+                        bass = 6.2;
+                        treble = 6.0;
+                        cut = 5.4;
+                        output_db = -20.0;
+                        drive = 7.0;
+                        presence = 6.2;
+                        sag = 0.35;
+                        model = "jcm800".to_owned();
                     }
                     _ => bail!("unknown preset '{name}'"),
                 }
+            }
+            "--model" => {
+                model = match next_value(&mut args, "--model")?.to_lowercase().as_str() {
+                    "ac30" | "vox" => "ac30".to_owned(),
+                    "dumble" | "ods" => "dumble".to_owned(),
+                    "jcm800" | "jcm-800" | "marshall" => "jcm800".to_owned(),
+                    name => bail!("unknown model '{name}'"),
+                };
             }
             "--drive" => drive = parse_pot(&mut args, "--drive")?,
             "--presence" => presence = parse_pot(&mut args, "--presence")?,
@@ -475,7 +502,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
         output_db,
         ir,
         monitor,
-        dumble_model,
+        model,
     })
 }
 
@@ -571,6 +598,7 @@ fn print_help() {
          \x20 --bass N                  Top Boost bass, 0-10 [default: 5.0]\n\
          \x20 --treble N                Top Boost treble, 0-10 [default: 6.0]\n\
          \x20 --cut N                   Power amp Cut, 0-10 [default: 3.5]\n\
+         \x20 --model NAME              Amp model: ac30, dumble, jcm800 [default: ac30]\n\
          \x20 --input-db DB             Interface input calibration [default: 0]\n\
          \x20 --output-db DB            Safety output trim [default: -9]\n\
          \x20 --monitor                 Print input/output dBFS peaks, clip counts, and xruns\n\
