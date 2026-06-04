@@ -60,7 +60,6 @@ standalone-with-ir-driven: CUT=5.2
 standalone-with-ir-driven: OUTPUT_DB=-17
 standalone-with-ir-driven: standalone-with-ir
 
-.PHONY: standalone-dumble standalone-dumble-ir
 standalone-dumble: build
 	$(CLI) --device '$(DEVICE)' \
 		--input-channel $(INPUT_CHANNEL) --output-channels $(OUTPUT_CHANNELS) \
@@ -89,3 +88,5 @@ desktop-release:
 
 run-desktop: desktop-release
 	$(DESKTOP)
+
+.PHONY: standalone-dumble standalone-dumble-ir
