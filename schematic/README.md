@@ -20,7 +20,7 @@ component-exact wave-digital simulation.
 The OS/010 tone network itself is solved from its circuit topology with
 trapezoidal Modified Nodal Analysis. The model includes the split 1M Treble
 and Bass potentiometers, 50pF and two 22nF capacitors, the 100k and 10k
-ground paths, finite first-triode source impedance, and the downstream load.
+ground paths, low cathode-follower source impedance, and the downstream load.
 
 ## Sources
 

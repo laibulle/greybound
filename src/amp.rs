@@ -59,7 +59,6 @@ struct AmpCore {
     sample_rate: f32,
     input_coupling: WdfHighpass,
     first_cathode_bypass: WdfHighpass,
-    recovery_cathode_bypass: WdfHighpass,
     bright_filter: OnePoleLowpass,
     tone_stack: TopBoostToneStack,
     phase_inverter_coupling: WdfHighpass,
@@ -76,7 +75,6 @@ impl AmpCore {
             sample_rate,
             input_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
             first_cathode_bypass: WdfHighpass::from_rc(sample_rate, 1_500.0, 25e-6),
-            recovery_cathode_bypass: WdfHighpass::from_rc(sample_rate, 1_500.0, 25e-6),
             bright_filter: OnePoleLowpass::new(sample_rate, 2_900.0),
             tone_stack: TopBoostToneStack::new(sample_rate),
             phase_inverter_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
@@ -106,15 +104,17 @@ impl AmpCore {
         let first_drive = volume_output * 4.8 + first_bypass * 0.8;
         let first_stage = triode_stage(first_drive, 0.16);
 
+        // The second OS/010 triode is a cathode follower. It adds a small
+        // amount of asymmetry but primarily provides the low source impedance
+        // needed to drive the passive tone network without smearing attacks.
+        let cathode_follower = cathode_follower(first_stage);
         let toned = self
             .tone_stack
-            .process(first_stage, controls.bass, controls.treble);
-        let recovery_bypass = self.recovery_cathode_bypass.process(toned);
-        let recovery = triode_stage(toned * 4.2 + recovery_bypass * 0.7, 0.12);
+            .process(cathode_follower, controls.bass, controls.treble);
 
         // The long-tail pair produces opposed, slightly imbalanced outputs. The
         // Cut network sits across those outputs, before the EL84 grid couplers.
-        let pi_input = self.phase_inverter_coupling.process(recovery);
+        let pi_input = self.phase_inverter_coupling.process(toned * 4.8);
         let phase_a = triode_stage(pi_input * 1.38, 0.045);
         let phase_b = triode_stage(-pi_input * 1.32, -0.035);
         let differential = (phase_a - phase_b) * 0.5;
@@ -234,9 +234,9 @@ impl TopBoostToneStack {
         }
         let mut rhs = [0.0; TONE_STACK_NODES];
 
-        // The first ECC83 plate drives the stack through its finite output
-        // impedance. OS/010 shows a 220k load at OUT.
-        stamp_source_rhs(&mut rhs, SOURCE, 38_000.0, input);
+        // The second OS/010 triode is a cathode follower. OS/010 shows a 220k
+        // load at OUT.
+        stamp_source_rhs(&mut rhs, SOURCE, 820.0, input);
         self.treble_capacitor
             .stamp_rhs(&mut rhs, SOURCE, TREBLE_TOP);
         self.bass_coupling_capacitor
@@ -265,7 +265,7 @@ impl TopBoostToneStack {
         const POT_OHMS: f32 = 1_000_000.0;
 
         let mut matrix = [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES];
-        stamp_resistor_to_ground(&mut matrix, SOURCE, 38_000.0);
+        stamp_resistor_to_ground(&mut matrix, SOURCE, 820.0);
         stamp_resistor_to_ground(&mut matrix, OUTPUT, 220_000.0);
 
         let treble_position = 1.0 - audio_taper(treble);
@@ -504,6 +504,11 @@ fn triode_stage(input: f32, bias: f32) -> f32 {
 }
 
 #[inline]
+fn cathode_follower(input: f32) -> f32 {
+    input * 0.96 + input * input * 0.018
+}
+
+#[inline]
 fn el84_bank(input: f32) -> f32 {
     let conducting = (input + 0.18).max(0.0);
     (conducting - 0.055 * conducting * conducting * conducting).tanh()
@@ -685,6 +690,13 @@ mod tests {
             (bass_effect_with_low_treble - bass_effect_with_high_treble).abs() > 0.1,
             "bass effects: low treble={bass_effect_with_low_treble}, high treble={bass_effect_with_high_treble}"
         );
+    }
+
+    #[test]
+    fn cathode_follower_preserves_small_signal_dynamics() {
+        let quiet = cathode_follower(0.1);
+        let loud = cathode_follower(0.2);
+        assert!(loud / quiet > 1.95);
     }
 
     #[test]

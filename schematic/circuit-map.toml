@@ -19,16 +19,14 @@ treble_cap_pf = 50
 bass_caps_uf = [0.022, 0.022]
 slope_resistor_ohms = 100000
 bass_output_resistor_ohms = 10000
-source_impedance_ohms = 38000
+source_impedance_ohms = 820
 output_load_ohms = 220000
 model = "seven-node trapezoidal MNA solve of the interactive passive OS/010 network"
 
 [top_boost_recovery_triode]
 tube = "ECC83 / 12AX7"
-plate_resistor_ohms = 100000
-cathode_resistor_ohms = 1500
-cathode_bypass_cap_uf = 25
-model = "asymmetric nonlinear recovery gain"
+cathode_resistor_ohms = 50000
+model = "low-distortion cathode follower driving the passive tone network"
 
 [phase_inverter]
 topology = "long-tail pair"
