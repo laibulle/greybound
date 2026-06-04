@@ -15,6 +15,7 @@ build:
 
 
 CLI := target/release/voxbox-cli
+DESKTOP :=target/release/voxbox-desktop
 
 standalone: build
 	$(CLI) --device '$(DEVICE)' \
@@ -64,3 +65,12 @@ devices: build
 
 compare-ac30:
 	cargo test --test ac30_reference -- --ignored --nocapture
+
+desktop:
+	cargo run -p desktop
+
+desktop-release:
+	cargo run -p desktop --release
+
+run-desktop: desktop-release
+	$(DESKTOP)

@@ -1,0 +1,10 @@
+[package]
+name = "desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Desktop frontend for VoxBox using iced."
+
+[dependencies]
+iced = { version = "0.10", features = ["canvas"] }
+voxbox-ui = { path = "../ui" }

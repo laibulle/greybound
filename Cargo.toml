@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "cli"]
+members = ["core", "cli", "ui", "desktop"]
 
 [profile.release]
 lto = "thin"
