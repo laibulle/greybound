@@ -213,14 +213,11 @@ fn load_embedded_ir(sample_rate: u32) -> Result<Vec<f32>> {
         bail!("embedded speaker IR has an unexpected format");
     }
 
-    reader
-        .samples::<i32>()
-        .map(|sample| {
-            sample
-                .map(|value| value as f32 / 8_388_608.0)
-                .context("could not decode speaker IR")
-        })
-        .collect::<Result<Vec<f32>>>()
+    let samples: Vec<f32> = reader
+        .samples::<f32>()
+        .map(|sample| sample.unwrap_or(0.0))
+        .collect();
+    Ok(samples)
 }
 
 #[cfg(test)]
