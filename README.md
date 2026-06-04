@@ -10,7 +10,7 @@ schematic topology using WDF RC networks, filters, and behavioral nonlinear
 stages:
 
 - bright-capped Top Boost volume and two ECC83 gain stages
-- interactive Top Boost bass/treble network
+- circuit-derived MNA Top Boost bass/treble network
 - long-tail-pair phase inverter and post-PI Cut control
 - hot cathode-biased push-pull EL84 quartet with bias shift and GZ34-like sag
 - output-transformer bandwidth followed by the optional speaker IR

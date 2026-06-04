@@ -3,6 +3,7 @@ use rill_core_wdf::{filters::RcPole, WdfElement};
 pub const AMP_LATENCY: usize = 16;
 const OVERSAMPLING_FACTOR: f32 = 2.0;
 const HALF_BAND_TAPS: usize = 33;
+const TONE_STACK_NODES: usize = 7;
 
 #[derive(Clone, Copy)]
 pub struct AmpControls {
@@ -199,33 +200,255 @@ fn half_band_coefficients() -> [f32; HALF_BAND_TAPS] {
 }
 
 struct TopBoostToneStack {
-    bass_split: OnePoleLowpass,
-    treble_split: OnePoleLowpass,
+    treble_capacitor: TrapezoidalCapacitor,
+    bass_coupling_capacitor: TrapezoidalCapacitor,
+    bass_capacitor: TrapezoidalCapacitor,
+    inverse_matrix: [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    bass: f32,
+    treble: f32,
 }
 
 impl TopBoostToneStack {
     fn new(sample_rate: f32) -> Self {
         Self {
-            bass_split: OnePoleLowpass::new(sample_rate, 170.0),
-            treble_split: OnePoleLowpass::new(sample_rate, 1_850.0),
+            treble_capacitor: TrapezoidalCapacitor::new(50e-12, sample_rate),
+            bass_coupling_capacitor: TrapezoidalCapacitor::new(22e-9, sample_rate),
+            bass_capacitor: TrapezoidalCapacitor::new(22e-9, sample_rate),
+            inverse_matrix: [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES],
+            bass: f32::NAN,
+            treble: f32::NAN,
         }
     }
 
     #[inline]
     fn process(&mut self, input: f32, bass: f32, treble: f32) -> f32 {
-        let low = self.bass_split.process(input);
-        let high = input - self.treble_split.process(input);
-        let mid = input - low - high;
-        let bass = bass * bass;
-        let treble = treble * treble;
+        const SOURCE: usize = 0;
+        const TREBLE_TOP: usize = 1;
+        const TREBLE_BOTTOM: usize = 2;
+        const SLOPE_NODE: usize = 3;
+        const BASS_WIPER: usize = 4;
+        const OUTPUT: usize = 6;
 
-        // The OS/010 1M controls are strongly interactive. Raising both creates
-        // the characteristic mid scoop; backing either down restores mids.
-        let low_gain = 0.08 + bass * 0.58;
-        let high_gain = 0.07 + treble * 0.78;
-        let mid_gain = 0.30 - bass * treble * 0.17 + (1.0 - bass) * (1.0 - treble) * 0.08;
-        low * low_gain + mid * mid_gain + high * high_gain
+        if bass != self.bass || treble != self.treble {
+            self.update_matrix(bass, treble);
+        }
+        let mut rhs = [0.0; TONE_STACK_NODES];
+
+        // The first ECC83 plate drives the stack through its finite output
+        // impedance. OS/010 shows a 220k load at OUT.
+        stamp_source_rhs(&mut rhs, SOURCE, 38_000.0, input);
+        self.treble_capacitor
+            .stamp_rhs(&mut rhs, SOURCE, TREBLE_TOP);
+        self.bass_coupling_capacitor
+            .stamp_rhs(&mut rhs, TREBLE_BOTTOM, SLOPE_NODE);
+        self.bass_capacitor
+            .stamp_rhs(&mut rhs, SLOPE_NODE, BASS_WIPER);
+
+        let voltages = multiply_tone_stack(self.inverse_matrix, rhs);
+        self.treble_capacitor
+            .update(voltages[SOURCE], voltages[TREBLE_TOP]);
+        self.bass_coupling_capacitor
+            .update(voltages[TREBLE_BOTTOM], voltages[SLOPE_NODE]);
+        self.bass_capacitor
+            .update(voltages[SLOPE_NODE], voltages[BASS_WIPER]);
+        voltages[OUTPUT]
     }
+
+    fn update_matrix(&mut self, bass: f32, treble: f32) {
+        const SOURCE: usize = 0;
+        const TREBLE_TOP: usize = 1;
+        const TREBLE_BOTTOM: usize = 2;
+        const SLOPE_NODE: usize = 3;
+        const BASS_WIPER: usize = 4;
+        const BASS_BOTTOM: usize = 5;
+        const OUTPUT: usize = 6;
+        const POT_OHMS: f32 = 1_000_000.0;
+
+        let mut matrix = [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES];
+        stamp_resistor_to_ground(&mut matrix, SOURCE, 38_000.0);
+        stamp_resistor_to_ground(&mut matrix, OUTPUT, 220_000.0);
+
+        let treble_position = 1.0 - audio_taper(treble);
+        stamp_resistor(
+            &mut matrix,
+            TREBLE_TOP,
+            OUTPUT,
+            pot_segment(POT_OHMS * treble_position),
+        );
+        stamp_resistor(
+            &mut matrix,
+            OUTPUT,
+            TREBLE_BOTTOM,
+            pot_segment(POT_OHMS * (1.0 - treble_position)),
+        );
+
+        // The OS/010 Bass pot is wired in the opposite direction to the
+        // Treble pot: clockwise rotation moves the wiper toward C3.
+        let bass_position = 1.0 - audio_taper(bass);
+        stamp_resistor(
+            &mut matrix,
+            TREBLE_BOTTOM,
+            BASS_WIPER,
+            pot_segment(POT_OHMS * bass_position),
+        );
+        stamp_resistor(
+            &mut matrix,
+            BASS_WIPER,
+            BASS_BOTTOM,
+            pot_segment(POT_OHMS * (1.0 - bass_position)),
+        );
+        stamp_resistor_to_ground(&mut matrix, SLOPE_NODE, 100_000.0);
+        stamp_resistor_to_ground(&mut matrix, BASS_BOTTOM, 10_000.0);
+
+        self.treble_capacitor
+            .stamp_conductance(&mut matrix, SOURCE, TREBLE_TOP);
+        self.bass_coupling_capacitor
+            .stamp_conductance(&mut matrix, TREBLE_BOTTOM, SLOPE_NODE);
+        self.bass_capacitor
+            .stamp_conductance(&mut matrix, SLOPE_NODE, BASS_WIPER);
+
+        self.inverse_matrix = invert_tone_stack(matrix);
+        self.bass = bass;
+        self.treble = treble;
+    }
+}
+
+struct TrapezoidalCapacitor {
+    conductance: f32,
+    previous_voltage: f32,
+    previous_current: f32,
+}
+
+impl TrapezoidalCapacitor {
+    fn new(capacitance: f32, sample_rate: f32) -> Self {
+        Self {
+            conductance: 2.0 * capacitance * sample_rate,
+            previous_voltage: 0.0,
+            previous_current: 0.0,
+        }
+    }
+
+    fn stamp_conductance(
+        &self,
+        matrix: &mut [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+        a: usize,
+        b: usize,
+    ) {
+        stamp_conductance(matrix, a, b, self.conductance);
+    }
+
+    fn stamp_rhs(&self, rhs: &mut [f32; TONE_STACK_NODES], a: usize, b: usize) {
+        let history_current = -self.conductance * self.previous_voltage - self.previous_current;
+        rhs[a] -= history_current;
+        rhs[b] += history_current;
+    }
+
+    fn update(&mut self, a: f32, b: f32) {
+        let voltage = a - b;
+        self.previous_current =
+            self.conductance * (voltage - self.previous_voltage) - self.previous_current;
+        self.previous_voltage = voltage;
+    }
+}
+
+fn audio_taper(position: f32) -> f32 {
+    10.0_f32.powf(2.0 * position.clamp(0.0, 1.0) - 2.0)
+}
+
+fn pot_segment(resistance: f32) -> f32 {
+    resistance.max(1.0)
+}
+
+fn stamp_resistor(
+    matrix: &mut [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    a: usize,
+    b: usize,
+    resistance: f32,
+) {
+    stamp_conductance(matrix, a, b, 1.0 / resistance);
+}
+
+fn stamp_conductance(
+    matrix: &mut [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    a: usize,
+    b: usize,
+    conductance: f32,
+) {
+    matrix[a][a] += conductance;
+    matrix[b][b] += conductance;
+    matrix[a][b] -= conductance;
+    matrix[b][a] -= conductance;
+}
+
+fn stamp_resistor_to_ground(
+    matrix: &mut [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    node: usize,
+    resistance: f32,
+) {
+    matrix[node][node] += 1.0 / resistance;
+}
+
+fn stamp_source_rhs(rhs: &mut [f32; TONE_STACK_NODES], node: usize, resistance: f32, source: f32) {
+    rhs[node] += source / resistance;
+}
+
+fn solve_tone_stack(
+    mut matrix: [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    mut rhs: [f32; TONE_STACK_NODES],
+) -> [f32; TONE_STACK_NODES] {
+    for pivot in 0..TONE_STACK_NODES {
+        let mut best_row = pivot;
+        for row in pivot + 1..TONE_STACK_NODES {
+            if matrix[row][pivot].abs() > matrix[best_row][pivot].abs() {
+                best_row = row;
+            }
+        }
+        if best_row != pivot {
+            matrix.swap(pivot, best_row);
+            rhs.swap(pivot, best_row);
+        }
+
+        let inverse_pivot = 1.0 / matrix[pivot][pivot];
+        for value in &mut matrix[pivot][pivot..] {
+            *value *= inverse_pivot;
+        }
+        rhs[pivot] *= inverse_pivot;
+        let pivot_row = matrix[pivot];
+
+        for row in 0..TONE_STACK_NODES {
+            if row == pivot {
+                continue;
+            }
+            let factor = matrix[row][pivot];
+            for (value, pivot_value) in matrix[row][pivot..].iter_mut().zip(&pivot_row[pivot..]) {
+                *value -= factor * pivot_value;
+            }
+            rhs[row] -= factor * rhs[pivot];
+        }
+    }
+    rhs
+}
+
+fn invert_tone_stack(
+    matrix: [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+) -> [[f32; TONE_STACK_NODES]; TONE_STACK_NODES] {
+    let mut inverse = [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES];
+    for column in 0..TONE_STACK_NODES {
+        let mut basis = [0.0; TONE_STACK_NODES];
+        basis[column] = 1.0;
+        let solution = solve_tone_stack(matrix, basis);
+        for (row, value) in solution.into_iter().enumerate() {
+            inverse[row][column] = value;
+        }
+    }
+    inverse
+}
+
+fn multiply_tone_stack(
+    matrix: [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
+    vector: [f32; TONE_STACK_NODES],
+) -> [f32; TONE_STACK_NODES] {
+    matrix.map(|row| row.into_iter().zip(vector).map(|(a, b)| a * b).sum())
 }
 
 struct EnvelopeFollower {
@@ -349,6 +572,20 @@ mod tests {
         sine_rms_at(amp, frequency, 0.02, controls)
     }
 
+    fn tone_stack_rms(frequency: f32, bass: f32, treble: f32) -> f32 {
+        let sample_rate = 96_000.0;
+        let mut stack = TopBoostToneStack::new(sample_rate);
+        let mut sum = 0.0;
+        for sample_idx in 0..19_200 {
+            let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / sample_rate).sin();
+            let output = stack.process(input, bass, treble);
+            if sample_idx >= 9_600 {
+                sum += output * output;
+            }
+        }
+        (sum / 9_600.0).sqrt()
+    }
+
     #[test]
     fn silence_stays_silent() {
         let mut amp = VoxAmp::new(48_000.0);
@@ -383,9 +620,12 @@ mod tests {
         let mut high_bass = low_bass;
         high_bass.bass = 1.0;
 
-        let low = sine_rms(&mut VoxAmp::new(48_000.0), 90.0, low_bass);
-        let high = sine_rms(&mut VoxAmp::new(48_000.0), 90.0, high_bass);
-        assert!(high > low * 1.2);
+        let low = sine_rms(&mut VoxAmp::new(48_000.0), 250.0, low_bass);
+        let high = sine_rms(&mut VoxAmp::new(48_000.0), 250.0, high_bass);
+        assert!(
+            high > low * 1.2,
+            "low-bass level={low}, high-bass level={high}"
+        );
     }
 
     #[test]
@@ -411,6 +651,40 @@ mod tests {
         let low = sine_rms(&mut VoxAmp::new(48_000.0), 4_000.0, low_treble);
         let high = sine_rms(&mut VoxAmp::new(48_000.0), 4_000.0, high_treble);
         assert!(high > low * 1.2);
+    }
+
+    #[test]
+    fn tone_stack_is_passive() {
+        for frequency in [80.0, 500.0, 2_000.0, 8_000.0] {
+            for bass in [0.0, 0.5, 1.0] {
+                for treble in [0.0, 0.5, 1.0] {
+                    assert!(tone_stack_rms(frequency, bass, treble) <= 1.0 / 2.0_f32.sqrt());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tone_stack_blocks_dc() {
+        let mut stack = TopBoostToneStack::new(96_000.0);
+        let mut output = 0.0;
+        for _ in 0..96_000 {
+            output = stack.process(1.0, 0.5, 0.5);
+        }
+        assert!(output.abs() < 1e-3);
+    }
+
+    #[test]
+    fn tone_stack_controls_are_interactive() {
+        let bass_effect_with_low_treble =
+            tone_stack_rms(90.0, 1.0, 0.0) / tone_stack_rms(90.0, 0.0, 0.0);
+        let bass_effect_with_high_treble =
+            tone_stack_rms(90.0, 1.0, 1.0) / tone_stack_rms(90.0, 0.0, 1.0);
+
+        assert!(
+            (bass_effect_with_low_treble - bass_effect_with_high_treble).abs() > 0.1,
+            "bass effects: low treble={bass_effect_with_low_treble}, high treble={bass_effect_with_high_treble}"
+        );
     }
 
     #[test]

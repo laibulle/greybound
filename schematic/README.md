@@ -17,6 +17,11 @@ The extracted component/topology map used by the DSP is in
 `circuit-map.toml`. This remains a real-time graybox model, not a SPICE or
 component-exact wave-digital simulation.
 
+The OS/010 tone network itself is solved from its circuit topology with
+trapezoidal Modified Nodal Analysis. The model includes the split 1M Treble
+and Bass potentiometers, 50pF and two 22nF capacitors, the 100k and 10k
+ground paths, finite first-triode source impedance, and the downstream load.
+
 ## Sources
 
 - https://www.voxac30.org.uk/vox_ac30_circuit_diagrams.html

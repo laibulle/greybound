@@ -18,7 +18,10 @@ bass_pot_ohms = 1000000
 treble_cap_pf = 50
 bass_caps_uf = [0.022, 0.022]
 slope_resistor_ohms = 100000
-model = "interactive passive three-band split"
+bass_output_resistor_ohms = 10000
+source_impedance_ohms = 38000
+output_load_ohms = 220000
+model = "seven-node trapezoidal MNA solve of the interactive passive OS/010 network"
 
 [top_boost_recovery_triode]
 tube = "ECC83 / 12AX7"
