@@ -53,4 +53,4 @@ model = "optional external impulse response stage; not part of amp core"
 
 [standalone_input_calibration]
 model = "audio-interface trim before modeled input jack"
-default_db = -12
+default_db = 0

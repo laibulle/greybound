@@ -61,20 +61,20 @@ impl VoxAmp {
         let volume_output = input * volume + high * (1.0 - volume) * 0.18;
 
         let first_bypass = self.first_cathode_bypass.process(volume_output);
-        let first_drive = volume_output * 3.8 + first_bypass * 0.7;
+        let first_drive = volume_output * 4.8 + first_bypass * 0.8;
         let first_stage = triode_stage(first_drive, 0.16);
 
         let toned = self
             .tone_stack
             .process(first_stage, controls.bass, controls.treble);
         let recovery_bypass = self.recovery_cathode_bypass.process(toned);
-        let recovery = triode_stage(toned * 3.4 + recovery_bypass * 0.6, 0.12);
+        let recovery = triode_stage(toned * 4.2 + recovery_bypass * 0.7, 0.12);
 
         // The long-tail pair produces opposed, slightly imbalanced outputs. The
         // Cut network sits across those outputs, before the EL84 grid couplers.
         let pi_input = self.phase_inverter_coupling.process(recovery);
-        let phase_a = triode_stage(pi_input * 1.25, 0.045);
-        let phase_b = triode_stage(-pi_input * 1.20, -0.035);
+        let phase_a = triode_stage(pi_input * 1.38, 0.045);
+        let phase_b = triode_stage(-pi_input * 1.32, -0.035);
         let differential = (phase_a - phase_b) * 0.5;
         let cut_hz = 13_500.0 * (1.0 - controls.cut).powi(2) + 1_150.0;
         self.cut_filter.set_cutoff(self.sample_rate, cut_hz);
@@ -83,10 +83,10 @@ impl VoxAmp {
         // Four hot cathode-biased EL84s behave as push-pull class AB, not ideal
         // class A. Bias shift and supply sag mainly appear when the output stage
         // is driven beyond its clean-current region.
-        let current_demand = (cut_output.abs() * 1.45 - 0.58).max(0.0);
+        let current_demand = (cut_output.abs() * 1.60 - 0.62).max(0.0);
         let bias_shift = self.bias_envelope.process(current_demand);
         let sag = self.supply_sag.process(current_demand * current_demand);
-        let drive = cut_output * 1.45 / (1.0 + bias_shift * 0.55 + sag * 0.22);
+        let drive = cut_output * 1.60 / (1.0 + bias_shift * 0.55 + sag * 0.22);
         let positive_bank = el84_bank(drive - bias_shift * 0.055);
         let negative_bank = el84_bank(-drive - bias_shift * 0.045);
         let power_output = (positive_bank - negative_bank) * 0.72;
@@ -328,5 +328,20 @@ mod tests {
         let high_level = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.01, high);
         assert!(high_level > low_level * 2.5);
         assert!(high_level < low_level * 6.0);
+    }
+
+    #[test]
+    fn fully_driven_setting_compresses_more_than_clean() {
+        let mut clean = controls();
+        clean.volume = 0.32;
+        let mut driven = clean;
+        driven.volume = 1.0;
+
+        let clean_quiet = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.05, clean);
+        let clean_loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.10, clean);
+        let driven_quiet = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.05, driven);
+        let driven_loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.10, driven);
+
+        assert!(clean_loud / clean_quiet > driven_loud / driven_quiet);
     }
 }

@@ -146,7 +146,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let mut bass = 5.0;
     let mut treble = 6.0;
     let mut cut = 3.5;
-    let mut input_db = -12.0;
+    let mut input_db = 0.0;
     let mut output_db = -9.0;
     let mut ir = false;
     let mut args = env::args().skip(1);
@@ -321,7 +321,7 @@ fn print_help() {
          \x20 --bass N                  Top Boost bass, 0-10 [default: 5.0]\n\
          \x20 --treble N                Top Boost treble, 0-10 [default: 6.0]\n\
          \x20 --cut N                   Power amp Cut, 0-10 [default: 3.5]\n\
-         \x20 --input-db DB             Interface input calibration [default: -12]\n\
+         \x20 --input-db DB             Interface input calibration [default: 0]\n\
          \x20 --output-db DB            Safety output trim [default: -9]\n\
          \x20 --ir                      Enable the embedded 200 ms speaker IR\n\
          \x20 --list-devices            List CoreAudio devices"

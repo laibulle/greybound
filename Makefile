@@ -7,7 +7,7 @@ VOLUME ?= 5.5
 BASS ?= 5.0
 TREBLE ?= 6.0
 CUT ?= 3.5
-INPUT_DB ?= -12
+INPUT_DB ?= 0
 OUTPUT_DB ?= -9
 
 build:
@@ -52,10 +52,8 @@ standalone-with-ir-driven: VOLUME=10.0
 standalone-with-ir-driven: BASS=3.5
 standalone-with-ir-driven: TREBLE=6.8
 standalone-with-ir-driven: CUT=4.8
-standalone-with-ir-driven: OUTPUT_DB=-17
+standalone-with-ir-driven: OUTPUT_DB=-14
 standalone-with-ir-driven: standalone-with-ir
-
-standalone-with-ir-dimed: standalone-with-ir-driven
 
 devices: build
 	target/release/voxbox-standalone --list-devices
