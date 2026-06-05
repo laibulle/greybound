@@ -22,6 +22,7 @@ const RMS_SCALE: f64 = 1_000_000_000.0;
 const NEAR_CLIP_LEVEL: f32 = 0.98;
 const CLIP_LEVEL: f32 = 1.0;
 const MONITOR_LOG_LINES: usize = 5_000;
+const MONITOR_REFRESH: Duration = Duration::from_millis(250);
 const VU_WIDTH: usize = 28;
 
 #[derive(Default)]
@@ -309,10 +310,10 @@ fn format_monitor_dashboard(
     let in_rms = rms_from_scaled(stats.input_sum_squares, stats.input_count);
     let out_rms = rms_from_scaled(stats.output_sum_squares, stats.output_count);
     let mut text = format!(
-        "VoxBox monitor  model {model}  log {}\n\
-         input  rms {:>6} dBFS {} peak {:>6} dBFS near/clip {}/{}\n\
-         output rms {:>6} dBFS {} peak {:>6} dBFS near/clip {}/{}\n\
-         xrun in/out {}/{}\n",
+        "🎸 VoxBox monitor  model {model}  log {}\n\
+         🎚 input  rms {:>6} dBFS {} peak {:>6} dBFS near/clip {}/{}\n\
+         🔊 output rms {:>6} dBFS {} peak {:>6} dBFS near/clip {}/{}\n\
+         ⚡ xrun in/out {}/{}\n",
         log_path.display(),
         format_dbfs(in_rms),
         vu_meter(in_rms, VU_WIDTH),
@@ -330,9 +331,9 @@ fn format_monitor_dashboard(
 
     if let Some(components) = components {
         text.push_str(&format!(
-            "rails pre/pi/pwr {:>5.0}/{:>5.0}/{:>5.0} V\n\
-             current first/pi/pwr {:>5.2}/{:>5.2}/{:>5.1} mA\n\
-             cath {:>5.2} V   flux {:+.5}\n",
+            "🔋 rails pre/pi/pwr {:>5.0}/{:>5.0}/{:>5.0} V\n\
+             🔥 current first/pi/pwr {:>5.2}/{:>5.2}/{:>5.1} mA\n\
+             🧲 cath {:>5.2} V   flux {:+.5}\n",
             components.preamp_voltage,
             components.phase_inverter_voltage,
             components.power_voltage,
@@ -655,7 +656,7 @@ fn main() -> Result<()> {
         std::thread::spawn(move || {
             let mut log = RotatingMonitorLog::new(monitor_log_path.clone(), MONITOR_LOG_LINES);
             loop {
-                std::thread::sleep(Duration::from_secs(1));
+                std::thread::sleep(MONITOR_REFRESH);
                 let stats = monitor.snapshot_and_reset();
                 let component_snapshot = show_components.then(|| components.snapshot());
                 let timestamp = unix_timestamp();
@@ -1101,12 +1102,12 @@ mod tests {
             Path::new("voxbox-monitor.log"),
         );
 
-        assert!(dashboard.contains("VoxBox monitor  model nox"));
-        assert!(dashboard.contains("input  rms"));
+        assert!(dashboard.contains("🎸 VoxBox monitor  model nox"));
+        assert!(dashboard.contains("🎚 input  rms"));
         assert!(dashboard.contains("-6.0 dBFS ["));
-        assert!(dashboard.contains("output rms"));
+        assert!(dashboard.contains("🔊 output rms"));
         assert!(dashboard.contains("-20.0 dBFS ["));
-        assert!(dashboard.contains("rails pre/pi/pwr"));
+        assert!(dashboard.contains("🔋 rails pre/pi/pwr"));
         assert!(dashboard.contains("Press Ctrl-C to stop."));
     }
 
