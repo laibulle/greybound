@@ -261,7 +261,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
-            output: 10.0_f32.powf(-22.0 / 20.0),
+            output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
             sag: 0.70,
@@ -280,8 +280,40 @@ mod tests {
         }
 
         let rms = (sum / count as f32).sqrt();
-        assert!(rms > 0.003, "rms={rms}, peak={peak}");
+        assert!(rms > 0.003, "rms={rms}, peak={peak}, count={count}");
         assert!(peak < 0.95, "rms={rms}, peak={peak}");
+    }
+
+    #[test]
+    fn standalone_nox_file_preset_keeps_producing_output() {
+        let mut amp = VoxAmp::with_model(44_100.0, "nox");
+        let mut speaker = SpeakerStage::from_embedded_ir(44_100).unwrap();
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let samples = load_test_guitar_wav();
+        let mut second_sums = [0.0; 8];
+        let mut second_counts = [0; 8];
+
+        for (sample_idx, input) in samples.into_iter().cycle().take(44_100 * 8).enumerate() {
+            let output = speaker.process(amp.process(input, controls), true);
+            assert!(output.is_finite());
+            let second = sample_idx / 44_100;
+            second_sums[second] += output * output;
+            second_counts[second] += 1;
+        }
+
+        for (second, (&sum, &count)) in second_sums.iter().zip(&second_counts).enumerate() {
+            let rms = (sum / count as f32).sqrt();
+            assert!(rms > 0.0002, "second={second}, rms={rms}");
+        }
     }
 
     #[test]

@@ -576,7 +576,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                         bass = 5.2;
                         treble = 6.1;
                         cut = 4.7;
-                        output_db = -22.0;
+                        output_db = -18.0;
                         drive = 6.8;
                         presence = 4.4;
                         sag = 7.0;
