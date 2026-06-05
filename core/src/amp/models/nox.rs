@@ -1,8 +1,7 @@
 use super::AmpModel;
-use crate::amp::components::{
-    el84_bank, OnePoleLowpass, SupplyNode, TopBoostToneStack, WdfHighpass,
-};
+use crate::amp::components::{OnePoleLowpass, TopBoostToneStack, WdfHighpass};
 use crate::amp::AmpControls;
+use crate::circuit::power::{PushPullEl84Params, PushPullEl84Stage};
 use crate::circuit::triode::{
     CathodeFollowerParams, CathodeFollowerStage, CommonCathodeParams, CommonCathodeStage,
     LongTailPairParams, LongTailPairStage, TriodeParams,
@@ -22,7 +21,7 @@ pub(in crate::amp) struct Nox {
     cut_filter: OnePoleLowpass,
     transformer_highpass: WdfHighpass,
     transformer_lowpass: OnePoleLowpass,
-    power_supply: SupplyNode,
+    power_stage: PushPullEl84Stage,
 }
 
 impl Nox {
@@ -41,7 +40,7 @@ impl Nox {
             cut_filter: OnePoleLowpass::new(sample_rate, 12_000.0),
             transformer_highpass: WdfHighpass::from_rc(sample_rate, 100_000.0, 47e-9),
             transformer_lowpass: OnePoleLowpass::new(sample_rate, 13_000.0),
-            power_supply: SupplyNode::new(sample_rate, 320.0, 360.0, 32e-6),
+            power_stage: PushPullEl84Stage::new(power_stage_params(sample_rate)),
         }
     }
 }
@@ -88,14 +87,7 @@ impl AmpModel for Nox {
         let presence = controls.presence.clamp(0.0, 1.0);
         let voiced_output = cut_output + (differential - cut_output) * presence * 0.35;
 
-        let power_voltage = self.power_supply.normalized();
-        let power_drive = voiced_output * 1.58 * power_voltage;
-        let positive_bank = el84_bank(power_drive);
-        let negative_bank = el84_bank(-power_drive);
-        let push_pull_current =
-            (positive_bank.abs() + negative_bank.abs()) * (0.020 + controls.sag * 0.700);
-        let updated_power_voltage = self.power_supply.process(push_pull_current) / 320.0;
-        let power_output = (positive_bank - negative_bank) * 0.72 * updated_power_voltage;
+        let power_output = self.power_stage.process(voiced_output, controls.sag);
 
         let mut transformer = self.transformer_highpass.process(power_output);
         transformer = self.transformer_lowpass.process(transformer);
@@ -179,5 +171,21 @@ fn phase_inverter_params(sample_rate: f32) -> LongTailPairParams {
         input_gain: 1.0,
         output_scale: 0.018,
         triode: TriodeParams::ECC83,
+    }
+}
+
+fn power_stage_params(sample_rate: f32) -> PushPullEl84Params {
+    PushPullEl84Params {
+        sample_rate,
+        nominal_supply_voltage: 320.0,
+        supply_resistance: 360.0,
+        supply_capacitance: 32e-6,
+        cathode_resistance: 130.0,
+        cathode_capacitance: 50e-6,
+        idle_current: 0.040,
+        drive_gain: 1.58,
+        current_gain: 0.92,
+        compression: 0.22,
+        output_scale: 36.0,
     }
 }

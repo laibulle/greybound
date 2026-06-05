@@ -1241,11 +1241,7 @@ mod tests {
         differential: f32,
     }
 
-    fn pair_node_rms(
-        stage: &mut LongTailPairStage,
-        frequency: f32,
-        amplitude: f32,
-    ) -> PairNodeRms {
+    fn pair_node_rms(stage: &mut LongTailPairStage, frequency: f32, amplitude: f32) -> PairNodeRms {
         let mut plate_a_samples = Vec::new();
         let mut plate_b_samples = Vec::new();
         let mut differential_samples = Vec::new();
