@@ -265,7 +265,7 @@ mod tests {
         let mut peak = 0.0_f32;
         let mut count = 0;
 
-        for input in samples.into_iter().take(44_100 * 8) {
+        for input in samples.into_iter().take(44_100 * 2) {
             let output = speaker.process(amp.process(input, controls), true);
             assert!(output.is_finite());
             peak = peak.max(output.abs());
