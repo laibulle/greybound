@@ -329,6 +329,40 @@ mod tests {
     }
 
     #[test]
+    fn nox_processing_cost_has_realtime_headroom() {
+        let mut amp = VoxAmp::with_model(44_100.0, "nox");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let mut sum = 0.0;
+        let sample_count = 44_100;
+        let start = std::time::Instant::now();
+
+        for sample_idx in 0..sample_count {
+            let t = sample_idx as f32 / 44_100.0;
+            let chord = (std::f32::consts::TAU * 196.0 * t).sin()
+                + (std::f32::consts::TAU * 247.0 * t).sin() * 0.7
+                + (std::f32::consts::TAU * 330.0 * t).sin() * 0.45;
+            let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
+            sum += amp.process(chord * 0.055 * pick, controls);
+        }
+
+        let elapsed = start.elapsed();
+        assert!(sum.is_finite());
+        assert!(
+            elapsed < std::time::Duration::from_millis(2_000),
+            "elapsed={elapsed:?} for {sample_count} nox samples"
+        );
+    }
+
+    #[test]
     fn reset_preserves_selected_model() {
         let mut controls = controls();
         controls.volume = 0.8;
