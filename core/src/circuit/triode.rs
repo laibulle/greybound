@@ -23,8 +23,11 @@ impl TriodeParams {
 #[derive(Clone, Copy)]
 pub struct CommonCathodeParams {
     pub sample_rate: f32,
+    pub grid_leak_resistance: f32,
+    pub input_coupling_capacitance: f32,
     pub plate_resistance: f32,
     pub cathode_resistance: f32,
+    pub cathode_bypass_capacitance: Option<f32>,
     pub supply_resistance: f32,
     pub supply_capacitance: f32,
     pub nominal_supply_voltage: f32,
@@ -36,6 +39,8 @@ pub struct CommonCathodeParams {
 pub struct CommonCathodeStage {
     params: CommonCathodeParams,
     supply_voltage: f32,
+    input_coupling_voltage: f32,
+    cathode_bypass_voltage: f32,
     last_plate_voltage: f32,
     last_cathode_voltage: f32,
 }
@@ -46,6 +51,8 @@ impl CommonCathodeStage {
         Self {
             params,
             supply_voltage: params.nominal_supply_voltage,
+            input_coupling_voltage: 0.0,
+            cathode_bypass_voltage: 0.0,
             last_plate_voltage: quiescent_plate,
             last_cathode_voltage: 1.5,
         }
@@ -53,6 +60,8 @@ impl CommonCathodeStage {
 
     pub fn reset(&mut self) {
         self.supply_voltage = self.params.nominal_supply_voltage;
+        self.input_coupling_voltage = 0.0;
+        self.cathode_bypass_voltage = 0.0;
         self.last_plate_voltage = self.params.nominal_supply_voltage * 0.62;
         self.last_cathode_voltage = 1.5;
     }
@@ -62,16 +71,27 @@ impl CommonCathodeStage {
     }
 
     pub fn process(&mut self, input: f32) -> f32 {
-        let grid_voltage = input * self.params.input_gain;
+        let grid_voltage = self.process_input_network(input * self.params.input_gain);
         let (plate_voltage, cathode_voltage, plate_current) =
             self.solve_operating_point(grid_voltage);
 
+        self.update_cathode_bypass(cathode_voltage);
         self.update_supply(plate_current);
         self.last_plate_voltage = plate_voltage;
         self.last_cathode_voltage = cathode_voltage;
 
         let centered_plate = plate_voltage - self.supply_voltage * 0.62;
         -centered_plate * self.params.output_scale
+    }
+
+    fn process_input_network(&mut self, input: f32) -> f32 {
+        let cutoff = 1.0
+            / (std::f32::consts::TAU
+                * self.params.grid_leak_resistance
+                * self.params.input_coupling_capacitance);
+        let coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / self.params.sample_rate).exp();
+        self.input_coupling_voltage += coefficient * (input - self.input_coupling_voltage);
+        input - self.input_coupling_voltage
     }
 
     fn solve_operating_point(&self, grid_voltage: f32) -> (f32, f32, f32) {
@@ -84,11 +104,12 @@ impl CommonCathodeStage {
 
         for _ in 0..NEWTON_ITERATIONS {
             let plate_current = self.triode_current(plate_voltage, grid_voltage, cathode_voltage);
-            let cathode_current = cathode_voltage / self.params.cathode_resistance;
+            let cathode_resistor_current = cathode_voltage / self.params.cathode_resistance;
+            let cathode_bypass_current = self.cathode_bypass_current(cathode_voltage);
 
             let f_plate = (self.supply_voltage - plate_voltage) / self.params.plate_resistance
                 - plate_current;
-            let f_cathode = plate_current - cathode_current;
+            let f_cathode = plate_current - cathode_resistor_current - cathode_bypass_current;
 
             if f_plate.abs().max(f_cathode.abs()) < NEWTON_TOLERANCE {
                 break;
@@ -107,7 +128,12 @@ impl CommonCathodeStage {
             let j11 = -1.0 / self.params.plate_resistance - di_dplate;
             let j12 = -di_dcathode;
             let j21 = di_dplate;
-            let j22 = di_dcathode - 1.0 / self.params.cathode_resistance;
+            let cathode_conductance = 1.0 / self.params.cathode_resistance
+                + self
+                    .params
+                    .cathode_bypass_capacitance
+                    .map_or(0.0, |capacitance| 2.0 * capacitance * self.params.sample_rate);
+            let j22 = di_dcathode - cathode_conductance;
             let determinant = j11 * j22 - j12 * j21;
             if determinant.abs() < 1e-12 {
                 break;
@@ -149,6 +175,21 @@ impl CommonCathodeStage {
                 .exp();
         self.supply_voltage += coefficient * (target - self.supply_voltage);
     }
+
+    fn cathode_bypass_current(&self, cathode_voltage: f32) -> f32 {
+        self.params.cathode_bypass_capacitance.map_or(0.0, |capacitance| {
+            let conductance = 2.0 * capacitance * self.params.sample_rate;
+            conductance * (cathode_voltage - self.cathode_bypass_voltage)
+        })
+    }
+
+    fn update_cathode_bypass(&mut self, cathode_voltage: f32) {
+        if let Some(capacitance) = self.params.cathode_bypass_capacitance {
+            let conductance = 2.0 * capacitance * self.params.sample_rate;
+            let current = conductance * (cathode_voltage - self.cathode_bypass_voltage);
+            self.cathode_bypass_voltage += current / conductance.max(1e-12);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -158,8 +199,11 @@ mod tests {
     fn stage() -> CommonCathodeStage {
         CommonCathodeStage::new(CommonCathodeParams {
             sample_rate: 48_000.0,
+            grid_leak_resistance: 1_000_000.0,
+            input_coupling_capacitance: 22e-9,
             plate_resistance: 100_000.0,
             cathode_resistance: 1_500.0,
+            cathode_bypass_capacitance: Some(25e-6),
             supply_resistance: 10_000.0,
             supply_capacitance: 22e-6,
             nominal_supply_voltage: 280.0,
@@ -211,5 +255,64 @@ mod tests {
         }
 
         assert!(loud.supply_voltage() < quiet.supply_voltage());
+    }
+
+    #[test]
+    fn input_coupling_blocks_dc() {
+        let mut dc_stage = stage();
+        let mut reference = stage();
+        let mut dc_settled = 0.0;
+        let mut reference_settled = 0.0;
+
+        for sample_idx in 0..96_000 {
+            let dc_output = dc_stage.process(0.25);
+            let reference_output = reference.process(0.0);
+            if sample_idx >= 95_000 {
+                dc_settled += dc_output;
+                reference_settled += reference_output;
+            }
+        }
+
+        assert!(((dc_settled - reference_settled) / 1_000.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn cathode_bypass_changes_midband_gain() {
+        let mut bypassed = stage();
+        let mut unbypassed = CommonCathodeStage::new(CommonCathodeParams {
+            cathode_bypass_capacitance: None,
+            ..stage().params
+        });
+
+        let bypassed_level = sine_rms(&mut bypassed, 1_000.0, 0.001);
+        let unbypassed_level = sine_rms(&mut unbypassed, 1_000.0, 0.001);
+        let ratio = bypassed_level / unbypassed_level;
+
+        assert!(
+            !(0.97..=1.03).contains(&ratio),
+            "bypassed={bypassed_level}, unbypassed={unbypassed_level}, ratio={ratio}"
+        );
+    }
+
+    fn sine_rms(stage: &mut CommonCathodeStage, frequency: f32, amplitude: f32) -> f32 {
+        let mut samples = Vec::new();
+        for sample_idx in 0..24_000 {
+            let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / 48_000.0).sin()
+                * amplitude;
+            let output = stage.process(input);
+            if sample_idx >= 12_000 {
+                samples.push(output);
+            }
+        }
+        let mean = samples.iter().sum::<f32>() / samples.len() as f32;
+        (samples
+            .iter()
+            .map(|sample| {
+                let centered = sample - mean;
+                centered * centered
+            })
+            .sum::<f32>()
+            / samples.len() as f32)
+            .sqrt()
     }
 }
