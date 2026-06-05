@@ -161,6 +161,49 @@ mod tests {
     }
 
     #[test]
+    fn nox_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox");
+        let mut controls = controls();
+        controls.volume = 0.9;
+        controls.bass = 0.6;
+        controls.treble = 0.6;
+        controls.cut = 0.45;
+        controls.sag = 0.8;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn nox_supply_sags_under_sustained_load() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox");
+        let mut controls = controls();
+        controls.volume = 1.0;
+        controls.cut = 0.2;
+        controls.output = 1.0;
+        controls.sag = 1.0;
+
+        let mut early = 0.0;
+        let mut late = 0.0;
+        for sample_idx in 0..24_000 {
+            let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.55;
+            let output = amp.process(input, controls);
+            if (512..2_560).contains(&sample_idx) {
+                early += output * output;
+            } else if sample_idx >= 21_952 {
+                late += output * output;
+            }
+        }
+
+        assert!(late < early * 0.96, "early={early}, late={late}");
+    }
+
+    #[test]
     fn reset_preserves_selected_model() {
         let mut controls = controls();
         controls.volume = 0.8;

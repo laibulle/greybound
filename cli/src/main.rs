@@ -560,6 +560,24 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                         sag = 0.35;
                         model = "jcm800".to_owned();
                     }
+                    "nox" | "nox-edge" => {
+                        volume = 6.4;
+                        bass = 5.8;
+                        treble = 5.6;
+                        cut = 4.5;
+                        output_db = -18.0;
+                        sag = 5.0;
+                        model = "nox".to_owned();
+                    }
+                    "nox-driven" => {
+                        volume = 8.2;
+                        bass = 5.4;
+                        treble = 5.8;
+                        cut = 5.0;
+                        output_db = -20.0;
+                        sag = 7.0;
+                        model = "nox".to_owned();
+                    }
                     _ => bail!("unknown preset '{name}'"),
                 }
             }
@@ -568,6 +586,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                     "ac30" | "vox" => "ac30".to_owned(),
                     "dumble" | "ods" => "dumble".to_owned(),
                     "jcm800" | "jcm-800" | "marshall" => "jcm800".to_owned(),
+                    "nox" => "nox".to_owned(),
                     name => bail!("unknown model '{name}'"),
                 };
             }
@@ -730,7 +749,7 @@ fn print_help() {
          \x20 --bass N                  Top Boost bass, 0-10 [default: 5.0]\n\
          \x20 --treble N                Top Boost treble, 0-10 [default: 6.0]\n\
          \x20 --cut N                   Power amp Cut, 0-10 [default: 3.5]\n\
-         \x20 --model NAME              Amp model: ac30, dumble, jcm800 [default: ac30]\n\
+         \x20 --model NAME              Amp model: ac30, dumble, jcm800, nox [default: ac30]\n\
          \x20 --input-db DB             Interface input calibration [default: 0]\n\
          \x20 --output-db DB            Safety output trim [default: -9]\n\
          \x20 --monitor                 Print input/output dBFS peaks, clip counts, and xruns\n\

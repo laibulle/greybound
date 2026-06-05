@@ -122,6 +122,14 @@ standalone-jcm800-file: build
 		--preset jcm800-driven --ir --monitor \
 		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
 
+standalone-nox-file: SAMPLE_RATE=44100
+standalone-nox-file: build
+	$(CLI) --output-device '$(DEVICE)' \
+		--input-wav '$(TEST_INPUT_WAV)' --output-channels $(OUTPUT_CHANNELS) \
+		--sample-rate $(SAMPLE_RATE) --period-size $(PERIOD_SIZE) \
+		--preset nox-driven --ir --monitor \
+		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
+
 devices: build
 	$(CLI) --list-devices
 
@@ -137,4 +145,4 @@ desktop-release:
 run-desktop: desktop-release
 	$(DESKTOP)
 
-.PHONY: standalone-dumble standalone-dumble-ir standalone-jcm800 standalone-jcm800-driven standalone-jcm800-file
+.PHONY: standalone-dumble standalone-dumble-ir standalone-jcm800 standalone-jcm800-driven standalone-jcm800-file standalone-nox-file

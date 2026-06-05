@@ -286,6 +286,49 @@ impl EnvelopeFollower {
     }
 }
 
+pub(super) struct SupplyNode {
+    nominal_voltage: f32,
+    resistance: f32,
+    capacitance: f32,
+    voltage: f32,
+    sample_rate: f32,
+}
+
+impl SupplyNode {
+    pub(super) fn new(
+        sample_rate: f32,
+        nominal_voltage: f32,
+        resistance: f32,
+        capacitance: f32,
+    ) -> Self {
+        Self {
+            nominal_voltage,
+            resistance,
+            capacitance,
+            voltage: nominal_voltage,
+            sample_rate,
+        }
+    }
+
+    pub(super) fn reset(&mut self) {
+        self.voltage = self.nominal_voltage;
+    }
+
+    #[inline]
+    pub(super) fn process(&mut self, current_draw: f32) -> f32 {
+        let target = self.nominal_voltage - current_draw.max(0.0) * self.resistance;
+        let coefficient =
+            1.0 - (-1.0 / (self.sample_rate * self.resistance * self.capacitance)).exp();
+        self.voltage += coefficient * (target - self.voltage);
+        self.voltage
+    }
+
+    #[inline]
+    pub(super) fn normalized(&self) -> f32 {
+        (self.voltage / self.nominal_voltage).clamp(0.65, 1.05)
+    }
+}
+
 pub(super) struct WdfHighpass {
     lowpass: RcPole<f32>,
 }
