@@ -12,7 +12,7 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
-use voxbox::amp::{AmpControls, VoxAmp};
+use voxbox::amp::{AmpControls, NoxOperatingPoint, VoxAmp};
 use voxbox::ir::SpeakerStage;
 
 const RMS_SCALE: f64 = 1_000_000_000.0;
@@ -49,6 +49,30 @@ struct MonitorSnapshot {
     output_clips: u64,
     input_overruns: u64,
     output_underruns: u64,
+}
+
+#[derive(Default)]
+struct ComponentTelemetry {
+    preamp_voltage_bits: AtomicU32,
+    phase_inverter_voltage_bits: AtomicU32,
+    power_voltage_bits: AtomicU32,
+    first_stage_current_bits: AtomicU32,
+    phase_inverter_current_bits: AtomicU32,
+    power_current_bits: AtomicU32,
+    power_cathode_bias_bits: AtomicU32,
+    transformer_flux_bits: AtomicU32,
+}
+
+#[derive(Clone, Copy, Default)]
+struct ComponentTelemetrySnapshot {
+    preamp_voltage: f32,
+    phase_inverter_voltage: f32,
+    power_voltage: f32,
+    first_stage_current: f32,
+    phase_inverter_current: f32,
+    power_current: f32,
+    power_cathode_bias: f32,
+    transformer_flux: f32,
 }
 
 impl MonitorStats {
@@ -122,6 +146,63 @@ impl MonitorStats {
     }
 }
 
+impl ComponentTelemetry {
+    fn record_nox(&self, operating_point: NoxOperatingPoint) {
+        self.preamp_voltage_bits
+            .store(operating_point.preamp_voltage.to_bits(), Ordering::Relaxed);
+        self.phase_inverter_voltage_bits.store(
+            operating_point.phase_inverter_voltage.to_bits(),
+            Ordering::Relaxed,
+        );
+        self.power_voltage_bits
+            .store(operating_point.power_voltage.to_bits(), Ordering::Relaxed);
+        self.first_stage_current_bits.store(
+            operating_point.first_stage_plate_current.to_bits(),
+            Ordering::Relaxed,
+        );
+        self.phase_inverter_current_bits.store(
+            (operating_point.phase_inverter_plate_a_current
+                + operating_point.phase_inverter_plate_b_current)
+                .to_bits(),
+            Ordering::Relaxed,
+        );
+        self.power_current_bits.store(
+            (operating_point.power_positive_current + operating_point.power_negative_current)
+                .to_bits(),
+            Ordering::Relaxed,
+        );
+        self.power_cathode_bias_bits.store(
+            operating_point.power_cathode_bias_voltage.to_bits(),
+            Ordering::Relaxed,
+        );
+        self.transformer_flux_bits.store(
+            operating_point.transformer_core_flux.to_bits(),
+            Ordering::Relaxed,
+        );
+    }
+
+    fn snapshot(&self) -> ComponentTelemetrySnapshot {
+        ComponentTelemetrySnapshot {
+            preamp_voltage: f32::from_bits(self.preamp_voltage_bits.load(Ordering::Relaxed)),
+            phase_inverter_voltage: f32::from_bits(
+                self.phase_inverter_voltage_bits.load(Ordering::Relaxed),
+            ),
+            power_voltage: f32::from_bits(self.power_voltage_bits.load(Ordering::Relaxed)),
+            first_stage_current: f32::from_bits(
+                self.first_stage_current_bits.load(Ordering::Relaxed),
+            ),
+            phase_inverter_current: f32::from_bits(
+                self.phase_inverter_current_bits.load(Ordering::Relaxed),
+            ),
+            power_current: f32::from_bits(self.power_current_bits.load(Ordering::Relaxed)),
+            power_cathode_bias: f32::from_bits(
+                self.power_cathode_bias_bits.load(Ordering::Relaxed),
+            ),
+            transformer_flux: f32::from_bits(self.transformer_flux_bits.load(Ordering::Relaxed)),
+        }
+    }
+}
+
 fn update_peak(peak_bits: &AtomicU32, magnitude: f32) {
     let magnitude_bits = magnitude.to_bits();
     let mut current = peak_bits.load(Ordering::Relaxed);
@@ -152,6 +233,20 @@ fn dbfs(level: f32) -> f32 {
     } else {
         f32::NEG_INFINITY
     }
+}
+
+fn format_component_telemetry(components: ComponentTelemetrySnapshot) -> String {
+    format!(
+        "CMP rails pre/pi/pwr {:.0}/{:.0}/{:.0} V | I first/pi/pwr {:.2}/{:.2}/{:.1} mA | cath {:.2} V | flux {:+.5}",
+        components.preamp_voltage,
+        components.phase_inverter_voltage,
+        components.power_voltage,
+        components.first_stage_current * 1_000.0,
+        components.phase_inverter_current * 1_000.0,
+        components.power_current * 1_000.0,
+        components.power_cathode_bias,
+        components.transformer_flux,
+    )
 }
 
 struct WavInput {
@@ -287,6 +382,7 @@ fn main() -> Result<()> {
 
     let output_config = stream_config(&output_range, args.sample_rate, args.period_size);
     let monitoring = Arc::new(MonitorStats::default());
+    let component_telemetry = Arc::new(ComponentTelemetry::default());
 
     let (input_stream, input_description, input_channels, mut input_source) =
         if let Some(path) = &args.input_wav {
@@ -377,6 +473,7 @@ fn main() -> Result<()> {
     let ir_enabled = speaker.is_some();
     let selected_outputs = args.output_channels.clone();
     let monitoring_output = monitoring.clone();
+    let component_output = component_telemetry.clone();
     let output_stream = output_device.build_output_stream(
         &output_config,
         move |data: &mut [f32], _| {
@@ -384,6 +481,11 @@ fn main() -> Result<()> {
                 let input =
                     input_source.next_sample(&monitoring_output, monitor_enabled) * input_gain;
                 let amp_output = amp.process(input, controls);
+                if monitor_enabled {
+                    if let Some(operating_point) = amp.nox_operating_point() {
+                        component_output.record_nox(operating_point);
+                    }
+                }
                 let output = speaker
                     .as_mut()
                     .map_or(amp_output, |speaker| speaker.process(amp_output, true));
@@ -406,6 +508,8 @@ fn main() -> Result<()> {
     }
     if args.monitor {
         let monitor = monitoring.clone();
+        let components = component_telemetry.clone();
+        let show_components = args.model == "nox";
         std::thread::spawn(move || loop {
             std::thread::sleep(Duration::from_secs(1));
             let stats = monitor.snapshot_and_reset();
@@ -428,6 +532,10 @@ fn main() -> Result<()> {
                 stats.input_overruns,
                 stats.output_underruns
             );
+            if show_components {
+                let components = components.snapshot();
+                eprintln!("{}", format_component_telemetry(components));
+            }
         });
     }
     eprintln!(
@@ -788,5 +896,26 @@ mod tests {
         assert_eq!(wav.channels, 2);
         assert!(!wav.samples.is_empty());
         assert!(wav.samples.iter().all(|sample| sample.is_finite()));
+    }
+
+    #[test]
+    fn formats_component_telemetry_for_monitoring() {
+        let telemetry = ComponentTelemetrySnapshot {
+            preamp_voltage: 274.2,
+            phase_inverter_voltage: 296.7,
+            power_voltage: 314.8,
+            first_stage_current: 0.00124,
+            phase_inverter_current: 0.0028,
+            power_current: 0.071,
+            power_cathode_bias: 9.4,
+            transformer_flux: -0.00031,
+        };
+
+        let line = format_component_telemetry(telemetry);
+
+        assert!(line.starts_with("CMP rails pre/pi/pwr 274/297/315 V"));
+        assert!(line.contains("I first/pi/pwr 1.24/2.80/71.0 mA"));
+        assert!(line.contains("cath 9.40 V"));
+        assert!(line.contains("flux -0.00031"));
     }
 }
