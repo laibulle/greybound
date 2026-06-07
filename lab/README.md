@@ -164,6 +164,24 @@ target/release/greybound-cli \
 that as an explicit R&D diagnostic until the cell-level residual evidence
 improves.
 
+Run the complete first-stage integration loop:
+
+```sh
+make lab-evaluate-integrated-neural-cell
+```
+
+This renders three offline files from the same rig and input: analytic Nox30,
+shadow Nox30 with monitor telemetry, and replace Nox30 where the neural cell
+drives the rest of the amp. The command writes the WAVs under
+`lab/reports/integrated-neural-first-stage/` and the Markdown report at
+`lab/reports/integrated-neural-first-stage.md`.
+
+The report is deliberately a diagnostic gate. Shadow error measures the local
+cell mismatch in volts while the audio path stays analytic. Replace-vs-analytic
+metrics show how much the full rendered rig changes when the neural counterpart
+is actually inserted. A useful neural cell must improve these integration
+numbers before it becomes a default model path.
+
 Compare the existing Rust analytic common-cathode stage against the same SPICE
 dataset:
 

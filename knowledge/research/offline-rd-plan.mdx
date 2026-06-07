@@ -294,6 +294,17 @@ monitor telemetry reports its absolute error while the audio still uses the
 analytic stage. In `replace` mode, the neural output feeds the rest of Nox30.
 This remains an explicit integration gate, not a default model-quality decision.
 
+The first full integration loop is:
+
+```sh
+make lab-evaluate-integrated-neural-cell
+```
+
+It renders analytic, shadow, and replace Nox30 outputs from the same rig and
+input, then writes `lab/reports/integrated-neural-first-stage.md`. This connects
+the cell-level artifact to full-chain evidence: shadow error captures local tube
+cell mismatch, while replace-vs-analytic metrics capture the rendered rig impact.
+
 The cell-level SPICE evaluation command is:
 
 ```sh

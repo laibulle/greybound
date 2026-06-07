@@ -5,6 +5,8 @@ import platform
 import subprocess
 from pathlib import Path
 
+DEFAULT_IR_WAV = Path("lab/references/tone3000-irs/celestion.wav")
+
 
 def render_rig(
     *,
@@ -20,6 +22,11 @@ def render_rig(
     input_gain_db: float,
     output_gain_db: float,
     ir_enabled: bool,
+    ir_wav: Path | None = None,
+    monitor_enabled: bool = False,
+    monitor_log: Path | None = None,
+    neural_cell: tuple[str, Path] | None = None,
+    neural_cell_mode: str = "shadow",
 ) -> None:
     output_wav.parent.mkdir(parents=True, exist_ok=True)
     metadata.parent.mkdir(parents=True, exist_ok=True)
@@ -43,8 +50,17 @@ def render_rig(
         "--output-db",
         _format_number(output_gain_db),
     ]
+    resolved_ir_wav = ir_wav or DEFAULT_IR_WAV
     if ir_enabled:
-        command.append("--ir")
+        command.extend(["--ir", str(resolved_ir_wav)])
+    if monitor_enabled:
+        command.append("--monitor")
+        if monitor_log is not None:
+            command.extend(["--monitor-log", str(monitor_log)])
+    if neural_cell is not None:
+        component, descriptor = neural_cell
+        command.extend(["--neural-cell", f"{component}={descriptor}"])
+        command.extend(["--neural-cell-mode", neural_cell_mode])
 
     subprocess.run(command, cwd=repo_root, check=True)
 
@@ -64,6 +80,16 @@ def render_rig(
             "input_gain_db": input_gain_db,
             "output_gain_db": output_gain_db,
             "ir_enabled": ir_enabled,
+            "ir_wav": relative_or_absolute(resolved_ir_wav, repo_root) if ir_enabled else None,
+            "monitor_enabled": monitor_enabled,
+            "monitor_log": relative_or_absolute(monitor_log, repo_root) if monitor_log else None,
+            "neural_cell": {
+                "component": neural_cell[0],
+                "descriptor": relative_or_absolute(neural_cell[1], repo_root),
+                "mode": neural_cell_mode,
+            }
+            if neural_cell
+            else None,
         },
         "environment": {
             "os": platform.platform(),

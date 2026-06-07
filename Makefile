@@ -48,6 +48,8 @@ NEURAL_VECTORS ?= $(NEURAL_OUTPUT_DIR)/equivalence-vectors.json
 NEURAL_EVAL_REPORT ?= $(NEURAL_OUTPUT_DIR)/spice-evaluation.md
 NEURAL_EVAL_SPLIT ?= all
 ANALYTIC_EVAL_REPORT ?= lab/reports/common-cathode-analytic-spice-evaluation.md
+INTEGRATED_NEURAL_DIR ?= lab/reports/integrated-neural-first-stage
+INTEGRATED_NEURAL_REPORT ?= lab/reports/integrated-neural-first-stage.md
 OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
@@ -185,6 +187,23 @@ lab-shadow-nox30-first-stage: EXTRA_ARGS=--neural-cell "nox30.first_stage=$(NEUR
 lab-shadow-nox30-first-stage:
 	$(MAKE) standalone-run RIG="$(RIG)" INPUT="$(INPUT)" OUTPUT="$(OUTPUT)" MONITOR="$(MONITOR)" IR="$(IR)" EXTRA_ARGS='$(EXTRA_ARGS)'
 
+lab-evaluate-integrated-neural-cell: build
+	uv --project lab run greybound-lab evaluate-integrated-neural-cell \
+		--descriptor "$(NEURAL_DESCRIPTOR)" \
+		--component "nox30.first_stage" \
+		--rig "rigs/nox30-driven.json5" \
+		--input-wav "$(TEST_INPUT_WAV)" \
+		--binary "$(CLI)" \
+		--output-dir "$(INTEGRATED_NEURAL_DIR)" \
+		--report "$(INTEGRATED_NEURAL_REPORT)" \
+		--render-seconds "$(RENDER_SECONDS)" \
+		--sample-rate "$(FILE_SAMPLE_RATE)" \
+		--period-size "$(PERIOD_SIZE)" \
+		--input-db "$(INPUT_DB)" \
+		--output-db "$(OUTPUT_DB)" \
+		--ir \
+		--ir-wav "$(IR_WAV)"
+
 lab-evaluate-analytic-common-cathode:
 	cargo run -p greybound --example common_cathode_dataset_eval -- \
 		--manifest "$(NEURAL_DATASET_MANIFEST)" \
@@ -192,4 +211,4 @@ lab-evaluate-analytic-common-cathode:
 		--stride "$(NEURAL_STRIDE)" \
 		--split "$(NEURAL_EVAL_SPLIT)"
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-analytic-common-cathode
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-analytic-common-cathode

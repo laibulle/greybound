@@ -331,6 +331,18 @@ Milestone 6: integration check
   improves.
 - Promote only if the change improves the full-chain evidence.
 
+Current status: implemented as a first offline integration loop through
+`make lab-evaluate-integrated-neural-cell`. The loop renders analytic, shadow,
+and replace versions of the same Nox30 rig, parses the monitor-log shadow error,
+compares replace audio against analytic audio, and writes
+`lab/reports/integrated-neural-first-stage.md`.
+
+This is intentionally not a promotion gate yet. It proves that a Greybound neural
+cell can be mounted into the Rust amp graph and evaluated in context. The next
+quality gate is to reduce shadow error and replace residual enough that the
+neural counterpart is better than the existing analytic cell on meaningful
+stimuli.
+
 ## Decision Gates
 
 Stop or change direction if:

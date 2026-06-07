@@ -5,13 +5,14 @@ from pathlib import Path
 
 from greybound_lab.audio import read_wav_mono
 from greybound_lab.external_inputs import download_tone3000_inputs, download_tone3000_irs
+from greybound_lab.integrated_neural import evaluate_integrated_neural_cell
 from greybound_lab.metrics import compare_signals
 from greybound_lab.nam import write_nam_pack_manifest
 from greybound_lab.nam_render import render_nam
 from greybound_lab.neural_cell import evaluate_neural_cell_against_spice, export_neural_cell_vectors
 from greybound_lab.neural_cell import train_common_cathode_mlp
 from greybound_lab.report import write_markdown_report
-from greybound_lab.render import render_rig
+from greybound_lab.render import DEFAULT_IR_WAV, render_rig
 from greybound_lab.segments import load_segments
 from greybound_lab.spice import run_spice_fixture, write_spice_dataset
 from greybound_lab.stimuli import generate_stimuli
@@ -41,6 +42,7 @@ def main() -> None:
     render.add_argument("--input-db", type=float, default=0.0)
     render.add_argument("--output-db", type=float, default=-18.0)
     render.add_argument("--ir", action="store_true")
+    render.add_argument("--ir-wav", type=Path, default=DEFAULT_IR_WAV)
 
     stimuli = subparsers.add_parser("generate-stimuli", help="Generate standard lab WAV stimuli and marker files.")
     stimuli.add_argument("--output-dir", type=Path, default=Path("lab/stimuli"))
@@ -87,6 +89,26 @@ def main() -> None:
     evaluate_cell.add_argument("--report", required=True, type=Path)
     evaluate_cell.add_argument("--stride", type=int, default=16)
     evaluate_cell.add_argument("--split", choices=["all", "train", "validation", "test"], default="all")
+
+    integrated_cell = subparsers.add_parser(
+        "evaluate-integrated-neural-cell",
+        help="Render analytic/shadow/replace Nox30 runs and compare the integrated neural counterpart.",
+    )
+    integrated_cell.add_argument("--descriptor", required=True, type=Path)
+    integrated_cell.add_argument("--component", default="nox30.first_stage")
+    integrated_cell.add_argument("--rig", type=Path, default=Path("rigs/nox30-driven.json5"))
+    integrated_cell.add_argument("--input-wav", type=Path, default=Path("lab/references/tone3000-inputs/Brit - Guitar.wav"))
+    integrated_cell.add_argument("--binary", type=Path, default=Path("target/release/greybound-cli"))
+    integrated_cell.add_argument("--output-dir", type=Path, default=Path("lab/reports/integrated-neural-first-stage"))
+    integrated_cell.add_argument("--report", type=Path, default=Path("lab/reports/integrated-neural-first-stage.md"))
+    integrated_cell.add_argument("--render-seconds", type=float, default=20.0)
+    integrated_cell.add_argument("--sample-rate", type=int, default=48_000)
+    integrated_cell.add_argument("--period-size", type=int, default=16)
+    integrated_cell.add_argument("--input-db", type=float, default=0.0)
+    integrated_cell.add_argument("--output-db", type=float, default=-12.0)
+    integrated_cell.add_argument("--ir", action="store_true")
+    integrated_cell.add_argument("--ir-wav", type=Path, default=DEFAULT_IR_WAV)
+    integrated_cell.add_argument("--segments", type=Path)
 
     inputs = subparsers.add_parser(
         "download-tone3000-inputs",
@@ -143,6 +165,8 @@ def main() -> None:
         run_export_neural_cell_vectors(args)
     elif args.command == "evaluate-neural-cell":
         run_evaluate_neural_cell(args)
+    elif args.command == "evaluate-integrated-neural-cell":
+        run_evaluate_integrated_neural_cell(args)
     elif args.command == "download-tone3000-inputs":
         run_download_tone3000_inputs(args)
     elif args.command == "download-tone3000-irs":
@@ -193,6 +217,7 @@ def run_render_rig(args: argparse.Namespace) -> None:
         input_gain_db=args.input_db,
         output_gain_db=args.output_db,
         ir_enabled=args.ir,
+        ir_wav=args.ir_wav,
     )
     print(f"wrote {args.output_wav}")
     print(f"wrote {args.metadata}")
@@ -253,6 +278,29 @@ def run_evaluate_neural_cell(args: argparse.Namespace) -> None:
         split=args.split,
     )
     print(f"wrote {report_path}")
+
+
+def run_evaluate_integrated_neural_cell(args: argparse.Namespace) -> None:
+    result = evaluate_integrated_neural_cell(
+        repo_root=Path.cwd(),
+        binary=args.binary,
+        rig=args.rig,
+        input_wav=args.input_wav,
+        descriptor=args.descriptor,
+        output_dir=args.output_dir,
+        report=args.report,
+        component=args.component,
+        render_seconds=args.render_seconds,
+        sample_rate_hz=args.sample_rate,
+        period_size=args.period_size,
+        input_gain_db=args.input_db,
+        output_gain_db=args.output_db,
+        ir_enabled=args.ir,
+        ir_wav=args.ir_wav,
+        segments=args.segments,
+    )
+    print(f"wrote {args.report}")
+    print(f"replace residual {result.replace_vs_analytic.null_relative_db:.2f} dB relative")
 
 
 def run_download_tone3000_inputs(args: argparse.Namespace) -> None:

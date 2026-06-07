@@ -282,6 +282,25 @@ make lab-shadow-nox30-first-stage
 This is an integration diagnostic only. Promotion to audio replacement still
 requires better model-quality and dynamic-state evidence.
 
+The full first integrated network loop is:
+
+```sh
+make lab-evaluate-integrated-neural-cell
+```
+
+It renders three versions of the same offline rig:
+
+- `analytic.wav`: current Nox30 path only.
+- `shadow.wav`: neural `nox30.first_stage` runs beside the analytic first stage
+  and emits monitor error.
+- `replace.wav`: neural `nox30.first_stage` feeds the rest of the amp.
+
+The command writes its report to
+`lab/reports/integrated-neural-first-stage.md`. This is the first full-chain gate
+for a neural component: shadow telemetry gives local component error in volts,
+and replace-vs-analytic audio metrics show the complete audible/runtime impact.
+The current purpose is evidence collection, not promotion.
+
 Evaluate the artifact against the SPICE dataset in physical units:
 
 ```sh
