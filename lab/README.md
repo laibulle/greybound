@@ -74,6 +74,25 @@ splits, component values, and generated netlists. It is useful for the first
 trainer/export smoke test, but it is not yet broad enough for final tube-stage
 acceptance.
 
+Train the first experimental neural-cell MLP from that dataset:
+
+```sh
+uv --project lab run --with torch greybound-lab train-neural-cell \
+  --cell common-cathode-12ax7-mlp \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --output-dir lab/models/common-cathode-12ax7-mlp-v1
+```
+
+The trainer writes:
+
+- `model.greybound.json`,
+- `weights.greybound.bin`,
+- `training-report.md`.
+
+PyTorch is intentionally optional and only needed for this command. The exported
+artifact is a Greybound descriptor plus packed weights; ONNX is not part of this
+first source-of-truth path.
+
 Download public TONE3000 DI input WAV files for local NAM and Greybound
 integration tests:
 
@@ -148,7 +167,8 @@ The first experiment is:
 These define the minimum useful analysis loop and the first controlled-stimulus
 comparison between Greybound rigs, then bridge into the first cell-level SPICE
 reference, first NAM A2 integration comparison, and the planned neural-cell
-artifact boundary.
+artifact boundary. The current lab can now generate the first common-cathode
+SPICE dataset and train/export a small experimental MLP artifact from it.
 
 ## Neural Cell Strategy
 
@@ -205,7 +225,8 @@ for the current disclaimer, architecture contract, and milestone sequence.
 
 : Local experimental neural-cell artifacts. Keep descriptors, weights,
   checkpoints, ONNX exports, and generated plots out of git by default unless an
-  artifact has been explicitly reviewed and promoted.
+  artifact has been explicitly reviewed and promoted. The first generated shape
+  is `model.greybound.json`, `weights.greybound.bin`, and `training-report.md`.
 
 `references/`
 

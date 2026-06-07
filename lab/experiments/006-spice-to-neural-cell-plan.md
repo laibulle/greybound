@@ -276,6 +276,11 @@ Milestone 3: PyTorch baseline trainer
 - Train the smallest MLP that can beat a trivial baseline on static windows.
 - Record validation metrics and failure cases.
 
+Current status: implemented as an experimental smoke test. The
+`train-neural-cell` command trains `common-cathode-12ax7-mlp` and exports
+`model.greybound.json`, `weights.greybound.bin`, and `training-report.md`.
+It is static and intentionally not accepted for runtime use.
+
 Milestone 4: dynamic model trial
 
 - Add a small causal TCN only if static windows fail on transient or dynamic
@@ -287,6 +292,9 @@ Milestone 5: export and Rust equivalence
 - Export `model.greybound.json` and `weights.greybound.bin`.
 - Add a Rust loader/inference prototype behind a lab or experimental feature.
 - Add golden vector tests.
+
+Current status: partially implemented. Python/NumPy can read the exported
+descriptor and weights. Rust loader/inference is still pending.
 
 Milestone 6: integration check
 

@@ -257,6 +257,21 @@ splits. It is good enough for the first trainer/export smoke test, but it still
 needs source/load impedance sweeps, B+ perturbation, component tolerances, and
 real DI before a model can be accepted into the live engine.
 
+The first experimental trainer is:
+
+```sh
+uv --project lab run --with torch greybound-lab train-neural-cell \
+  --cell common-cathode-12ax7-mlp \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --output-dir lab/models/common-cathode-12ax7-mlp-v1
+```
+
+It trains a small static MLP and exports `model.greybound.json` plus
+`weights.greybound.bin`. This is an export-path milestone, not a final tube
+model. The next acceptance-relevant work is to implement Rust inference and
+compare the exported artifact against both SPICE holdouts and Greybound's current
+analytic approximation.
+
 Phase 4: first fitted micro-model
 
 - train or optimize the smallest viable model,

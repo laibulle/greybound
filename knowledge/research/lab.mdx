@@ -201,6 +201,26 @@ make the SPICE-to-training contract executable before we expand to source/load
 impedance sweeps, B+ perturbation, component tolerance sweeps, transient plucks,
 and real DI windows.
 
+Train the first experimental MLP artifact with:
+
+```sh
+uv --project lab run --with torch greybound-lab train-neural-cell \
+  --cell common-cathode-12ax7-mlp \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --output-dir lab/models/common-cathode-12ax7-mlp-v1
+```
+
+The command writes:
+
+- `model.greybound.json`,
+- `weights.greybound.bin`,
+- `training-report.md`.
+
+This model is an export smoke test. It maps normalized `input_v` to normalized
+`plate_ac_v` through a small static MLP and proves the PyTorch-to-Greybound
+artifact path. It does not model tube memory, capacitance, source/load
+interaction, B+ perturbation, or runtime Rust inference yet.
+
 ## NAM References
 
 NAM is used as an integration oracle, not as Greybound's internal architecture.
@@ -523,8 +543,8 @@ Not implemented yet:
 - NAM render batch workflow for priority models,
 - broader SPICE fixture automation beyond the first common-cathode import,
 - generated SPICE datasets using the dataset manifest schema,
-- fitted micro-model training,
-- Rust artifact export,
+- first experimental PyTorch MLP training from a SPICE dataset,
+- first Greybound neural-cell descriptor and packed weight export,
 - specialized Rust neural-cell inference.
 
 ## Next Research Steps
@@ -537,10 +557,10 @@ The next useful improvements are:
   residuals,
 - extend the common-cathode SPICE fixture to level sweeps and two-tone IMD,
 - generate the first common-cathode SPICE dataset manifest,
-- train the smallest PyTorch baseline model that can beat a trivial baseline on
-  held-out SPICE windows,
-- export a first experimental `model.greybound.json` and
+- add a Rust reader/inference prototype for `model.greybound.json` and
   `weights.greybound.bin`,
+- compare the exported MLP against the existing analytical/common-cathode
+  approximation,
 - standardize one Nox30-style NAM comparison,
 - decide the first fitted cell only after the reports show where the largest
   error is.

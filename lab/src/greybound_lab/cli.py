@@ -8,6 +8,7 @@ from greybound_lab.external_inputs import download_tone3000_inputs, download_ton
 from greybound_lab.metrics import compare_signals
 from greybound_lab.nam import write_nam_pack_manifest
 from greybound_lab.nam_render import render_nam
+from greybound_lab.neural_cell import train_common_cathode_mlp
 from greybound_lab.report import write_markdown_report
 from greybound_lab.render import render_rig
 from greybound_lab.segments import load_segments
@@ -54,6 +55,19 @@ def main() -> None:
     )
     spice_dataset.add_argument("--fixture", required=True, choices=["common-cathode-12ax7"])
     spice_dataset.add_argument("--output-dir", type=Path, default=Path("lab/datasets/spice"))
+
+    train_cell = subparsers.add_parser(
+        "train-neural-cell",
+        help="Train an experimental neural-cell model from a SPICE dataset manifest.",
+    )
+    train_cell.add_argument("--cell", required=True, choices=["common-cathode-12ax7-mlp"])
+    train_cell.add_argument("--dataset-manifest", required=True, type=Path)
+    train_cell.add_argument("--output-dir", type=Path, default=Path("lab/models/common-cathode-12ax7-mlp-v1"))
+    train_cell.add_argument("--epochs", type=int, default=300)
+    train_cell.add_argument("--hidden-size", type=int, default=16)
+    train_cell.add_argument("--learning-rate", type=float, default=1.0e-3)
+    train_cell.add_argument("--stride", type=int, default=16)
+    train_cell.add_argument("--seed", type=int, default=59)
 
     inputs = subparsers.add_parser(
         "download-tone3000-inputs",
@@ -104,6 +118,8 @@ def main() -> None:
         run_spice(args)
     elif args.command == "spice-dataset":
         run_spice_dataset(args)
+    elif args.command == "train-neural-cell":
+        run_train_neural_cell(args)
     elif args.command == "download-tone3000-inputs":
         run_download_tone3000_inputs(args)
     elif args.command == "download-tone3000-irs":
@@ -176,6 +192,24 @@ def run_spice_dataset(args: argparse.Namespace) -> None:
     dataset_path, manifest_path = write_spice_dataset(args.fixture, args.output_dir, repo_root=Path.cwd())
     print(f"wrote {dataset_path}")
     print(f"wrote {manifest_path}")
+
+
+def run_train_neural_cell(args: argparse.Namespace) -> None:
+    if args.cell != "common-cathode-12ax7-mlp":
+        raise SystemExit(f"unsupported neural cell {args.cell}")
+    descriptor_path, weights_path, report_path = train_common_cathode_mlp(
+        manifest_path=args.dataset_manifest,
+        output_dir=args.output_dir,
+        repo_root=Path.cwd(),
+        epochs=args.epochs,
+        hidden_size=args.hidden_size,
+        learning_rate=args.learning_rate,
+        stride=args.stride,
+        seed=args.seed,
+    )
+    print(f"wrote {descriptor_path}")
+    print(f"wrote {weights_path}")
+    print(f"wrote {report_path}")
 
 
 def run_download_tone3000_inputs(args: argparse.Namespace) -> None:

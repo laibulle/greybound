@@ -33,6 +33,13 @@ NAM_INPUT_DB ?= -70
 NAM_OUTPUT_DB ?= -12
 SPICE_FIXTURE ?= common-cathode-12ax7
 SPICE_DATASET_DIR ?= lab/datasets/spice
+NEURAL_CELL ?= common-cathode-12ax7-mlp
+NEURAL_DATASET_MANIFEST ?= lab/datasets/spice/common-cathode-12ax7.dataset.json
+NEURAL_OUTPUT_DIR ?= lab/models/common-cathode-12ax7-mlp-v1
+NEURAL_EPOCHS ?= 300
+NEURAL_HIDDEN_SIZE ?= 16
+NEURAL_LEARNING_RATE ?= 0.001
+NEURAL_STRIDE ?= 16
 OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
@@ -130,4 +137,14 @@ lab-spice-dataset:
 		--fixture "$(SPICE_FIXTURE)" \
 		--output-dir "$(SPICE_DATASET_DIR)"
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset
+lab-train-neural-cell:
+	uv --project lab run --with torch greybound-lab train-neural-cell \
+		--cell "$(NEURAL_CELL)" \
+		--dataset-manifest "$(NEURAL_DATASET_MANIFEST)" \
+		--output-dir "$(NEURAL_OUTPUT_DIR)" \
+		--epochs "$(NEURAL_EPOCHS)" \
+		--hidden-size "$(NEURAL_HIDDEN_SIZE)" \
+		--learning-rate "$(NEURAL_LEARNING_RATE)" \
+		--stride "$(NEURAL_STRIDE)"
+
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell

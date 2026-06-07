@@ -1,0 +1,466 @@
+from __future__ import annotations
+
+import json
+import math
+import struct
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from greybound_lab.render import git_revision, relative_or_absolute
+from greybound_lab.spice import sha256_file
+
+
+@dataclass(frozen=True)
+class PreparedSplit:
+    x: np.ndarray
+    y: np.ndarray
+
+
+@dataclass(frozen=True)
+class PreparedDataset:
+    train: PreparedSplit
+    validation: PreparedSplit
+    test: PreparedSplit
+    input_mean: float
+    input_std: float
+    output_mean: float
+    output_std: float
+    sample_rate_hz: int
+    train_ids: list[str]
+    validation_ids: list[str]
+    test_ids: list[str]
+
+
+def train_common_cathode_mlp(
+    *,
+    manifest_path: Path,
+    output_dir: Path,
+    repo_root: Path,
+    epochs: int = 300,
+    hidden_size: int = 16,
+    learning_rate: float = 1.0e-3,
+    stride: int = 16,
+    seed: int = 59,
+) -> tuple[Path, Path, Path]:
+    torch = _import_torch()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    descriptor_path = output_dir / "model.greybound.json"
+    weights_path = output_dir / "weights.greybound.bin"
+    report_path = output_dir / "training-report.md"
+
+    manifest = _read_json(manifest_path)
+    prepared = prepare_common_cathode_dataset(manifest_path, stride=stride)
+    torch.manual_seed(seed)
+    model = torch.nn.Sequential(
+        torch.nn.Linear(1, hidden_size),
+        torch.nn.Tanh(),
+        torch.nn.Linear(hidden_size, hidden_size),
+        torch.nn.Tanh(),
+        torch.nn.Linear(hidden_size, 1),
+    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    loss_fn = torch.nn.MSELoss()
+
+    x_train = torch.from_numpy(prepared.train.x.astype(np.float32))
+    y_train = torch.from_numpy(prepared.train.y.astype(np.float32))
+    x_val = torch.from_numpy(prepared.validation.x.astype(np.float32))
+    y_val = torch.from_numpy(prepared.validation.y.astype(np.float32))
+    x_test = torch.from_numpy(prepared.test.x.astype(np.float32))
+    y_test = torch.from_numpy(prepared.test.y.astype(np.float32))
+
+    best_state = None
+    best_val = math.inf
+    for _ in range(epochs):
+        model.train()
+        optimizer.zero_grad()
+        loss = loss_fn(model(x_train), y_train)
+        loss.backward()
+        optimizer.step()
+        model.eval()
+        with torch.no_grad():
+            val_loss = float(loss_fn(model(x_val), y_val).item()) if x_val.numel() else float(loss.item())
+        if val_loss < best_val:
+            best_val = val_loss
+            best_state = {key: value.detach().clone() for key, value in model.state_dict().items()}
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    model.eval()
+    with torch.no_grad():
+        train_pred = model(x_train).detach().cpu().numpy()
+        val_pred = model(x_val).detach().cpu().numpy()
+        test_pred = model(x_test).detach().cpu().numpy()
+
+    layers = _extract_mlp_layers(model)
+    write_mlp_weights(weights_path, layers)
+    numpy_test_pred = infer_mlp_numpy(
+        prepared.test.x,
+        layers,
+    )
+    export_max_abs_error = float(np.max(np.abs(numpy_test_pred - test_pred))) if test_pred.size else 0.0
+    metrics = {
+        "train_mse_normalized": _mse(train_pred, prepared.train.y),
+        "validation_mse_normalized": _mse(val_pred, prepared.validation.y),
+        "test_mse_normalized": _mse(test_pred, prepared.test.y),
+        "test_baseline_mse_normalized": _mse(np.zeros_like(prepared.test.y), prepared.test.y),
+        "export_max_abs_error_normalized": export_max_abs_error,
+        "epochs": epochs,
+        "hidden_size": hidden_size,
+        "learning_rate": learning_rate,
+        "stride": stride,
+        "train_samples": int(prepared.train.x.shape[0]),
+        "validation_samples": int(prepared.validation.x.shape[0]),
+        "test_samples": int(prepared.test.x.shape[0]),
+    }
+    descriptor = build_mlp_descriptor(
+        manifest=manifest,
+        manifest_path=manifest_path,
+        output_dir=output_dir,
+        repo_root=repo_root,
+        weights_path=weights_path,
+        hidden_size=hidden_size,
+        prepared=prepared,
+        metrics=metrics,
+    )
+    descriptor_path.write_text(json.dumps(descriptor, indent=2) + "\n", encoding="utf-8")
+    write_training_report(report_path, descriptor, metrics, prepared)
+    return descriptor_path, weights_path, report_path
+
+
+def prepare_common_cathode_dataset(manifest_path: Path, *, stride: int = 16) -> PreparedDataset:
+    manifest = _read_json(manifest_path)
+    dataset_path = _resolve_manifest_path(manifest_path, _artifact_path(manifest, "output"))
+    npz = np.load(dataset_path)
+    train_ids = list(manifest["splits"]["train"])
+    validation_ids = list(manifest["splits"]["validation"])
+    test_ids = list(manifest["splits"]["test"])
+    train_raw = _collect_split(npz, manifest, train_ids, stride=stride)
+    validation_raw = _collect_split(npz, manifest, validation_ids, stride=stride)
+    test_raw = _collect_split(npz, manifest, test_ids, stride=stride)
+
+    input_mean = float(np.mean(train_raw.x))
+    input_std = float(np.std(train_raw.x))
+    output_mean = float(np.mean(train_raw.y))
+    output_std = float(np.std(train_raw.y))
+    input_std = input_std if input_std > 1.0e-12 else 1.0
+    output_std = output_std if output_std > 1.0e-12 else 1.0
+
+    return PreparedDataset(
+        train=_normalize_split(train_raw, input_mean, input_std, output_mean, output_std),
+        validation=_normalize_split(validation_raw, input_mean, input_std, output_mean, output_std),
+        test=_normalize_split(test_raw, input_mean, input_std, output_mean, output_std),
+        input_mean=input_mean,
+        input_std=input_std,
+        output_mean=output_mean,
+        output_std=output_std,
+        sample_rate_hz=int(manifest["sample_rate_hz"]),
+        train_ids=train_ids,
+        validation_ids=validation_ids,
+        test_ids=test_ids,
+    )
+
+
+def write_mlp_weights(path: Path, layers: list[dict[str, np.ndarray]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as file:
+        for layer in layers:
+            for item in (layer["weight"], layer["bias"]):
+                data = np.asarray(item, dtype="<f4").ravel()
+                file.write(struct.pack("<I", int(data.shape[0])))
+                file.write(data.tobytes())
+
+
+def read_mlp_weights(path: Path, descriptor: dict[str, Any]) -> list[dict[str, np.ndarray]]:
+    layout = descriptor["weights"]["layout"]
+    layers = []
+    with path.open("rb") as file:
+        for layer in layout:
+            out_features = int(layer["out_features"])
+            in_features = int(layer["in_features"])
+            weight = _read_weight_vector(file, out_features * in_features).reshape((out_features, in_features))
+            bias = _read_weight_vector(file, out_features)
+            layers.append({"weight": weight, "bias": bias})
+    return layers
+
+
+def infer_artifact_numpy(descriptor_path: Path, input_v: np.ndarray) -> np.ndarray:
+    descriptor = _read_json(descriptor_path)
+    weights_path = _resolve_manifest_path(descriptor_path, descriptor["weights"]["path"])
+    layers = read_mlp_weights(weights_path, descriptor)
+    norm = descriptor["io"]["normalization"]
+    x = ((input_v.reshape((-1, 1)) - float(norm["input_mean"])) / float(norm["input_std"])).astype(np.float32)
+    normalized = infer_mlp_numpy(x, layers)
+    return normalized.reshape((-1,)) * float(norm["output_std"]) + float(norm["output_mean"])
+
+
+def infer_mlp_numpy(x: np.ndarray, layers: list[dict[str, np.ndarray]]) -> np.ndarray:
+    y = x.astype(np.float32)
+    for index, layer in enumerate(layers):
+        y = y @ layer["weight"].astype(np.float32).T + layer["bias"].astype(np.float32)
+        if index != len(layers) - 1:
+            y = np.tanh(y)
+    return y.astype(np.float32)
+
+
+def build_mlp_descriptor(
+    *,
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    output_dir: Path,
+    repo_root: Path,
+    weights_path: Path,
+    hidden_size: int,
+    prepared: PreparedDataset,
+    metrics: dict[str, float | int],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "artifact_id": "common-cathode-12ax7-mlp-v1",
+        "cell_kind": "triode_gain_stage",
+        "architecture": {
+            "family": "mlp",
+            "activation": "tanh",
+            "receptive_field_samples": 0,
+            "layers": [
+                {"type": "dense", "in_features": 1, "out_features": hidden_size},
+                {"type": "dense", "in_features": hidden_size, "out_features": hidden_size},
+                {"type": "dense", "in_features": hidden_size, "out_features": 1},
+            ],
+        },
+        "created_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "sample_rate_policy": {
+            "mode": "fixed",
+            "sample_rate_hz": prepared.sample_rate_hz,
+        },
+        "io": {
+            "inputs": [{"id": "input_v", "unit": "V"}],
+            "outputs": [{"id": "plate_ac_v", "unit": "V"}],
+            "normalization": {
+                "input_mean": prepared.input_mean,
+                "input_std": prepared.input_std,
+                "output_mean": prepared.output_mean,
+                "output_std": prepared.output_std,
+            },
+        },
+        "controls": [],
+        "state": {
+            "samples": 0,
+            "floats": 0,
+            "description": "Static MLP smoke-test cell. No streaming memory.",
+        },
+        "weights": {
+            "format": "greybound-bin-v1",
+            "path": weights_path.name,
+            "sha256": sha256_file(weights_path),
+            "dtype": "f32",
+            "endianness": "little",
+            "layout": [
+                {"name": "dense0", "in_features": 1, "out_features": hidden_size},
+                {"name": "dense1", "in_features": hidden_size, "out_features": hidden_size},
+                {"name": "dense2", "in_features": hidden_size, "out_features": 1},
+            ],
+        },
+        "training": {
+            "framework": "PyTorch",
+            "framework_version": _torch_version_or_unknown(),
+            "code_revision": git_revision(repo_root),
+            "dataset_manifest": relative_or_absolute(manifest_path, repo_root),
+            "dataset_sha256": sha256_file(manifest_path),
+        },
+        "validation": {
+            "status": "experimental",
+            "metrics": metrics,
+            "report": relative_or_absolute(output_dir / "training-report.md", repo_root),
+            "limitations": [
+                "Static input-to-plate-ac MLP; no state or capacitance memory.",
+                "Trained on decimated SPICE samples for a smoke test.",
+                "No source/load impedance sweep, B+ perturbation, component tolerance sweep, or real DI.",
+                "Not approved for the live audio engine.",
+            ],
+        },
+        "runtime": {
+            "latency_samples": 0,
+            "max_block_size": 1,
+            "allocates_on_audio_thread": False,
+            "denormal_safe": False,
+            "cpu_notes": "Three dense layers. Experimental NumPy exporter only; Rust runtime not implemented yet.",
+            "safety_clamps": {
+                "input_v_min": _stimulus_min(manifest, "amplitude_v", default=-0.12),
+                "input_v_max": _stimulus_max(manifest, "amplitude_v", default=0.12),
+            },
+        },
+        "notes": "First PyTorch-to-Greybound artifact smoke test for the common-cathode SPICE dataset.",
+    }
+
+
+def write_training_report(
+    path: Path,
+    descriptor: dict[str, Any],
+    metrics: dict[str, float | int],
+    prepared: PreparedDataset,
+) -> None:
+    path.write_text(
+        f"""# Neural Cell Training Report: {descriptor['artifact_id']}
+
+## Purpose
+
+Train the smallest useful PyTorch MLP smoke-test model against the first
+common-cathode SPICE dataset, then export it as a Greybound neural-cell artifact.
+
+This report does not approve the model for the live engine. It proves the
+training/export/equivalence path.
+
+## Dataset
+
+- Train stimuli: {', '.join(f'`{item}`' for item in prepared.train_ids)}
+- Validation stimuli: {', '.join(f'`{item}`' for item in prepared.validation_ids)}
+- Test stimuli: {', '.join(f'`{item}`' for item in prepared.test_ids)}
+- Train samples after stride: `{metrics['train_samples']}`
+- Validation samples after stride: `{metrics['validation_samples']}`
+- Test samples after stride: `{metrics['test_samples']}`
+
+## Metrics
+
+| Metric | Value |
+| --- | ---: |
+| Train MSE normalized | {float(metrics['train_mse_normalized']):.8g} |
+| Validation MSE normalized | {float(metrics['validation_mse_normalized']):.8g} |
+| Test MSE normalized | {float(metrics['test_mse_normalized']):.8g} |
+| Test baseline MSE normalized | {float(metrics['test_baseline_mse_normalized']):.8g} |
+| Export max abs error normalized | {float(metrics['export_max_abs_error_normalized']):.8g} |
+
+## Export
+
+- Descriptor: `model.greybound.json`
+- Weights: `weights.greybound.bin`
+- Weight format: `greybound-bin-v1`
+- Runtime status: experimental descriptor only
+
+## Limitations
+
+- Static MLP only: no state, no capacitance memory, no bias history.
+- Trained on decimated samples.
+- The dataset is still a small SPICE corpus.
+- Rust inference is not implemented yet.
+""",
+        encoding="utf-8",
+    )
+
+
+def _collect_split(npz: Any, manifest: dict[str, Any], stimulus_ids: list[str], *, stride: int) -> PreparedSplit:
+    xs = []
+    ys = []
+    by_id = {item["id"]: item for item in manifest["stimuli"]}
+    for stimulus_id in stimulus_ids:
+        stimulus = by_id[stimulus_id]
+        prefix = stimulus_id + "__"
+        time_s = npz[prefix + "time_s"]
+        input_v = npz[prefix + "input_v"]
+        plate_ac_v = npz[prefix + "plate_ac_v"]
+        settle_time_s = float(stimulus.get("parameters", {}).get("settle_time_s", 0.0))
+        mask = time_s >= settle_time_s
+        xs.append(input_v[mask][::stride].reshape((-1, 1)))
+        ys.append(plate_ac_v[mask][::stride].reshape((-1, 1)))
+    if not xs:
+        return PreparedSplit(x=np.zeros((0, 1), dtype=np.float32), y=np.zeros((0, 1), dtype=np.float32))
+    return PreparedSplit(x=np.concatenate(xs).astype(np.float32), y=np.concatenate(ys).astype(np.float32))
+
+
+def _normalize_split(
+    split: PreparedSplit,
+    input_mean: float,
+    input_std: float,
+    output_mean: float,
+    output_std: float,
+) -> PreparedSplit:
+    return PreparedSplit(
+        x=((split.x - input_mean) / input_std).astype(np.float32),
+        y=((split.y - output_mean) / output_std).astype(np.float32),
+    )
+
+
+def _extract_mlp_layers(model: Any) -> list[dict[str, np.ndarray]]:
+    layers = []
+    for module in model:
+        if module.__class__.__name__ == "Linear":
+            layers.append(
+                {
+                    "weight": module.weight.detach().cpu().numpy().astype(np.float32),
+                    "bias": module.bias.detach().cpu().numpy().astype(np.float32),
+                }
+            )
+    return layers
+
+
+def _read_weight_vector(file: Any, expected_count: int) -> np.ndarray:
+    count_raw = file.read(4)
+    if len(count_raw) != 4:
+        raise ValueError("unexpected end of weights file")
+    count = struct.unpack("<I", count_raw)[0]
+    if count != expected_count:
+        raise ValueError(f"weight vector has {count} values, expected {expected_count}")
+    data = file.read(count * 4)
+    if len(data) != count * 4:
+        raise ValueError("unexpected end of weights file")
+    return np.frombuffer(data, dtype="<f4").astype(np.float32)
+
+
+def _artifact_path(manifest: dict[str, Any], kind: str) -> str:
+    for artifact in manifest["artifacts"]:
+        if artifact["kind"] == kind:
+            return str(artifact["path"])
+    raise ValueError(f"manifest has no artifact of kind {kind!r}")
+
+
+def _resolve_manifest_path(base_path: Path, path: str) -> Path:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    repo_relative = Path.cwd() / candidate
+    if repo_relative.exists():
+        return repo_relative
+    return base_path.parent / candidate
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _mse(a: np.ndarray, b: np.ndarray) -> float:
+    if a.size == 0 or b.size == 0:
+        return 0.0
+    return float(np.mean((a - b) ** 2))
+
+
+def _import_torch() -> Any:
+    try:
+        import torch
+    except ModuleNotFoundError as error:
+        raise RuntimeError(
+            "PyTorch is required for training. Run with: "
+            "uv --project lab run --with torch greybound-lab train-neural-cell ..."
+        ) from error
+    return torch
+
+
+def _torch_version_or_unknown() -> str:
+    try:
+        import torch
+    except ModuleNotFoundError:
+        return "unknown"
+    return str(torch.__version__)
+
+
+def _stimulus_min(manifest: dict[str, Any], key: str, *, default: float) -> float:
+    values = [float(item.get("parameters", {}).get(key)) for item in manifest["stimuli"] if key in item.get("parameters", {})]
+    return -max(values) if values else default
+
+
+def _stimulus_max(manifest: dict[str, Any], key: str, *, default: float) -> float:
+    values = [float(item.get("parameters", {}).get(key)) for item in manifest["stimuli"] if key in item.get("parameters", {})]
+    return max(values) if values else default
