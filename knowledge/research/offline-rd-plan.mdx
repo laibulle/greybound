@@ -268,9 +268,49 @@ uv --project lab run --with torch greybound-lab train-neural-cell \
 
 It trains a small static MLP and exports `model.greybound.json` plus
 `weights.greybound.bin`. This is an export-path milestone, not a final tube
-model. The next acceptance-relevant work is to implement Rust inference and
-compare the exported artifact against both SPICE holdouts and Greybound's current
-analytic approximation.
+model. The Rust core now has an experimental reader/inference implementation for
+that artifact shape. The next acceptance-relevant work is to add generated-vector
+equivalence tests and compare the exported artifact against both SPICE holdouts
+and Greybound's current analytic approximation.
+
+The generated-vector equivalence check is now available:
+
+```sh
+uv --project lab run greybound-lab export-neural-cell-vectors \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --output lab/models/common-cathode-12ax7-mlp-v1/equivalence-vectors.json
+
+make lab-check-neural-cell-rust
+```
+
+This proves Python and Rust agree on the exported artifact. It does not prove
+the model is a good tube replacement yet.
+
+The cell-level SPICE evaluation command is:
+
+```sh
+uv --project lab run greybound-lab evaluate-neural-cell \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --report lab/models/common-cathode-12ax7-mlp-v1/spice-evaluation.md \
+  --stride 32
+```
+
+The first result is useful but not acceptable as a final model: aggregate error
+beats a zero baseline, while the hot held-out sine still has large relative
+error. This argues for either better conditioning, a dynamic model, or an
+analytic/table baseline comparison before runtime integration.
+
+The analytic baseline comparison is:
+
+```sh
+make lab-evaluate-analytic-common-cathode NEURAL_STRIDE=32
+```
+
+The current local result is about `80 mV` weighted RMSE for the Rust analytic
+common-cathode stage, compared with about `245 mV` for the first MLP. Therefore
+the first neural artifact should not replace the analytic solver. It is a
+pipeline proof, and the next scientific step is residual analysis against SPICE.
 
 Phase 4: first fitted micro-model
 

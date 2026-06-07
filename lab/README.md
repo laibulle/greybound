@@ -93,6 +93,60 @@ PyTorch is intentionally optional and only needed for this command. The exported
 artifact is a Greybound descriptor plus packed weights; ONNX is not part of this
 first source-of-truth path.
 
+The Rust core has an experimental loader for this artifact shape:
+
+- descriptor: `model.greybound.json`,
+- weights: `weights.greybound.bin`,
+- architecture: scalar `mlp`,
+- activation: `tanh`,
+- weight format: `greybound-bin-v1`.
+
+This loader is not wired into the live audio path yet. It exists to prove that
+the Rust side can parse the source-of-truth artifact and run deterministic
+sample/block inference before we decide how to integrate neural cells into amp
+models.
+
+Export Python reference vectors and check the generated artifact with the Rust
+loader:
+
+```sh
+uv --project lab run greybound-lab export-neural-cell-vectors \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --output lab/models/common-cathode-12ax7-mlp-v1/equivalence-vectors.json
+
+make lab-check-neural-cell-rust
+```
+
+The Rust check is optional in normal test runs because the model artifacts are
+local and ignored by git. When the local files exist, it verifies that Rust
+matches the Python-exported expected outputs.
+
+Evaluate the artifact against the SPICE dataset in physical units:
+
+```sh
+uv --project lab run greybound-lab evaluate-neural-cell \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --report lab/models/common-cathode-12ax7-mlp-v1/spice-evaluation.md \
+  --stride 32
+```
+
+The first local run shows the expected pattern for a static smoke-test MLP: it
+beats the zero baseline overall, but it is still weak on the hot held-out sine
+case. Treat that as a pipeline success and a model-quality warning.
+
+Compare the existing Rust analytic common-cathode stage against the same SPICE
+dataset:
+
+```sh
+make lab-evaluate-analytic-common-cathode NEURAL_STRIDE=32
+```
+
+The current local analytic report shows about `80 mV` weighted RMSE versus about
+`245 mV` for the first static MLP. That means the neural artifact is useful for
+proving the pipeline, but it is not a better replacement than the current Rust
+cell.
+
 Download public TONE3000 DI input WAV files for local NAM and Greybound
 integration tests:
 

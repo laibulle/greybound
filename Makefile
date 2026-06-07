@@ -40,6 +40,11 @@ NEURAL_EPOCHS ?= 300
 NEURAL_HIDDEN_SIZE ?= 16
 NEURAL_LEARNING_RATE ?= 0.001
 NEURAL_STRIDE ?= 16
+NEURAL_DESCRIPTOR ?= $(NEURAL_OUTPUT_DIR)/model.greybound.json
+NEURAL_VECTORS ?= $(NEURAL_OUTPUT_DIR)/equivalence-vectors.json
+NEURAL_EVAL_REPORT ?= $(NEURAL_OUTPUT_DIR)/spice-evaluation.md
+NEURAL_EVAL_SPLIT ?= all
+ANALYTIC_EVAL_REPORT ?= lab/reports/common-cathode-analytic-spice-evaluation.md
 OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
@@ -147,4 +152,29 @@ lab-train-neural-cell:
 		--learning-rate "$(NEURAL_LEARNING_RATE)" \
 		--stride "$(NEURAL_STRIDE)"
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell
+lab-export-neural-cell-vectors:
+	uv --project lab run greybound-lab export-neural-cell-vectors \
+		--descriptor "$(NEURAL_DESCRIPTOR)" \
+		--output "$(NEURAL_VECTORS)"
+
+lab-check-neural-cell-rust:
+	GREYBOUND_NEURAL_CELL_DESCRIPTOR="$(abspath $(NEURAL_DESCRIPTOR))" \
+	GREYBOUND_NEURAL_CELL_VECTORS="$(abspath $(NEURAL_VECTORS))" \
+	cargo test -p greybound generated_neural_cell_vectors_match_rust_loader
+
+lab-evaluate-neural-cell:
+	uv --project lab run greybound-lab evaluate-neural-cell \
+		--descriptor "$(NEURAL_DESCRIPTOR)" \
+		--dataset-manifest "$(NEURAL_DATASET_MANIFEST)" \
+		--report "$(NEURAL_EVAL_REPORT)" \
+		--stride "$(NEURAL_STRIDE)" \
+		--split "$(NEURAL_EVAL_SPLIT)"
+
+lab-evaluate-analytic-common-cathode:
+	cargo run -p greybound --example common_cathode_dataset_eval -- \
+		--manifest "$(NEURAL_DATASET_MANIFEST)" \
+		--report "$(ANALYTIC_EVAL_REPORT)" \
+		--stride "$(NEURAL_STRIDE)" \
+		--split "$(NEURAL_EVAL_SPLIT)"
+
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-evaluate-analytic-common-cathode

@@ -5,7 +5,9 @@ from pathlib import Path
 
 import numpy as np
 
-from greybound_lab.neural_cell import infer_artifact_numpy, infer_mlp_numpy, read_mlp_weights, write_mlp_weights
+from greybound_lab.neural_cell import evaluate_neural_cell_against_spice, export_neural_cell_vectors
+from greybound_lab.neural_cell import infer_artifact_numpy, infer_mlp_numpy
+from greybound_lab.neural_cell import read_mlp_weights, write_mlp_weights
 
 
 def test_mlp_weight_roundtrip_and_numpy_inference(tmp_path: Path) -> None:
@@ -66,3 +68,109 @@ def test_infer_artifact_numpy_applies_normalization(tmp_path: Path) -> None:
     output = infer_artifact_numpy(descriptor_path, np.array([1.0, 3.0], dtype=np.float32))
 
     np.testing.assert_allclose(output, np.array([10.0, 14.0], dtype=np.float32), rtol=1e-6)
+
+
+def test_export_neural_cell_vectors(tmp_path: Path) -> None:
+    weights_path = tmp_path / "weights.greybound.bin"
+    descriptor_path = tmp_path / "model.greybound.json"
+    vectors_path = tmp_path / "equivalence-vectors.json"
+    write_mlp_weights(
+        weights_path,
+        [
+            {
+                "weight": np.array([[1.0]], dtype=np.float32),
+                "bias": np.array([0.0], dtype=np.float32),
+            }
+        ],
+    )
+    descriptor = {
+        "artifact_id": "test-cell",
+        "io": {
+            "normalization": {
+                "input_mean": 0.0,
+                "input_std": 1.0,
+                "output_mean": 0.0,
+                "output_std": 1.0,
+            }
+        },
+        "weights": {
+            "path": "weights.greybound.bin",
+            "layout": [{"in_features": 1, "out_features": 1}],
+        },
+    }
+    descriptor_path.write_text(json.dumps(descriptor), encoding="utf-8")
+
+    export_neural_cell_vectors(
+        descriptor_path=descriptor_path,
+        output_path=vectors_path,
+        input_values=[-1.0, 0.0, 1.0],
+    )
+    payload = json.loads(vectors_path.read_text(encoding="utf-8"))
+
+    assert payload["artifact_id"] == "test-cell"
+    assert len(payload["cases"]) == 3
+    assert payload["cases"][1]["expected_output_v"] == 0.0
+
+
+def test_evaluate_neural_cell_against_spice_writes_report(tmp_path: Path) -> None:
+    weights_path = tmp_path / "weights.greybound.bin"
+    descriptor_path = tmp_path / "model.greybound.json"
+    dataset_path = tmp_path / "dataset.npz"
+    manifest_path = tmp_path / "dataset.json"
+    report_path = tmp_path / "evaluation.md"
+    write_mlp_weights(
+        weights_path,
+        [
+            {
+                "weight": np.array([[1.0]], dtype=np.float32),
+                "bias": np.array([0.0], dtype=np.float32),
+            }
+        ],
+    )
+    descriptor = {
+        "artifact_id": "test-cell",
+        "io": {
+            "normalization": {
+                "input_mean": 0.0,
+                "input_std": 1.0,
+                "output_mean": 0.0,
+                "output_std": 1.0,
+            }
+        },
+        "weights": {
+            "path": "weights.greybound.bin",
+            "layout": [{"in_features": 1, "out_features": 1}],
+        },
+    }
+    descriptor_path.write_text(json.dumps(descriptor), encoding="utf-8")
+    np.savez(
+        dataset_path,
+        case_a__time_s=np.array([0.0, 0.1, 0.2], dtype=np.float64),
+        case_a__input_v=np.array([0.0, 1.0, -1.0], dtype=np.float32),
+        case_a__plate_ac_v=np.array([0.0, 1.0, -1.0], dtype=np.float32),
+    )
+    manifest = {
+        "sample_rate_hz": 10,
+        "splits": {"train": ["case_a"], "validation": [], "test": []},
+        "stimuli": [
+            {
+                "id": "case_a",
+                "kind": "sine_level_sweep",
+                "parameters": {"settle_time_s": 0.0},
+            }
+        ],
+        "artifacts": [{"kind": "output", "path": str(dataset_path)}],
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    evaluate_neural_cell_against_spice(
+        descriptor_path=descriptor_path,
+        dataset_manifest_path=manifest_path,
+        report_path=report_path,
+        stride=1,
+    )
+    report = report_path.read_text(encoding="utf-8")
+
+    assert "Neural Cell SPICE Evaluation" in report
+    assert "`case_a`" in report
+    assert "0.000 mV" in report

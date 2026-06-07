@@ -221,6 +221,56 @@ This model is an export smoke test. It maps normalized `input_v` to normalized
 artifact path. It does not model tube memory, capacitance, source/load
 interaction, B+ perturbation, or runtime Rust inference yet.
 
+The Rust core now has an experimental `neural_cell` loader for this artifact
+shape. It can parse `model.greybound.json`, read `weights.greybound.bin`, and run
+deterministic scalar MLP inference with `tanh` activations. This is still outside
+the live audio path: no amp model uses it yet, and it has not been accepted as a
+real-time tube-cell replacement.
+
+Export Python reference vectors and verify the local artifact through Rust with:
+
+```sh
+uv --project lab run greybound-lab export-neural-cell-vectors \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --output lab/models/common-cathode-12ax7-mlp-v1/equivalence-vectors.json
+
+make lab-check-neural-cell-rust
+```
+
+The generated vectors are local artifacts. The Rust test is optional during
+normal test runs and becomes active when `GREYBOUND_NEURAL_CELL_DESCRIPTOR` and
+`GREYBOUND_NEURAL_CELL_VECTORS` point to the local files.
+
+Evaluate the artifact against the SPICE dataset in physical units:
+
+```sh
+uv --project lab run greybound-lab evaluate-neural-cell \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --report lab/models/common-cathode-12ax7-mlp-v1/spice-evaluation.md \
+  --stride 32
+```
+
+The first local report evaluates 7 stimuli and 6,566 decimated samples. The
+aggregate RMSE is about `245 mV` against a zero-baseline RMSE around `644 mV`,
+so the artifact learns useful shape. The hot held-out sine remains poor:
+`sine_1khz_120mv` is about `583 mV` RMSE, or roughly `46%` relative RMSE. This
+confirms the pipeline is working, but the current static MLP is not a sufficient
+tube-cell replacement.
+
+Compare the existing Rust analytic common-cathode stage against the same SPICE
+dataset with:
+
+```sh
+make lab-evaluate-analytic-common-cathode NEURAL_STRIDE=32
+```
+
+The current analytic baseline is substantially stronger than the first MLP:
+about `80 mV` weighted RMSE versus about `245 mV` for the neural artifact. This
+means the immediate research target is not runtime integration. The next useful
+work is to understand why the analytic stage still has residual error and only
+then decide whether a neural or fitted component improves the held-out cases.
+
 ## NAM References
 
 NAM is used as an integration oracle, not as Greybound's internal architecture.
@@ -545,7 +595,13 @@ Not implemented yet:
 - generated SPICE datasets using the dataset manifest schema,
 - first experimental PyTorch MLP training from a SPICE dataset,
 - first Greybound neural-cell descriptor and packed weight export,
-- specialized Rust neural-cell inference.
+- experimental Rust neural-cell descriptor/weight loader and scalar MLP
+  inference,
+- optional generated-vector Python/Rust equivalence check for local neural-cell
+  artifacts,
+- SPICE evaluation report for exported neural-cell artifacts.
+- analytic Rust common-cathode baseline evaluation against the same SPICE
+  dataset.
 
 ## Next Research Steps
 
@@ -557,10 +613,13 @@ The next useful improvements are:
   residuals,
 - extend the common-cathode SPICE fixture to level sweeps and two-tone IMD,
 - generate the first common-cathode SPICE dataset manifest,
-- add a Rust reader/inference prototype for `model.greybound.json` and
-  `weights.greybound.bin`,
-- compare the exported MLP against the existing analytical/common-cathode
-  approximation,
+- train a dynamic or better-conditioned cell only after the analytic comparison
+  identifies where the current approximation fails,
+- inspect analytic residuals by waveform/phase/harmonic content to decide
+  whether the residual is caused by initialization, capacitor discretization,
+  solver tolerance, or nonlinear law mismatch,
+- decide how neural-cell artifacts should be mounted into an amp model without
+  violating real-time constraints,
 - standardize one Nox30-style NAM comparison,
 - decide the first fitted cell only after the reports show where the largest
   error is.

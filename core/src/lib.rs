@@ -2,6 +2,7 @@ pub mod amp;
 pub mod chain;
 pub mod circuit;
 pub mod ir;
+pub mod neural_cell;
 pub mod pedal;
 pub mod rig;
 

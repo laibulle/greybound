@@ -8,6 +8,7 @@ from greybound_lab.external_inputs import download_tone3000_inputs, download_ton
 from greybound_lab.metrics import compare_signals
 from greybound_lab.nam import write_nam_pack_manifest
 from greybound_lab.nam_render import render_nam
+from greybound_lab.neural_cell import evaluate_neural_cell_against_spice, export_neural_cell_vectors
 from greybound_lab.neural_cell import train_common_cathode_mlp
 from greybound_lab.report import write_markdown_report
 from greybound_lab.render import render_rig
@@ -69,6 +70,24 @@ def main() -> None:
     train_cell.add_argument("--stride", type=int, default=16)
     train_cell.add_argument("--seed", type=int, default=59)
 
+    export_vectors = subparsers.add_parser(
+        "export-neural-cell-vectors",
+        help="Export Python reference vectors for a Greybound neural-cell artifact.",
+    )
+    export_vectors.add_argument("--descriptor", required=True, type=Path)
+    export_vectors.add_argument("--output", required=True, type=Path)
+    export_vectors.add_argument("--input-v", type=float, action="append")
+
+    evaluate_cell = subparsers.add_parser(
+        "evaluate-neural-cell",
+        help="Evaluate a Greybound neural-cell artifact against a SPICE dataset manifest.",
+    )
+    evaluate_cell.add_argument("--descriptor", required=True, type=Path)
+    evaluate_cell.add_argument("--dataset-manifest", required=True, type=Path)
+    evaluate_cell.add_argument("--report", required=True, type=Path)
+    evaluate_cell.add_argument("--stride", type=int, default=16)
+    evaluate_cell.add_argument("--split", choices=["all", "train", "validation", "test"], default="all")
+
     inputs = subparsers.add_parser(
         "download-tone3000-inputs",
         help="Download public TONE3000 DI input WAV files for local NAM/Greybound tests.",
@@ -120,6 +139,10 @@ def main() -> None:
         run_spice_dataset(args)
     elif args.command == "train-neural-cell":
         run_train_neural_cell(args)
+    elif args.command == "export-neural-cell-vectors":
+        run_export_neural_cell_vectors(args)
+    elif args.command == "evaluate-neural-cell":
+        run_evaluate_neural_cell(args)
     elif args.command == "download-tone3000-inputs":
         run_download_tone3000_inputs(args)
     elif args.command == "download-tone3000-irs":
@@ -209,6 +232,26 @@ def run_train_neural_cell(args: argparse.Namespace) -> None:
     )
     print(f"wrote {descriptor_path}")
     print(f"wrote {weights_path}")
+    print(f"wrote {report_path}")
+
+
+def run_export_neural_cell_vectors(args: argparse.Namespace) -> None:
+    output_path = export_neural_cell_vectors(
+        descriptor_path=args.descriptor,
+        output_path=args.output,
+        input_values=args.input_v,
+    )
+    print(f"wrote {output_path}")
+
+
+def run_evaluate_neural_cell(args: argparse.Namespace) -> None:
+    report_path = evaluate_neural_cell_against_spice(
+        descriptor_path=args.descriptor,
+        dataset_manifest_path=args.dataset_manifest,
+        report_path=args.report,
+        stride=args.stride,
+        split=args.split,
+    )
     print(f"wrote {report_path}")
 
 

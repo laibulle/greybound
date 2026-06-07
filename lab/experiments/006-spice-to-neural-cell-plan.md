@@ -294,7 +294,20 @@ Milestone 5: export and Rust equivalence
 - Add golden vector tests.
 
 Current status: partially implemented. Python/NumPy can read the exported
-descriptor and weights. Rust loader/inference is still pending.
+descriptor and weights, and the Rust core has an experimental scalar MLP loader
+and inference path. Generated-vector Python/Rust equivalence is available through
+`export-neural-cell-vectors` and `make lab-check-neural-cell-rust`. Audio runtime
+integration is still pending.
+
+Cell-level SPICE evaluation is also implemented through `evaluate-neural-cell`.
+The first static MLP beats the zero baseline overall but remains weak on the hot
+held-out sine case, so it is a pipeline milestone rather than a model-quality
+milestone.
+
+The Rust analytic common-cathode baseline is evaluated through
+`make lab-evaluate-analytic-common-cathode`. The current analytic stage is
+stronger than the first MLP on the same dataset, so neural runtime integration is
+not justified yet.
 
 Milestone 6: integration check
 
