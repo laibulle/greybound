@@ -136,16 +136,33 @@ beats the zero baseline overall, but it is still weak on the hot held-out sine
 case. Treat that as a pipeline success and a model-quality warning.
 
 The Rust core has a preallocated `NeuralCellRuntime` for future audio
-integration. It is validated by generated Python/Rust vectors, but it is not
-wired into Nox30 audio yet. Nox30 can run a first-stage neural shadow beside the
-analytic stage and report monitor-log error with:
+integration. It is validated by generated Python/Rust vectors. Nox30 can run a
+first-stage neural counterpart beside or instead of the analytic stage. Use
+shadow mode first:
 
 ```sh
 make lab-shadow-nox30-first-stage
 ```
 
-Keep replacement experiments behind a separate explicit gate until the
-cell-level residual evidence improves.
+Direct CLI form:
+
+```sh
+target/release/greybound-cli \
+  --rig rigs/nox30-driven.json5 \
+  --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
+  --output-wav target/greybound-nox30-monitor.wav \
+  --render-seconds 20 \
+  --sample-rate 48000 \
+  --period-size 16 \
+  --ir lab/references/tone3000-irs/celestion.wav \
+  --monitor \
+  --neural-cell nox30.first_stage=lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --neural-cell-mode shadow
+```
+
+`--neural-cell-mode replace` feeds the neural output into the rest of Nox30. Keep
+that as an explicit R&D diagnostic until the cell-level residual evidence
+improves.
 
 Compare the existing Rust analytic common-cathode stage against the same SPICE
 dataset:

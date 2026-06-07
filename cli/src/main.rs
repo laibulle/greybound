@@ -9,7 +9,9 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
 };
-use greybound::amp::{AmpControls, Nox30OperatingPoint};
+use greybound::amp::{
+    configure_nox30_first_stage_neural, AmpControls, NeuralCellMode, Nox30OperatingPoint,
+};
 use greybound::ir::SpeakerStage;
 use greybound::{
     amp_model_descriptor, BrigadeControls, CelesteControls, ControlDescriptor, ControlKind,
@@ -2882,6 +2884,13 @@ struct Args {
     monitor: bool,
     monitor_log: PathBuf,
     model: String,
+    neural_cells: Vec<NeuralCellOverride>,
+    neural_cell_mode: NeuralCellMode,
+}
+
+struct NeuralCellOverride {
+    component: String,
+    descriptor_path: PathBuf,
 }
 
 fn load_wav_input(path: &Path, input_channel: usize) -> Result<WavInput> {
@@ -3057,6 +3066,7 @@ fn main() -> Result<()> {
     let cab_controls = SharedCabControls::new(args.ir);
     let mut device_controls_snapshot = shared_device_controls.load();
     let input_gain = args.input_gain;
+    apply_neural_overrides(&args.neural_cells, args.neural_cell_mode)?;
     let mut chain = SignalChain::new(args.sample_rate as f32, args.chain_config.clone());
     let mut speaker = args
         .ir_path
@@ -3210,6 +3220,20 @@ fn main() -> Result<()> {
     if !args.device_controls.is_empty() {
         eprintln!("Rig devices: {} active slot(s)", args.device_controls.len());
     }
+    if !args.neural_cells.is_empty() {
+        eprintln!(
+            "Neural cells: {} component(s), mode {}",
+            args.neural_cells.len(),
+            neural_cell_mode_name(args.neural_cell_mode)
+        );
+        for neural_cell in &args.neural_cells {
+            eprintln!(
+                "  {} -> {}",
+                neural_cell.component,
+                neural_cell.descriptor_path.display()
+            );
+        }
+    }
     eprintln!("Press Ctrl-C to stop.");
 
     loop {
@@ -3353,6 +3377,8 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let mut ir_path = None;
     let mut monitor = false;
     let mut monitor_log = PathBuf::from("greybound-monitor.log");
+    let mut neural_cells = Vec::new();
+    let mut neural_cell_mode = NeuralCellMode::Shadow;
     let mut args = env::args().skip(1);
 
     while let Some(arg) = args.next() {
@@ -3384,6 +3410,14 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
             "--ir" => ir_path = Some(PathBuf::from(next_value(&mut args, "--ir")?)),
             "--monitor" => monitor = true,
             "--monitor-log" => monitor_log = PathBuf::from(next_value(&mut args, "--monitor-log")?),
+            "--neural-cell" => neural_cells.push(parse_neural_cell_override(&next_value(
+                &mut args,
+                "--neural-cell",
+            )?)?),
+            "--neural-cell-mode" => {
+                neural_cell_mode =
+                    parse_neural_cell_mode(&next_value(&mut args, "--neural-cell-mode")?)?
+            }
             "--list-devices" => {
                 print_devices(host)?;
                 std::process::exit(0);
@@ -3443,9 +3477,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let amp_enabled = rig.amp_enabled();
     let chain_config = rig.signal_chain_config()?;
     let device_controls = rig.device_controls()?;
-    let rig_ir_path = rig
-        .cab_ir_path()
-        .map(PathBuf::from);
+    let rig_ir_path = rig.cab_ir_path().map(PathBuf::from);
     let ir_path = ir_path.or(rig_ir_path);
     let ir = ir_path.is_some();
     let rig_name = rig.name.or_else(|| {
@@ -3478,9 +3510,54 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
         monitor,
         monitor_log,
         model,
+        neural_cells,
+        neural_cell_mode,
     })
 }
 
+fn parse_neural_cell_override(value: &str) -> Result<NeuralCellOverride> {
+    let (component, descriptor) = value
+        .split_once('=')
+        .context("--neural-cell expects COMPONENT=DESCRIPTOR, for example nox30.first_stage=lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json")?;
+    if component.trim().is_empty() || descriptor.trim().is_empty() {
+        bail!("--neural-cell expects non-empty COMPONENT=DESCRIPTOR");
+    }
+    Ok(NeuralCellOverride {
+        component: component.trim().to_owned(),
+        descriptor_path: PathBuf::from(descriptor.trim()),
+    })
+}
+
+fn parse_neural_cell_mode(value: &str) -> Result<NeuralCellMode> {
+    match value {
+        "shadow" => Ok(NeuralCellMode::Shadow),
+        "replace" => Ok(NeuralCellMode::Replace),
+        _ => bail!("--neural-cell-mode must be 'shadow' or 'replace'"),
+    }
+}
+
+fn neural_cell_mode_name(mode: NeuralCellMode) -> &'static str {
+    match mode {
+        NeuralCellMode::Shadow => "shadow",
+        NeuralCellMode::Replace => "replace",
+    }
+}
+
+fn apply_neural_overrides(overrides: &[NeuralCellOverride], mode: NeuralCellMode) -> Result<()> {
+    configure_nox30_first_stage_neural(None, NeuralCellMode::Shadow);
+    for override_ in overrides {
+        match override_.component.as_str() {
+            "nox30.first_stage" => {
+                configure_nox30_first_stage_neural(Some(override_.descriptor_path.clone()), mode);
+            }
+            other => bail!(
+                "unsupported --neural-cell component '{}'; supported: nox30.first_stage",
+                other
+            ),
+        }
+    }
+    Ok(())
+}
 
 fn next_value(args: &mut impl Iterator<Item = String>, option: &str) -> Result<String> {
     args.next()
@@ -3571,6 +3648,8 @@ fn print_help() {
          \x20 --output-db DB            Safety output trim [default: -9]\n\
          \x20 --monitor                 Show interactive VU meters and amp controls\n\
          \x20 --monitor-log PATH        Rotating monitor log [default: greybound-monitor.log]\n\
+         \x20 --neural-cell COMPONENT=PATH  Run a neural counterpart for a supported component\n\
+         \x20 --neural-cell-mode MODE    Neural mode: shadow or replace [default: shadow]\n\
          \x20 --ir PATH                 Force-enable a speaker IR WAV path, even if the rig has no active cab\n\
          \x20 --list-devices            List CoreAudio devices"
     );
@@ -3646,6 +3725,28 @@ mod tests {
         let line = format_component_telemetry(telemetry);
 
         assert!(line.contains("shadow first abs err avg/max 0.01230/0.04560 V n 128"));
+    }
+
+    #[test]
+    fn parses_neural_cell_override_and_mode() {
+        let override_ =
+            parse_neural_cell_override("nox30.first_stage=lab/models/cell/model.greybound.json")
+                .unwrap();
+        assert_eq!(override_.component, "nox30.first_stage");
+        assert_eq!(
+            override_.descriptor_path,
+            PathBuf::from("lab/models/cell/model.greybound.json")
+        );
+        assert_eq!(
+            parse_neural_cell_mode("shadow").unwrap(),
+            NeuralCellMode::Shadow
+        );
+        assert_eq!(
+            parse_neural_cell_mode("replace").unwrap(),
+            NeuralCellMode::Replace
+        );
+        assert!(parse_neural_cell_override("nox30.first_stage").is_err());
+        assert!(parse_neural_cell_mode("audit").is_err());
     }
 
     #[test]

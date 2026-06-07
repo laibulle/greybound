@@ -298,11 +298,12 @@ descriptor and weights, and the Rust core has an experimental scalar MLP loader
 and inference path. The Rust side also has a preallocated `NeuralCellRuntime`
 intended for audio use; generated-vector Python/Rust equivalence is available
 through `export-neural-cell-vectors` and `make lab-check-neural-cell-rust`, and
-that test now exercises the runtime path. Nox30 has a first-stage shadow path
-behind `GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR`; it runs the neural
-adapter beside the analytic stage and reports monitor-log error, but it does not
-feed the neural output into the audio path. Audio replacement is still pending
-and must stay behind an explicit experimental gate.
+that test now exercises the runtime path. Nox30 has a first-stage neural path
+exposed in the CLI through `--neural-cell nox30.first_stage=PATH` and
+`--neural-cell-mode shadow|replace`. `shadow` runs the neural adapter beside the
+analytic stage and reports monitor-log error. `replace` feeds the neural output
+into the rest of Nox30, but it remains an explicit R&D diagnostic rather than an
+accepted default.
 
 Cell-level SPICE evaluation is also implemented through `evaluate-neural-cell`.
 The first static MLP beats the zero baseline overall but remains weak on the hot
@@ -326,7 +327,7 @@ Milestone 6: integration check
 - Shadow a single Greybound cell in an offline render.
 - Compare the complete rig against SPICE-derived expectations and NAM reference
   trends.
-- Replace the cell only behind a separate explicit gate after shadow evidence
+- Replace the cell only with `--neural-cell-mode replace`, after shadow evidence
   improves.
 - Promote only if the change improves the full-chain evidence.
 

@@ -2,10 +2,18 @@ mod dumbler;
 mod nox30;
 mod sheriff800;
 
-use super::{AmpControls, Nox30OperatingPoint};
+use super::{AmpControls, NeuralCellMode, Nox30OperatingPoint};
 use dumbler::Dumbler;
 use nox30::Nox30;
 use sheriff800::Sheriff800;
+use std::path::PathBuf;
+
+pub(super) fn configure_nox30_first_stage_neural(
+    descriptor_path: Option<PathBuf>,
+    mode: NeuralCellMode,
+) {
+    nox30::configure_first_stage_neural(descriptor_path, mode);
+}
 
 pub(in crate::amp) enum AmpCore {
     Dumbler(Dumbler),

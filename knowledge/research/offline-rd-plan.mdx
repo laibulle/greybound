@@ -287,11 +287,12 @@ This proves Python and Rust agree on the exported artifact through the runtime
 path intended for future audio integration. It does not prove the model is a
 good tube replacement yet.
 
-Nox30 has a first-stage shadow path behind
-`GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR`. The neural adapter runs beside
-the analytic first stage and monitor telemetry reports its absolute error, but
-the audio still uses the analytic stage. This is the first integration gate
-before any replacement experiment.
+Nox30 has a first-stage neural path through
+`--neural-cell nox30.first_stage=PATH` and `--neural-cell-mode shadow|replace`.
+In `shadow` mode, the neural adapter runs beside the analytic first stage and
+monitor telemetry reports its absolute error while the audio still uses the
+analytic stage. In `replace` mode, the neural output feeds the rest of Nox30.
+This remains an explicit integration gate, not a default model-quality decision.
 
 The cell-level SPICE evaluation command is:
 

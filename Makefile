@@ -19,6 +19,7 @@ OUTPUT ?= device
 IR ?= 0
 IR_WAV ?= lab/references/tone3000-irs/celestion.wav
 MONITOR ?= 0
+EXTRA_ARGS ?=
 TONE3000_INPUTS_DIR ?= lab/references/tone3000-inputs
 TONE3000_IRS_DIR ?= lab/references/tone3000-irs
 NAM_PACK_DIR ?= lab/references/nam/AC30HWH
@@ -92,7 +93,8 @@ standalone-run: build
 	$(CLI) "$$@" \
 		--sample-rate "$$sample_rate" --period-size $(PERIOD_SIZE) \
 		$(RIG_FLAG) $(IR_FLAG) $(MONITOR_FLAG) \
-		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB)
+		--input-db $(INPUT_DB) --output-db $(OUTPUT_DB) \
+		$(EXTRA_ARGS)
 
 standalone-run-wave: INPUT=file
 standalone-run-wave: OUTPUT=device
@@ -179,9 +181,9 @@ lab-shadow-nox30-first-stage: INPUT=file
 lab-shadow-nox30-first-stage: OUTPUT=wav
 lab-shadow-nox30-first-stage: MONITOR=1
 lab-shadow-nox30-first-stage: IR=1
+lab-shadow-nox30-first-stage: EXTRA_ARGS=--neural-cell "nox30.first_stage=$(NEURAL_DESCRIPTOR)" --neural-cell-mode shadow
 lab-shadow-nox30-first-stage:
-	GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR="$(NEURAL_DESCRIPTOR)" \
-		$(MAKE) standalone-run RIG="$(RIG)" INPUT="$(INPUT)" OUTPUT="$(OUTPUT)" MONITOR="$(MONITOR)" IR="$(IR)"
+	$(MAKE) standalone-run RIG="$(RIG)" INPUT="$(INPUT)" OUTPUT="$(OUTPUT)" MONITOR="$(MONITOR)" IR="$(IR)" EXTRA_ARGS='$(EXTRA_ARGS)'
 
 lab-evaluate-analytic-common-cathode:
 	cargo run -p greybound --example common_cathode_dataset_eval -- \

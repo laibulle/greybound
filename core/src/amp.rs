@@ -4,6 +4,7 @@ mod oversampling;
 
 use models::AmpCore;
 use oversampling::{half_band_coefficients, FirFilter, OVERSAMPLING_FACTOR};
+use std::path::PathBuf;
 
 pub const AMP_LATENCY: usize = 16;
 
@@ -43,6 +44,16 @@ pub struct Nox30OperatingPoint {
     pub power_cathode_bias_voltage: f32,
     pub power_attack_current: f32,
     pub transformer_core_flux: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NeuralCellMode {
+    Shadow,
+    Replace,
+}
+
+pub fn configure_nox30_first_stage_neural(descriptor_path: Option<PathBuf>, mode: NeuralCellMode) {
+    models::configure_nox30_first_stage_neural(descriptor_path, mode);
 }
 
 #[derive(Clone, Copy, Debug)]

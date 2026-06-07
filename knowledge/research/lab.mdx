@@ -251,12 +251,27 @@ The generated-vector test runs through `NeuralCellRuntime`, so the integration
 candidate is checked against Python-exported golden values without allocating per
 sample.
 
-Nox30 has an explicit first-stage shadow path, but it does not replace the
-analytic audio path. Set `GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR` to a
-local `model.greybound.json` and the first common-cathode neural adapter will run
-beside the analytic `first_stage`. Monitor telemetry then reports
-`shadow first abs err avg/max` when the shadow is active. The sound still comes
-from the analytic stage.
+Nox30 has an explicit first-stage neural path. The CLI form is:
+
+```sh
+target/release/greybound-cli \
+  --rig rigs/nox30-driven.json5 \
+  --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
+  --output-wav target/greybound-nox30-monitor.wav \
+  --render-seconds 20 \
+  --sample-rate 48000 \
+  --period-size 16 \
+  --ir lab/references/tone3000-irs/celestion.wav \
+  --monitor \
+  --neural-cell nox30.first_stage=lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --neural-cell-mode shadow
+```
+
+`shadow` runs the neural adapter beside the analytic `first_stage`; monitor
+telemetry reports `shadow first abs err avg/max`, and the sound still comes from
+the analytic stage. `replace` feeds the neural output into the rest of Nox30.
+That mode is intentionally explicit and remains an R&D diagnostic, not an
+accepted model-quality gate.
 
 The convenience command is:
 

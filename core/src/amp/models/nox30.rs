@@ -1,6 +1,6 @@
 use super::AmpModel;
 use crate::amp::components::{TopBoostToneStack, WdfHighpass};
-use crate::amp::{AmpControls, Nox30OperatingPoint};
+use crate::amp::{AmpControls, NeuralCellMode, Nox30OperatingPoint};
 use crate::circuit::passive::{
     BrightVolumeInputParams, BrightVolumeInputStage, CutPresenceParams, CutPresenceStage,
 };
@@ -17,12 +17,26 @@ use crate::neural_cell::{
 };
 use std::env;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
+
+#[derive(Clone)]
+struct FirstStageNeuralConfig {
+    descriptor_path: PathBuf,
+    mode: NeuralCellMode,
+}
+
+struct FirstStageNeural {
+    adapter: CommonCathodeNeuralAdapter,
+    mode: NeuralCellMode,
+}
+
+static FIRST_STAGE_NEURAL_CONFIG: OnceLock<Mutex<Option<FirstStageNeuralConfig>>> = OnceLock::new();
 
 pub(in crate::amp) struct Nox30 {
     sample_rate: f32,
     input_volume: BrightVolumeInputStage,
     first_stage: CommonCathodeStage,
-    first_stage_shadow: Option<CommonCathodeNeuralAdapter>,
+    first_stage_neural: Option<FirstStageNeural>,
     first_stage_shadow_output_v: Option<f32>,
     first_stage_shadow_error_v: Option<f32>,
     follower: CathodeFollowerStage,
@@ -51,7 +65,7 @@ impl Nox30 {
             sample_rate,
             input_volume: BrightVolumeInputStage::new(input_volume_params(sample_rate)),
             first_stage: CommonCathodeStage::new(first_stage_params(sample_rate)),
-            first_stage_shadow: first_stage_shadow_adapter(),
+            first_stage_neural: first_stage_neural(),
             first_stage_shadow_output_v: None,
             first_stage_shadow_error_v: None,
             follower: CathodeFollowerStage::new(follower_params(sample_rate)),
@@ -114,11 +128,15 @@ impl Nox30 {
         let phase_inverter_voltage = rails.phase_inverter_voltage / 300.0;
         let volume_output = self.input_volume.process(input, controls.volume);
 
-        let first_stage = self.first_stage.process(volume_output);
-        if let Some(shadow) = &mut self.first_stage_shadow {
-            let shadow_output = shadow.process_sample(volume_output);
-            self.first_stage_shadow_output_v = Some(shadow_output);
-            self.first_stage_shadow_error_v = Some(shadow_output - first_stage);
+        let analytic_first_stage = self.first_stage.process(volume_output);
+        let mut first_stage = analytic_first_stage;
+        if let Some(neural) = &mut self.first_stage_neural {
+            let neural_output = neural.adapter.process_sample(volume_output);
+            self.first_stage_shadow_output_v = Some(neural_output);
+            self.first_stage_shadow_error_v = Some(neural_output - analytic_first_stage);
+            if neural.mode == NeuralCellMode::Replace {
+                first_stage = neural_output;
+            }
         } else {
             self.first_stage_shadow_output_v = None;
             self.first_stage_shadow_error_v = None;
@@ -251,17 +269,56 @@ fn first_stage_params(sample_rate: f32) -> CommonCathodeParams {
     }
 }
 
-fn first_stage_shadow_adapter() -> Option<CommonCathodeNeuralAdapter> {
-    let descriptor = env::var_os("GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR")?;
-    let cell = ExperimentalNeuralCell::from_descriptor_path(PathBuf::from(descriptor)).ok()?;
+pub(super) fn configure_first_stage_neural(descriptor_path: Option<PathBuf>, mode: NeuralCellMode) {
+    let slot = FIRST_STAGE_NEURAL_CONFIG.get_or_init(|| Mutex::new(None));
+    *slot.lock().expect("nox30 neural config mutex poisoned") =
+        descriptor_path.map(|descriptor_path| FirstStageNeuralConfig {
+            descriptor_path,
+            mode,
+        });
+}
+
+fn first_stage_neural() -> Option<FirstStageNeural> {
+    let config = configured_first_stage_neural()
+        .or_else(|| {
+            env_first_stage_neural(
+                "GREYBOUND_NOX30_FIRST_STAGE_SHADOW_DESCRIPTOR",
+                NeuralCellMode::Shadow,
+            )
+        })
+        .or_else(|| {
+            env_first_stage_neural(
+                "GREYBOUND_NOX30_FIRST_STAGE_REPLACE_DESCRIPTOR",
+                NeuralCellMode::Replace,
+            )
+        })?;
+    let cell = ExperimentalNeuralCell::from_descriptor_path(&config.descriptor_path).ok()?;
     let params = first_stage_params(1.0);
-    Some(CommonCathodeNeuralAdapter::from_cell(
-        cell,
-        CommonCathodeNeuralAdapterParams {
-            input_gain: params.input_gain,
-            output_scale: params.output_scale,
-        },
-    ))
+    Some(FirstStageNeural {
+        adapter: CommonCathodeNeuralAdapter::from_cell(
+            cell,
+            CommonCathodeNeuralAdapterParams {
+                input_gain: params.input_gain,
+                output_scale: params.output_scale,
+            },
+        ),
+        mode: config.mode,
+    })
+}
+
+fn configured_first_stage_neural() -> Option<FirstStageNeuralConfig> {
+    FIRST_STAGE_NEURAL_CONFIG
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .expect("nox30 neural config mutex poisoned")
+        .clone()
+}
+
+fn env_first_stage_neural(name: &str, mode: NeuralCellMode) -> Option<FirstStageNeuralConfig> {
+    env::var_os(name).map(|descriptor_path| FirstStageNeuralConfig {
+        descriptor_path: PathBuf::from(descriptor_path),
+        mode,
+    })
 }
 
 fn follower_params(sample_rate: f32) -> CathodeFollowerParams {
