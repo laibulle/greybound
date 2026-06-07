@@ -77,6 +77,7 @@ uv --project lab run greybound-lab download-tone3000-irs \
 NAM references are imported manually for now. See:
 
 - [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
+- [005 AC30HWH NAM A2 First Render](experiments/005-ac30hwh-nam-a2-first-render.md)
 - [references/nam/README.md](references/nam/README.md)
 
 Inspect a manually downloaded NAM pack and write a source-safe manifest:
@@ -99,8 +100,8 @@ uv --project lab run greybound-lab render-nam \
   --renderer-command "uv run --python 3.11 --with neural-amp-modeler==0.13.0 --with scipy python lab/scripts/nam_a2_render.py --model {model} --input {input_wav} --output {output_wav} --sample-rate {sample_rate} --seconds {render_seconds} --input-db {input_db} --output-db {output_db}" \
   --sample-rate 48000 \
   --render-seconds 20 \
-  --input-db -70 \
-  --output-db -12
+  --input-db -40 \
+  --output-db -24
 ```
 
 The default Makefile renderer uses the official Python `neural-amp-modeler`
@@ -126,10 +127,11 @@ The first experiment is:
 - [002 Nox30 Stimulus Batch](experiments/002-nox30-stimulus-batch.md)
 - [003 Common-Cathode SPICE Reference](experiments/003-common-cathode-spice-reference.md)
 - [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
+- [005 AC30HWH NAM A2 First Render](experiments/005-ac30hwh-nam-a2-first-render.md)
 
 These define the minimum useful analysis loop and the first controlled-stimulus
 comparison between Greybound rigs, then bridge into the first cell-level SPICE
-reference.
+reference and first NAM A2 integration comparison.
 
 ## Directory Layout
 
