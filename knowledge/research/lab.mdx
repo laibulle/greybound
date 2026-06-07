@@ -47,7 +47,8 @@ The first implemented loop is complete-chain WAV analysis.
 3. Optionally provide segment markers for local diagnostics.
 4. Generate synthetic stimuli when the metric needs controlled input.
 5. Run SPICE fixtures for bounded circuit-cell references.
-6. Read the generated Markdown report to decide what to investigate next.
+6. Import NAM renders as integration references.
+7. Read the generated Markdown report to decide what to investigate next.
 
 This is deliberately before NAM integration or neural training. Without a
 stable comparison loop, training would produce numbers without engineering
@@ -139,6 +140,59 @@ This is the bridge from full-rig observations to cell-level validation. The
 first report gives the common-cathode stage a reproducible electrical anchor:
 plate around `250.544 V`, cathode around `0.402 V`, B+ around `277.322 V`, and
 small-signal plate gain around `14.88x`.
+
+## NAM References
+
+NAM is used as an integration oracle, not as Greybound's internal architecture.
+The preferred protocol is:
+
+- find a VOX AC30-family **Amp Head** NAM capture,
+- render the same dry DI through NAM,
+- pair the NAM amp-head with the same Greybound cabinet IR,
+- compare against Greybound rendered with IR enabled.
+
+This is cleaner than using a `Full Rig / Combo` NAM because the cab and mic are
+then held constant. A full-rig NAM is still acceptable as a broad end-to-end
+sanity check, but the report must be marked as cab/mic-confounded.
+
+Current candidate source:
+
+- TONE3000 `VOX AC30` category: `https://www.tone3000.com/categories/makes/VOX%2BAC30`
+- Filter target: gear `Amp Head`, platform `NAM`, clean or edge-of-breakup Top
+  Boost style capture.
+
+Metadata for imported references should follow
+`lab/schemas/nam-reference.schema.json`. Local NAM renders and downloaded model
+files belong under `lab/references/nam/` and are ignored by git.
+
+## External DI Inputs
+
+TONE3000 exposes public input audio in the `neural-amp-modeler-wasm`
+repository. These are useful because they are already meant to drive NAM-style
+amp comparisons: short mono WAV examples with guitar and bass playing styles.
+
+Download them into the local lab with:
+
+```sh
+uv --project lab run greybound-lab download-tone3000-inputs \
+  --output-dir lab/references/tone3000-inputs
+```
+
+The command downloads WAV files from:
+
+- `https://github.com/tone-3000/neural-amp-modeler-wasm/tree/main/ui/public/inputs`
+
+It also writes a local `manifest.json` with the original GitHub URL, raw
+download URL, SHA, size, and local filename for every sample. The generated WAVs
+and manifest stay ignored by git.
+
+Important rights boundary:
+
+- the upstream repository is public and its code is MIT-licensed,
+- the input WAV files are contributed audio samples,
+- Greybound treats them as local R&D references only,
+- do not redistribute the downloaded WAVs from our repository unless the sample
+  rights are explicit.
 
 ## Compare WAV Files
 
@@ -330,13 +384,14 @@ Implemented:
   intermodulation protocols,
 - first controlled-stimulus Nox30 clean/driven batch,
 - first common-cathode SPICE import/report,
+- NAM reference protocol and metadata schema,
 - tests for metric alignment and metadata generation,
 - first experiment plan for chain reference analysis.
 
 Not implemented yet:
 
 - plots in reports,
-- NAM profile rendering/import workflow,
+- automated NAM rendering/import workflow,
 - broader SPICE fixture automation beyond the first common-cathode import,
 - dataset manifests for training,
 - fitted micro-model training,

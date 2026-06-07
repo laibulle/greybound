@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://greybound.local/schemas/nam-reference.schema.json",
+  "title": "Greybound NAM reference metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "reference_id",
+    "source",
+    "model",
+    "render"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "reference_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "url"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["TONE3000", "local-capture", "other"]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tone_id": {
+          "type": "string"
+        },
+        "creator": {
+          "type": "string"
+        },
+        "license_notes": {
+          "type": "string"
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gear_type", "format", "amp_family"],
+      "properties": {
+        "gear_type": {
+          "type": "string",
+          "enum": ["amp-head", "full-rig", "combo", "pedal", "other"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["nam", "nam-a2", "other"]
+        },
+        "amp_family": {
+          "type": "string"
+        },
+        "capture_name": {
+          "type": "string"
+        },
+        "capture_notes": {
+          "type": "string"
+        },
+        "includes_cab": {
+          "type": "boolean"
+        }
+      }
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_wav", "output_wav", "sample_rate_hz", "ir_policy"],
+      "properties": {
+        "input_wav": {
+          "type": "string"
+        },
+        "output_wav": {
+          "type": "string"
+        },
+        "sample_rate_hz": {
+          "type": "integer",
+          "minimum": 8000
+        },
+        "ir_policy": {
+          "type": "string",
+          "enum": ["amp-head-plus-greybound-ir", "full-rig-no-extra-ir", "unknown"]
+        },
+        "ir_path": {
+          "type": "string"
+        },
+        "host_or_tool": {
+          "type": "string"
+        },
+        "input_gain_db": {
+          "type": "number"
+        },
+        "output_gain_db": {
+          "type": "number"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

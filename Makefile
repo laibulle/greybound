@@ -17,11 +17,14 @@ INPUT ?= live
 OUTPUT ?= device
 IR ?= 0
 MONITOR ?= 0
+TONE3000_INPUTS_DIR ?= lab/references/tone3000-inputs
+OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
 
 IR_FLAG = $(if $(filter 1 true yes on,$(IR)),--ir,)
 MONITOR_FLAG = $(if $(filter 1 true yes on,$(MONITOR)),--monitor,)
+OVERWRITE_FLAG = $(if $(filter 1 true yes on,$(OVERWRITE)),--overwrite,)
 RIG_FLAG = $(if $(strip $(RIG)),--rig "$(RIG)",)
 REQUIRE_RIG = $(if $(strip $(RIG)),true,echo "RIG is required, for example: make standalone-run RIG=rigs/nox30-driven.json5" >&2; exit 2)
 
@@ -80,4 +83,8 @@ desktop-release:
 run-desktop: desktop-release
 	$(DESKTOP)
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop
+lab-download-tone3000-inputs:
+	uv --project lab run greybound-lab download-tone3000-inputs \
+		--output-dir "$(TONE3000_INPUTS_DIR)" $(OVERWRITE_FLAG)
+
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs

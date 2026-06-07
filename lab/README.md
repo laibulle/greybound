@@ -59,6 +59,19 @@ uv --project lab run greybound-lab spice-run \
   --output-dir lab/references/spice
 ```
 
+Download public TONE3000 DI input WAV files for local NAM and Greybound
+integration tests:
+
+```sh
+uv --project lab run greybound-lab download-tone3000-inputs \
+  --output-dir lab/references/tone3000-inputs
+```
+
+NAM references are imported manually for now. See:
+
+- [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
+- [references/nam/README.md](references/nam/README.md)
+
 ## Start Here
 
 The first R&D target is not training. It is measurement.
@@ -76,6 +89,7 @@ The first experiment is:
 - [001 Chain Reference Analysis](experiments/001-chain-reference-analysis.md)
 - [002 Nox30 Stimulus Batch](experiments/002-nox30-stimulus-batch.md)
 - [003 Common-Cathode SPICE Reference](experiments/003-common-cathode-spice-reference.md)
+- [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
 
 These define the minimum useful analysis loop and the first controlled-stimulus
 comparison between Greybound rigs, then bridge into the first cell-level SPICE
@@ -112,7 +126,9 @@ reference.
 
 : External references such as NAM renders, measured pedal captures, or SPICE
   exports. Treat this as local working data unless redistribution rights are
-  explicit.
+  explicit. Public TONE3000 input WAV files can be downloaded into
+  `references/tone3000-inputs/`; the WAVs, generated manifest, and generated
+  README remain ignored by git.
 
 `renders/`
 

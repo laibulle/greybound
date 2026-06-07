@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from greybound_lab.audio import read_wav_mono
+from greybound_lab.external_inputs import download_tone3000_inputs
 from greybound_lab.metrics import compare_signals
 from greybound_lab.report import write_markdown_report
 from greybound_lab.render import render_rig
@@ -45,6 +46,13 @@ def main() -> None:
     spice.add_argument("--fixture", required=True, choices=["common-cathode-12ax7"])
     spice.add_argument("--output-dir", type=Path, default=Path("lab/references/spice"))
 
+    inputs = subparsers.add_parser(
+        "download-tone3000-inputs",
+        help="Download public TONE3000 DI input WAV files for local NAM/Greybound tests.",
+    )
+    inputs.add_argument("--output-dir", type=Path, default=Path("lab/references/tone3000-inputs"))
+    inputs.add_argument("--overwrite", action="store_true")
+
     args = parser.parse_args()
     if args.command == "compare-wav":
         run_compare_wav(args)
@@ -54,6 +62,8 @@ def main() -> None:
         run_generate_stimuli(args)
     elif args.command == "spice-run":
         run_spice(args)
+    elif args.command == "download-tone3000-inputs":
+        run_download_tone3000_inputs(args)
 
 
 def run_compare_wav(args: argparse.Namespace) -> None:
@@ -112,6 +122,15 @@ def run_spice(args: argparse.Namespace) -> None:
     data_path, report_path = run_spice_fixture(args.fixture, args.output_dir, repo_root=Path.cwd())
     print(f"wrote {data_path}")
     print(f"wrote {report_path}")
+
+
+def run_download_tone3000_inputs(args: argparse.Namespace) -> None:
+    downloaded = download_tone3000_inputs(args.output_dir, overwrite=args.overwrite)
+    for item in downloaded:
+        action = "downloaded" if item.downloaded else "kept"
+        print(f"{action} {item.local_path}")
+    print(f"wrote {args.output_dir / 'manifest.json'}")
+    print(f"wrote {args.output_dir / 'README.md'}")
 
 
 if __name__ == "__main__":
