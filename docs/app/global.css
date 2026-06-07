@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+.circuit-diagram {
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, CanvasText 16%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, Canvas 96%, CanvasText 4%);
+}
+
+.circuit-diagram__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+}
+
+.circuit-diagram__header h3,
+.circuit-diagram__inspector h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.circuit-diagram__eyebrow {
+  margin-bottom: 0.25rem;
+  color: color-mix(in oklab, CanvasText 62%, transparent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.circuit-diagram__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.circuit-diagram__meta span {
+  border: 1px solid color-mix(in oklab, CanvasText 14%, transparent);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  color: color-mix(in oklab, CanvasText 68%, transparent);
+  font-size: 0.75rem;
+}
+
+.circuit-diagram__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+  min-height: 440px;
+}
+
+.circuit-diagram__canvas-wrap {
+  overflow: auto;
+  border-right: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+}
+
+.circuit-diagram__canvas {
+  display: block;
+  min-width: 980px;
+  width: 100%;
+  height: auto;
+  cursor: pointer;
+}
+
+.circuit-diagram__inspector {
+  padding: 1rem;
+  background: color-mix(in oklab, Canvas 92%, CanvasText 8%);
+}
+
+.circuit-diagram__detail {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+}
+
+.circuit-diagram__detail strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.circuit-diagram__detail p {
+  margin: 0.25rem 0 0;
+  color: color-mix(in oklab, CanvasText 78%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.circuit-diagram__detail span {
+  display: block;
+  margin-top: 0.35rem;
+  color: color-mix(in oklab, CanvasText 62%, transparent);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 860px) {
+  .circuit-diagram__header,
+  .circuit-diagram__body {
+    display: block;
+  }
+
+  .circuit-diagram__canvas-wrap {
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+  }
+
+  .circuit-diagram__meta {
+    justify-content: flex-start;
+    margin-top: 0.75rem;
+  }
+}

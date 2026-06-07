@@ -1,0 +1,82 @@
+---
+title: Godess One
+description: Reverse-engineered Godess One-style distortion engineering baseline for Greybound pedal modeling.
+---
+
+Godess One is Greybound's first distortion pedal model. It targets a Godess One-style control surface: distortion, tone, level, and a Standard/Custom voicing switch. Standard mode keeps the tighter, brighter hard-clipped character; Custom mode adds more gain, body, and mid fill.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/distortion/diagrams/godess-one.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the buffered input, pre-emphasis, clipping stage, tone network, mode-dependent voice, and output source impedance to the current Rust emulation.
+
+<CircuitDiagram model="godess-one" />
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving another pedal or the amp input.
+- Input coupling that removes DC before the drive network.
+- Pre-emphasis before clipping to keep the distortion bright and articulate.
+- Harder symmetrical diode clipping than the overdrive models.
+- Tone control that blends body and edge after clipping.
+- Standard and Custom voices that share the same control set but alter gain, low/mid body, and top-end emphasis.
+
+## Controls
+
+- `distortion`: gain into the clipping stage.
+- `tone`: low/high post-clip tone blend.
+- `level`: final output level into the next load.
+- `mode`: `standard` or `custom`.
+- `bypass`: routing state; active circuit state remains private to the pedal instance.
+
+## External Boundaries
+
+The pedal receives and emits voltage plus impedance:
+
+- input source: guitar pickup or previous pedal output,
+- input load: Godess One input impedance plus cable capacitance memory,
+- output source: pedal output voltage plus output impedance,
+- output load: amp input, next pedal, or FX-loop return.
+
+`ConnectionState` owns cable capacitance and source/load division. Godess One should not mutate amp internals.
+
+## Current DSP Approximation
+
+The first implementation is a scalar approximation:
+
+- high-pass input coupling,
+- mode-dependent pre-emphasis and body mix,
+- pre-clip low-pass smoothing,
+- diode-pair soft limit plus hard clipping contribution,
+- post-clip smoothing,
+- low/high tone blend with mode-dependent mid fill,
+- output low-pass smoothing and low source impedance.
+
+This is not yet a component-exact discrete analog solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- input and output impedance targets are measured against reference data,
+- distortion sweep changes clipping density and sustain without unstable level jumps,
+- tone sweep changes edge and body across several input amplitudes,
+- Standard and Custom modes are validated against reference captures,
+- output level into 1 MOhm, 500 kOhm, 220 kOhm, and 100 kOhm loads behaves plausibly,
+- SPICE or measured captures validate individual stage responses.
+
+## Measurement Protocol
+
+Hardware or SPICE captures should include:
+
+- supply voltage and current draw,
+- input impedance at 100 Hz, 1 kHz, 5 kHz, and 10 kHz,
+- output impedance across level settings,
+- bypass behavior,
+- distortion, tone, and level potentiometer taper,
+- Standard and Custom mode switch behavior,
+- pre-emphasis output, clipping output, tone output, and final output probes,
+- sine tests at 82 Hz, 110 Hz, 220 Hz, 440 Hz, 1 kHz, 3 kHz, and 6 kHz,
+- input amplitudes from 20 mV RMS to 1 V RMS, with large amplitudes only from a buffered source.

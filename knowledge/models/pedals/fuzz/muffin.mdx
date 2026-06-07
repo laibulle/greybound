@@ -1,0 +1,127 @@
+---
+title: Muffin
+description: Reverse-engineered Muffin engineering baseline for Greybound pedal modeling.
+---
+
+The current target is the Electro-Harmonix V2 Ram's Head / Violet-era Muffin family. The modern Ram's Head reissue is useful for published impedance and control-behavior targets, but vintage units vary.
+
+Do not treat "Muffin" as one canonical schematic. Triangle, Ram's Head, op-amp, Civil War, Green Russian, Black Russian, and modern NYC variants differ in values and sometimes topology. The op-amp Muffin is a separate topology, not a BJT variant.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/fuzz/diagrams/muffin.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the physical fuzz stages to the current Rust emulation and includes partial SPICE export fields only where the diagram has enough concrete electrical detail.
+
+<CircuitDiagram model="muffin" />
+
+## Baseline Assumptions
+
+- Single 9 V supply rail.
+- Four cascaded silicon NPN common-emitter stages.
+- First stage: input booster and source-loading boundary.
+- Middle two stages: clipping amplifiers with antiparallel silicon diodes.
+- Tone stage: passive mid-scooped blend of low-pass and high-pass branches.
+- Final transistor stage: recovery/output booster after tone-stack loss.
+- True bypass is routing behavior, not part of the active circuit state.
+
+## Published Boundary Targets
+
+For the modern Ram's Head reissue/manual:
+
+- input impedance target: 117 kOhm,
+- nominal output impedance target: 25 kOhm,
+- current draw target: about 2 mA at 9 V,
+- tone clockwise increases treble and decreases bass,
+- sustain controls sustain/distortion amount.
+
+The current Greybound DSP approximation uses about 130 kOhm input impedance and about 10 kOhm output impedance. The modeling priority is to match electrical boundaries first, then stage transfer curves, then variant voicing.
+
+## Controls
+
+- `sustain`: variable gain/drive feeding the two clipping stages.
+- `tone`: 100 kOhm passive blend between low-pass and high-pass branches.
+- `volume`: output attenuation after the recovery stage.
+- `bypass`: routing state; active circuit state should remain private to the pedal instance.
+
+## External Boundaries
+
+The pedal should receive and emit voltage plus impedance:
+
+- input source: guitar pickup or previous pedal output,
+- input load: Muffin input impedance plus cable capacitance memory,
+- output source: pedal output voltage plus output impedance,
+- output load: amp input, next pedal, or FX-loop return.
+
+`ConnectionState` owns cable capacitance and source/load division. The pedal should not mutate arbitrary amp internals.
+
+## Stage Notes
+
+Input booster:
+
+- Public analysis identifies a shunt-feedback common-emitter input booster.
+- One analyzed public value set uses RB 20.4 kOhm, RL 9 kOhm, RE 100 Ohm, RS 39 kOhm, and RF 470 kOhm.
+- Confidence is high for role/topology and medium for exact values because variants differ.
+
+Clipping stages:
+
+- Two common-emitter stages with antiparallel silicon diode clipping.
+- First pass diode target is 1N914/1N4148-equivalent behavior.
+- Forward voltage target for vintage silicon parts is roughly 0.5 to 0.6 V, but measured curves are better than fixed constants.
+- The implementation target is a coupled BJT plus diode solve, not a post-gain `tanh`.
+
+Tone stack:
+
+- Passive Muffin tone blend.
+- Classic values used as the current target:
+  - low-pass branch: 39 kOhm and 10 nF,
+  - high-pass branch: 3.9 nF and 22 kOhm,
+  - blend potentiometer: 100 kOhm.
+- Implementation target is a trapezoidal MNA passive network including source impedance and recovery-stage load.
+
+Output recovery:
+
+- Common-emitter transistor stage after the passive tone stack.
+- Should model output coupling and volume-pot loading.
+- Published output impedance note for the modern Ram's Head is nominally 25 kOhm.
+
+## Implementation Plan
+
+Keep `ElectricalSignal`, `Load`, and `ConnectionState` as the rig-level interface. Then replace simplified stages with reusable circuit cells:
+
+- `CommonEmitterStage`,
+- `FeedbackCommonEmitterStage`,
+- `DiodePair`,
+- `CouplingCapacitor`,
+- `GroundedCapacitor`,
+- `Potentiometer`.
+
+Use bounded Newton solves or table-assisted diode/transistor models. Keep the implementation scalar, deterministic, non-allocating in the audio path, and suitable for plugin use.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- published/manual impedance targets match within useful tolerance,
+- SPICE and Rust agree for individual stages,
+- tone-stack response agrees at several tone positions,
+- sustain changes harmonic density and compression correctly,
+- guitar-source versus buffered-source input changes are audible and measurable,
+- output level into 1 MOhm, 500 kOhm, 220 kOhm, and 100 kOhm loads behaves plausibly.
+
+## Measurement Protocol
+
+Hardware or SPICE captures should include:
+
+- supply voltage and current draw,
+- input impedance at 100 Hz, 1 kHz, 5 kHz, and 10 kHz,
+- output impedance across volume positions,
+- bypass behavior,
+- potentiometer resistance/taper if a unit can be opened,
+- Q1 collector, clipping-stage outputs, tone-stack input/wiper, recovery collector, and final output,
+- sine tests at 82 Hz, 110 Hz, 220 Hz, 440 Hz, 1 kHz, 3 kHz, and 6 kHz,
+- input amplitudes from 20 mV RMS to 1 V RMS, with large amplitudes only from a buffered source.
+
+## Source Notes
+
+Useful public sources include ElectroSmash analysis, Kit Rae / Muffin Page variant history, the EHX Ram's Head manual, and public Muffin tone-control writeups. Keep URLs in docs when useful, but do not copy current-production artwork or third-party schematic images into the repository.

@@ -1,0 +1,48 @@
+---
+title: Flexible Signal Chain
+description: The intended routing and shared-state model for pedals, amps, and FX-loop processors.
+---
+
+The chain is a configurable list of processors. Each processor receives audio plus the current shared electrical state, then returns processed audio plus an updated state for downstream processors.
+
+## Processor Contract
+
+A processor should expose:
+
+- a stable processor id and display name,
+- audio processing for one block,
+- parameter descriptors and current values,
+- bypass behavior,
+- private DSP state reset,
+- shared-state input and output.
+
+The chain should expose:
+
+- slot-indexed ordering,
+- processor replacement,
+- bypass per slot,
+- parameter routing by slot and parameter id,
+- serialized configuration,
+- deterministic processing order.
+
+## Shared Electrical State
+
+The shared state should start simple and become more accurate as models mature:
+
+- `source_impedance_ohms`: output impedance presented by the previous stage.
+- `load_impedance_ohms`: expected input load of the next stage when known.
+- `nominal_level_v`: nominal signal voltage.
+- `peak_level_v`: recent peak voltage estimate.
+- `headroom_v`: approximate clipping or saturation headroom.
+- `dc_offset_v`: propagated DC offset estimate.
+- `coupling`: whether the boundary is AC-coupled, DC-coupled, buffered, or transformer-like.
+- `warnings`: analysis notes such as impedance mismatch, clipping risk, or unstable level.
+
+The chain should not let modules reach into each other's private memory. Modules communicate externally visible circuit behavior through this shared state only.
+
+## Initial Implementation Strategy
+
+1. Implement the generic chain and shared state before adding pedal-specific processing.
+2. Add a small registry so processors can be instantiated from configuration.
+3. Use Muffin and Minotaur as circuit-documented models inside that generic chain.
+4. Keep monitor output able to inspect both audio and shared-state evolution.

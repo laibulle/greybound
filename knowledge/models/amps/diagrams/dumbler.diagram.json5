@@ -1,0 +1,257 @@
+{
+  schema: "greybound.circuit-diagram.v1",
+  model: "dumbler",
+  title: "Dumbler graybox documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1500,
+    preferredHeight: 720,
+  },
+
+  groups: [
+    {
+      id: "preamp",
+      label: "Clean preamp and tone",
+      nodes: ["input_stage", "drive_stage", "tone_stack", "recovery_stage"],
+    },
+    {
+      id: "lead",
+      label: "Overdrive path",
+      nodes: ["od_coupling", "od_first", "od_second", "lead_mix"],
+    },
+    {
+      id: "power",
+      label: "Power amp",
+      nodes: ["phase_inverter", "sixl6_power", "negative_feedback"],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_stage",
+      label: "Input 12AX7 stage",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "first clean gain stage",
+        parts: [
+          "12AX7 / ECC83",
+          "100 kOhm plate resistor",
+          "1.5 kOhm cathode resistor",
+          "1 MOhm grid leak",
+        ],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "asymmetric triode-stage approximation",
+      },
+      spice: null,
+      layout: { x: 80, y: 300 },
+    },
+    {
+      id: "drive_stage",
+      label: "Second clean stage",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "second 12AX7 clean/drive stage before tone stack",
+        parts: [
+          "100 kOhm plate resistor",
+          "2.2 kOhm cathode resistor",
+          "25 uF bypass capacitor",
+        ],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "stacked triode-stage gain and filtering",
+      },
+      spice: null,
+      layout: { x: 280, y: 300 },
+    },
+    {
+      id: "tone_stack",
+      label: "Dumbler tone stack",
+      kind: "tone_stack",
+      ports: ["in", "out"],
+      hardware: {
+        role: "passive bass/mid/treble network",
+        parts: [
+          "250 kOhm bass pot",
+          "250 kOhm mid pot",
+          "250 kOhm treble pot",
+          "22 nF bass cap",
+          "2.2 nF mid cap",
+          "220 pF treble cap",
+        ],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "graybox passive tone shaping before recovery",
+      },
+      spice: null,
+      layout: { x: 500, y: 300 },
+    },
+    {
+      id: "recovery_stage",
+      label: "Recovery stage",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-tone recovery stage",
+        parts: [
+          "82 kOhm plate resistor",
+          "1.5 kOhm cathode resistor",
+          "25 uF bypass capacitor",
+        ],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "recovery gain before clean/lead routing",
+      },
+      spice: null,
+      layout: { x: 720, y: 300 },
+    },
+    {
+      id: "od_coupling",
+      label: "Overdrive coupling",
+      kind: "highpass",
+      ports: ["in", "out"],
+      hardware: {
+        role: "lead path coupling and trim behavior",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        library: ["WdfHighpass", "OnePoleLowpass"],
+        state: ["overdrive_coupling", "overdrive_trim_filter"],
+        algorithm: "coupled and smoothed lead-path drive",
+      },
+      spice: null,
+      layout: { x: 920, y: 170 },
+    },
+    {
+      id: "od_first",
+      label: "OD stage 1",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: { role: "first lead gain stage", confidence: "inferred" },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "first asymmetric overdrive triode approximation",
+      },
+      spice: null,
+      layout: { x: 1120, y: 170 },
+    },
+    {
+      id: "od_second",
+      label: "OD stage 2",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: { role: "second lead gain stage", confidence: "inferred" },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "second asymmetric overdrive triode approximation",
+      },
+      spice: null,
+      layout: { x: 1320, y: 170 },
+    },
+    {
+      id: "lead_mix",
+      label: "Clean / lead mix",
+      kind: "mixer",
+      ports: ["clean", "lead", "out"],
+      hardware: {
+        role: "lead path blend into downstream amp",
+        confidence: "inferred",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "lead_mix = drive^2 blend of clean and overdrive paths",
+      },
+      spice: null,
+      layout: { x: 1520, y: 300 },
+    },
+    {
+      id: "phase_inverter",
+      label: "Long-tail pair",
+      kind: "phase_inverter",
+      ports: ["in", "out"],
+      hardware: { role: "12AX7 / ECC83 phase inverter", confidence: "medium" },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "graybox phase inverter response",
+      },
+      spice: null,
+      layout: { x: 1720, y: 300 },
+    },
+    {
+      id: "sixl6_power",
+      label: "6L6GC power section",
+      kind: "power_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "fixed-bias push-pull class AB 6L6GC section",
+        value: "about 420 V plate supply, 5 kOhm output transformer target",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "graybox power-stage saturation and presence behavior",
+      },
+      spice: null,
+      layout: { x: 1920, y: 300 },
+    },
+    {
+      id: "negative_feedback",
+      label: "Presence feedback",
+      kind: "feedback",
+      ports: ["sample", "return"],
+      hardware: {
+        role: "negative feedback loop with presence control",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/dumbler.rs",
+        algorithm: "presence-shaped feedback approximation",
+      },
+      spice: null,
+      layout: { x: 1820, y: 560 },
+    },
+  ],
+
+  edges: [
+    { from: "input_stage.out", to: "drive_stage.in", signal: "audio_voltage" },
+    { from: "drive_stage.out", to: "tone_stack.in", signal: "preamp_drive" },
+    { from: "tone_stack.out", to: "recovery_stage.in", signal: "tone_output" },
+    { from: "recovery_stage.out", to: "od_coupling.in", signal: "clean_path" },
+    { from: "od_coupling.out", to: "od_first.in", signal: "lead_input" },
+    { from: "od_first.out", to: "od_second.in", signal: "lead_drive" },
+    { from: "recovery_stage.out", to: "lead_mix.clean", signal: "clean_path" },
+    { from: "od_second.out", to: "lead_mix.lead", signal: "lead_path" },
+    { from: "lead_mix.out", to: "phase_inverter.in", signal: "mixed_output" },
+    { from: "phase_inverter.out", to: "sixl6_power.in", signal: "phase_drive" },
+    {
+      from: "sixl6_power.out",
+      to: "negative_feedback.sample",
+      signal: "feedback_sample",
+    },
+    {
+      from: "negative_feedback.return",
+      to: "phase_inverter.in",
+      signal: "presence_feedback",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "Dumbler diagram is intentionally family-level until a specific measured or public reference variant is selected.",
+    },
+  ],
+}

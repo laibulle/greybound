@@ -1,0 +1,58 @@
+---
+title: Sheriff800
+description: Reverse-engineered graybox topology target for the Sheriff800 Master Volume Lead family.
+---
+
+The Sheriff800 target is the Master Volume Lead family. It is a real-time graybox topology, not a component-exact SPICE model.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/amps/diagrams/sheriff800.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the cascaded preamp, cold clipper, tone stack, master, and power section to the current Rust emulation.
+
+<CircuitDiagram model="sheriff800" />
+
+## Extracted Topology
+
+Input:
+
+- High-sensitivity input into cascaded ECC83 / 12AX7 preamp stages.
+- Tight high-pass coupling before the preamp gain path.
+
+Preamp:
+
+- Cascaded gain stages with bright preamp-volume behavior.
+- Cold-biased clipping-stage behavior is part of the family sound.
+- Current graybox target uses asymmetric triode stages with cathode-bypass high-pass emphasis.
+
+Tone stack:
+
+- TMB passive network family.
+- Treble cap target: 470 pF.
+- Bass cap target: 22 nF.
+- Mid cap target: 22 nF.
+- Slope resistor target: 33 kOhm.
+- Controls: bass, middle, treble.
+- Current model retunes the existing passive MNA stack; middle is still approximated as level into the stack.
+
+Master volume:
+
+- Pre-phase-inverter master volume.
+- Current implementation handles this through standalone gain staging and output trim.
+
+Phase inverter and power amp:
+
+- ECC83 / 12AX7 long-tail-pair phase inverter.
+- Fixed-bias push-pull EL34 output stage.
+- EL34 fixed-bias output stage family.
+- Negative feedback with presence control.
+- Output stage target includes current compression, dynamic bias shift, supply sag, and transformer high-pass/low-pass behavior.
+
+## Modeling Notes
+
+The Sheriff800 model should remain a family target until a specific unit/reference is chosen. The cold-clipper and pre-phase-inverter master-volume behavior are more important to preserve than exact component labels in early graybox passes.
+
+## Source Notes
+
+Useful references include public schematic indexes, public tone-stack analysis, and manufacturer reissue descriptions. Do not commit scans or copyrighted service documents; keep only extracted topology and confidence notes.

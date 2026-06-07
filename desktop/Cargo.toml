@@ -1,0 +1,11 @@
+[package]
+name = "greybound-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Desktop frontend for Greybound using iced."
+
+[dependencies]
+iced = { version = "0.10", features = ["canvas"] }
+greybound-ui = { path = "../ui" }
+greybound = { path = "../core" }

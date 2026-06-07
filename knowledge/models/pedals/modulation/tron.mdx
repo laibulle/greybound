@@ -1,0 +1,65 @@
+---
+title: Tron
+description: Mu-Tron Phasor II-inspired optical phaser engineering baseline.
+---
+
+Tron is Greybound's optical-style phaser model. The reference target is the Mu-Tron Phasor II family: a 1970s phaser associated with organic lamp/LDR-style motion, rate/depth/feedback controls, and a smoother sweep than a sharper one-knob JFET phaser.
+
+The implementation does not copy a factory schematic. It is a graybox model that captures the useful engineering behavior: buffered input, smoothed optical modulation, six moving all-pass stages, bounded feedback, wet/dry mix, and low output impedance.
+
+## Baseline Assumptions
+
+- Input impedance is high enough for guitar or pedal outputs.
+- Output impedance is low enough to drive another pedal, amp input, or FX return.
+- Modulation belongs to private pedal state: LFO phase, optical smoothing, all-pass memory, and feedback memory.
+- The optical control path moves slower than the raw LFO, giving a rounded organic sweep.
+- Pre-amp placement is the reference rig because a phaser before amp drive is the classic guitar use case.
+
+## Controls
+
+- `rate_hz`: LFO rate in Hz, clamped to `0.03..12.0`.
+- `depth`: optical sweep depth.
+- `feedback`: resonant feedback around the phase network.
+- `mix`: wet/dry blend.
+- `bypass`: routing state; private modulation state remains owned by the pedal instance.
+
+## Current DSP Approximation
+
+The current implementation uses:
+
+- source/load input boundary and light input coupling,
+- sine LFO with nonlinear lamp drive,
+- one-pole smoothing to mimic optical lag,
+- six first-order all-pass stages with spread center frequencies,
+- feedback around the phase-shift path,
+- dry/wet summing with mild output makeup,
+- output lowpass and headroom guard.
+
+This is not a SPICE model and it is not component-exact. It is a musically useful phase network that gives Greybound a stable organic phaser while leaving room for future circuit-level validation.
+
+## Reference Direction
+
+Useful future reference work:
+
+- collect public Mu-Tron Phasor II and optical phaser topology notes,
+- identify practical all-pass center-frequency ranges from measured sweeps,
+- compare 4-stage and 6-stage variants,
+- validate feedback range against self-oscillation and output headroom,
+- render sweep spectrograms to verify moving notch behavior.
+
+## References
+
+- [Effects Database: Musitronics Mu-Tron Phasor II](https://www.effectsdatabase.com/model/musitronics/mutron/phasor/2) describes the Phasor II as an electro-optical six-stage phase-delay network derived from the Bi-Phase lineage.
+- [Mu-Tron Phasor II quick start guide](https://mu-tron.com/wp-content/uploads/2025/01/PhasorII_Quickstart-Guide_v1.pdf) documents the modern control surface: stage, depth, rate, and feedback.
+- [ElectroSmash MXR Phase 90 analysis](https://www.electrosmash.com/mxr-phase-90/pedals/delay/mxr-phase-90.html) is useful contrast for the simpler four-stage JFET phaser topology and dry/phase-shifted output mixer principle.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- rate accuracy is measured over long renders,
+- all-pass notch movement is measured across depth settings,
+- feedback is validated for stability and musical resonance,
+- bypass and active output levels are matched within a useful range,
+- pre-amp and FX-loop placement are compared with renders,
+- measured hardware or SPICE captures define a specific reference unit.

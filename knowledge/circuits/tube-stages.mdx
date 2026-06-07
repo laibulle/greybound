@@ -1,0 +1,47 @@
+---
+title: Tube Stages
+description: Reusable tube-stage modeling notes for ECC83, EL84, phase-inverter, and supply behavior.
+---
+
+Tube-stage notes describe reusable component behavior that amp model pages can reference. They are not tied to one amp target.
+
+## Preamp Triodes
+
+Greybound currently uses compact nonlinear stage models for ECC83 / 12AX7 behavior. Component work should preserve:
+
+- input coupling and grid reference behavior,
+- plate-load and cathode-network frequency response,
+- asymmetric nonlinear gain,
+- cathode-bypass capacitor memory,
+- stable behavior under silence and overload.
+
+## Cathode Followers
+
+Cathode-follower behavior matters when driving passive tone stacks. Models should expose:
+
+- low source impedance into the following network,
+- nonlinear but comparatively low-distortion transfer,
+- loading changes from the downstream passive network.
+
+## Long-Tail-Pair Phase Inverters
+
+The phase inverter should represent opposed drive phases with small imbalance, not a generic stereo splitter. Important state:
+
+- differential drive,
+- common cathode/tail behavior,
+- phase-dependent nonlinear compression,
+- coupling into Cut or presence networks.
+
+## Power Stages
+
+Power-stage component notes should separate:
+
+- output-tube current/compression,
+- cathode or fixed-bias behavior,
+- screen-current behavior,
+- output-transformer filtering and core state,
+- negative feedback and presence behavior when present.
+
+## Supply And Sag
+
+Supply behavior is a shared component concern. The model should keep rail/sag state observable for monitoring and validation rather than hiding it in static waveshaping.

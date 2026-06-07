@@ -1,0 +1,226 @@
+---
+title: Pedal Models
+description: Pedal model targets grouped by category.
+---
+
+Pedal model pages describe musical devices, categories, controls, variant choices, and validation state. Reusable circuit cells and solver rules belong in `knowledge/circuits/`.
+
+Current categories:
+
+- Compressor: Lumen.
+- Filter: Muon.
+- Fuzz: Muffin family.
+- Overdrive: Minotaur and Monarch.
+- Distortion: Godess One.
+- Modulation: Dartford, Tron, Jetstream, and Celeste.
+- Delay: Brigade.
+- Reverb: Springfield.
+
+## Modeling Standard
+
+Pedal models should start from circuit behavior, then map that behavior into DSP and shared-state effects.
+
+Each pedal should document what it does to:
+
+- audio samples,
+- source impedance,
+- load expectations,
+- nominal and peak level,
+- clipping or headroom,
+- DC offset and coupling,
+- noise or filtering assumptions.
+
+This makes pedal ordering meaningful instead of treating every pedal as an isolated sample transform.
+
+## Current Status
+
+The first Lumen compressor implementation is available as a configurable first-position pre-amp device. It is inspired by high-end optical/tube leveling behavior adapted for guitar front-end use. It models the useful engineering boundaries:
+
+- high input impedance at the guitar boundary,
+- low output source impedance,
+- private detector and optical gain-reduction memory,
+- sidechain emphasis to reduce low-end pumping,
+- program-dependent release,
+- tube-style softening,
+- parallel dry/compressed blend.
+
+Runtime controls:
+
+- `peak_reduction`: optical gain-reduction amount.
+- `gain`: makeup/output gain.
+- `emphasis`: sidechain voicing.
+- `mix`: dry/compressed blend.
+
+The first Muon filter implementation is available as a configurable pre-amp device. It is inspired by Mu-Tron III-style envelope filtering and models the useful engineering boundaries:
+
+- high input impedance at the guitar or pedal boundary,
+- low output source impedance,
+- private envelope detector and filter memory,
+- fast attack and slower release,
+- dynamic resonant band-pass sweep,
+- dry body retention with wet/dry mix.
+
+Runtime controls:
+
+- `sensitivity`: envelope detector drive and sweep trigger amount.
+- `range`: sweep span and release feel.
+- `resonance`: moving band-pass emphasis.
+- `mix`: dry/filter blend.
+
+The first Muffin fuzz implementation is available as a configurable pre-amp device in the signal chain. It is not yet a component-exact transistor solve, but it models the useful engineering boundaries:
+
+- guitar/source loading through `ConnectionState`,
+- nominal Muffin input impedance,
+- four private gain/filter stages,
+- two diode-clipped fuzz stages,
+- tone blend,
+- output coupling,
+- low output source impedance for the next chain stage.
+
+Runtime controls:
+
+- `sustain`: gain into the clipping path.
+- `tone`: low/high tone blend.
+- `level`: output level after the tone path.
+
+The first Minotaur overdrive implementation is also available as a configurable pre-amp device. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- gain-controlled clean/drive blend,
+- soft clipping,
+- treble/presence shaping,
+- output level control.
+
+Runtime controls:
+
+- `gain`: clipped drive amount and clean/drive blend.
+- `treble`: presence-band lift.
+- `output`: output level into the next load.
+
+The first Monarch overdrive implementation is also available as a configurable pre-amp device. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- moderate low output source impedance,
+- two gain-dependent soft-clipping stages,
+- asymmetric clipping,
+- tone low/high blend,
+- output level control.
+
+Runtime controls:
+
+- `gain`: drive into both clipping stages.
+- `tone`: low/high tone blend.
+- `output`: output level into the next load.
+
+The first Godess One distortion implementation is also available as a configurable pre-amp device. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- distortion-controlled clipping gain,
+- harder clipping than the overdrive models,
+- tone body/edge blend,
+- Standard and Custom voicing.
+
+Runtime controls:
+
+- `distortion`: gain into the clipping stage.
+- `tone`: low/high tone blend.
+- `level`: output level into the next load.
+- `mode`: `standard` or `custom`.
+
+The first Dartford modulation implementation is also available as a configurable device. Its reference rig places it in `fx_loop`, between Nox30 preamp send and the phase-inverter/power section. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private LFO phase state,
+- sine, triangle, and square waves,
+- depth and output level control.
+
+Runtime controls:
+
+- `rate_hz`: LFO rate in Hz.
+- `depth`: modulation amount.
+- `level`: output level into the next load.
+- `wave`: `sine`, `triangle`, or `square`.
+
+The first Tron phaser implementation is also available as a configurable pre-amp modulation device. It is inspired by organic optical phaser behavior rather than a one-knob JFET phaser. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private LFO, optical smoothing, all-pass, and feedback state,
+- six moving all-pass stages,
+- feedback and wet/dry mix controls.
+
+Runtime controls:
+
+- `rate_hz`: LFO rate in Hz.
+- `depth`: optical sweep depth.
+- `feedback`: resonant phase-network feedback.
+- `mix`: wet/dry blend.
+
+The first Jetstream flanger implementation is also available as a configurable pre-amp modulation device. It is inspired by the classic A/DA Flanger family and models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private LFO, short fractional delay, and feedback state,
+- BBD-style bandwidth limits,
+- manual delay offset,
+- feedback and wet/dry mix controls.
+
+Runtime controls:
+
+- `manual`: base delay offset.
+- `rate_hz`: LFO rate in Hz.
+- `depth`: sweep width.
+- `feedback`: regeneration around the delay path.
+- `mix`: wet/dry blend.
+
+The first Celeste chorus implementation is also available as a configurable pre-amp modulation device. It is inspired by the classic Boss CE-2 family and models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private LFO and dual fractional-delay state,
+- BBD-style bandwidth limits,
+- wet-path tone shaping,
+- wet/dry mix control.
+
+Runtime controls:
+
+- `rate_hz`: LFO rate in Hz.
+- `depth`: sweep width.
+- `tone`: wet-path brightness.
+- `mix`: wet/dry blend.
+
+The first Brigade delay implementation is also available as a configurable FX-loop device. It is inspired by compact analog BBD delay behavior and models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private long fractional-delay and feedback state,
+- BBD-style bandwidth limits,
+- dark repeat filtering and soft feedback compression,
+- delay time, repeat, tone, and mix controls.
+
+Runtime controls:
+
+- `time_ms`: delay time in milliseconds.
+- `repeats`: feedback amount.
+- `tone`: repeat brightness.
+- `mix`: wet/dry blend.
+
+The first Springfield reverb implementation is also available as a configurable device. Its reference placement is `fx_loop`, after preamp drive and before the power section. It models the useful engineering boundaries:
+
+- buffered high input impedance,
+- low output source impedance,
+- private spring-tank delay state,
+- dwell-dependent tank drive and feedback,
+- tone-shaped wet path,
+- wet/dry mix.
+
+Runtime controls:
+
+- `dwell`: tank drive and feedback intensity.
+- `tone`: wet-path brightness and splash.
+- `mix`: wet/dry blend.
+
+Use `knowledge/models/pedals/compressor/lumen` for the Lumen model target and validation plan. Use `knowledge/models/pedals/filter/muon` for the Muon model target and validation plan. Use `knowledge/models/pedals/fuzz/muffin` for the Muffin model target and validation plan. Use `knowledge/models/pedals/overdrive/minotaur` for the Minotaur model target and validation plan. Use `knowledge/models/pedals/overdrive/monarch` for the Monarch model target and validation plan. Use `knowledge/models/pedals/distortion/godess-one` for the Godess One model target and validation plan. Use `knowledge/models/pedals/modulation/dartford` for the Dartford model target and validation plan. Use `knowledge/models/pedals/modulation/tron` for the Tron model target and validation plan. Use `knowledge/models/pedals/modulation/jetstream` for the Jetstream model target and validation plan. Use `knowledge/models/pedals/modulation/celeste` for the Celeste model target and validation plan. Use `knowledge/models/pedals/delay/brigade` for the Brigade model target and validation plan. Use `knowledge/models/pedals/reverb/springfield` for the Springfield model target and validation plan.

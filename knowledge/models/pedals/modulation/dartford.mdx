@@ -1,0 +1,78 @@
+---
+title: Dartford
+description: Vox/Jennings-inspired tremolo engineering baseline for Greybound FX-loop and chain modeling.
+---
+
+Dartford is Greybound's Vox/Jennings-inspired tremolo model. The name points to Dartford, Kent, where Jennings Musical Industries and the early Vox amplifier story are rooted, without using the protected amp name as our model name.
+
+The reference target is the classic AC30/AC15 tremolo/vibrato family rather than a generic pedal tremolo. Historic AC30 material describes the Jennings `Vib/Trem` circuit as a phase-shift vibrato/tremolo system derived from organ-era designs, while current Vox AC30 documentation still exposes classic tremolo as speed and depth controls. Greybound does not copy a schematic here; it implements an approximate musical model of that rounded, amp-like pulse.
+
+Dartford is designed to work in the amp FX loop, after the preamp send and before the phase-inverter/power section. It can also be placed in other rig sections, but the reference rig uses `fx_loop` so the modulation follows amp gain instead of driving the amp input.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/modulation/diagrams/dartford.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the buffered input, rounded phase-shift LFO, band motion, gain cell, output smoothing, and output source impedance to the current Rust emulation.
+
+<CircuitDiagram model="dartford" />
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving the amp FX return.
+- Audio path remains mostly linear, but the modulation path adds rounded gain motion, slight low/high counter-motion, and bias-memory compression.
+- LFO state is private to the Dartford instance.
+- FX-loop placement sees an amp-send source, not a guitar pickup source.
+
+## Controls
+
+- `rate_hz`: LFO rate in Hz, clamped to `0.05..20.0`.
+- `depth`: modulation depth, mapped through a musical intensity taper so the middle of the knob is audible without letting full depth mute to zero.
+- `level`: output level trim.
+- `wave`: `sine`, `triangle`, or `square`; `sine` is the reference setting for the Vox-like pulse.
+- `bypass`: routing state; active LFO state remains private to the pedal instance.
+
+## External Boundaries
+
+The effect receives and emits voltage plus impedance:
+
+- input source: amp FX send, previous FX-loop device, guitar pickup, or previous pedal output,
+- input load: Dartford input impedance plus cable capacitance memory,
+- output source: modulated voltage plus output impedance,
+- output load: amp FX return, next pedal, or post-amp section.
+
+When Dartford is in `fx_loop`, the chain routes it between Nox30 preamp send and power/phase-inverter return.
+
+## Current DSP Approximation
+
+The current implementation is a Vox-style amp tremolo approximation:
+
+- source/load input boundary and 16 Hz input coupling,
+- LFO phase accumulator with rounded/asymmetric smoothing,
+- sine, triangle, or square LFO shape before smoothing,
+- amplitude gain cell with a musical intensity taper and limited maximum reduction so it pulses instead of hard-chopping,
+- subtle low/high counter-motion to evoke the phase-shift circuit lineage,
+- short bias-memory compression so deep settings breathe instead of sounding static,
+- output smoothing and clipping guard,
+- low output source impedance.
+
+This is not a component-exact AC30 Vib/Trem schematic or a SPICE netlist. It is intentionally a musical graybox target first, built to validate FX-loop routing and modulation state while moving toward the Vox tremolo feel.
+
+## References
+
+- [VOX AC30 Custom product page](https://voxamps.com/en-gb/product/ac30-custom/) documents the current AC30 line with classic tremolo.
+- [VOX AC30C2/AC15C2 owner manual](https://voxamps.com/wp-content/uploads/support/AC30C2_X_AC15C2_OM_EFGS2.pdf) exposes tremolo `SPEED` and `DEPTH` controls.
+- [Vox AC30: the Jennings vibrato circuit](https://www.voxac30.org.uk/vox_ac30_vibrato_gl.html) documents the historic Jennings vibrato/tremolo circuit lineage and speed/depth switching history.
+- [The VOX Showroom AC30/6 chassis notes](https://voxshowroom.com/uk/amp/ac30_6_hood.html) documents the AC30/6 Vib/Trem circuit context.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- LFO rate accuracy is measured over long renders,
+- depth sweep is verified against expected gain range,
+- wave shapes are validated for discontinuities, smoothing behavior, and aliasing risk,
+- bypass behavior preserves the direct path,
+- FX-loop placement and pre-amp placement produce expected musical differences,
+- measured or SPICE captures define a specific hardware reference.

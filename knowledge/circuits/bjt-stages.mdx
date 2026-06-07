@@ -1,0 +1,38 @@
+---
+title: BJT Stages
+description: Reusable BJT and diode-stage modeling notes for transistor pedals.
+---
+
+BJT-stage notes define reusable cells for transistor pedals such as the Muffin. Model-specific values belong under `knowledge/models/`; reusable solver behavior belongs here.
+
+## Target Cells
+
+- `CommonEmitterStage`
+- `FeedbackCommonEmitterStage`
+- `DiodePair`
+- `CouplingCapacitor`
+- `GroundedCapacitor`
+- `Potentiometer`
+
+## Solver Expectations
+
+- Use bounded Newton solves or table-assisted transistor/diode models.
+- Keep stages scalar and deterministic.
+- Avoid heap allocation in the audio path.
+- Keep capacitor state explicit and testable.
+- Solve diode clipping with the stage when the circuit couples them, rather than applying a generic post-gain nonlinearity.
+
+## External Behavior
+
+Transistor pedals should expose:
+
+- input impedance,
+- output impedance,
+- coupling-capacitor memory,
+- clipping/headroom limits,
+- tone-stack loading,
+- control-position effects on gain and filtering.
+
+## Variant Handling
+
+Variants should be data, not control-flow branches inside DSP code. When several products share a topology but differ in component values, keep one topology and load/select value sets. When the topology changes, create a separate model family.

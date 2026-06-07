@@ -1,0 +1,56 @@
+---
+title: Brigade
+description: Boss DM-2-inspired analog BBD delay engineering baseline.
+---
+
+Brigade is Greybound's first delay model. The reference target is the compact analog BBD delay family typified by the Boss DM-2: short-to-medium delay times, dark repeats, softened attack on each repeat, bounded feedback, and a wet/dry mix that sits behind the dry guitar.
+
+The implementation does not copy a factory schematic. It is a graybox model that captures the useful engineering behavior: buffered high input impedance, input coupling, long fractional delay storage, BBD-like bandwidth limits before and after the delay, saturating feedback, dark repeat filtering, wet/dry mix, and low output impedance.
+
+## Reference Placement
+
+The reference rig places Brigade in the amp `fx_loop`:
+
+- amp preamp send drives the delay input,
+- repeat tails follow preamp gain rather than being repeatedly distorted by the preamp,
+- low output source impedance returns into the amp FX return.
+
+It can still be placed before the amp input for older pedalboard-style echo into amp drive.
+
+## Controls
+
+- `time_ms`: delay time in milliseconds.
+- `repeats`: feedback amount around the delay path.
+- `tone`: repeat brightness.
+- `mix`: wet/dry blend.
+- `bypass`: routing state; private delay and feedback state remain owned by the pedal instance.
+
+## DSP Mapping
+
+- Input boundary uses `ConnectionState` with high input impedance and cable capacitance.
+- Input coupling removes DC before the delay path.
+- Pre-delay low-pass filtering approximates limited BBD bandwidth.
+- Fractional delay stores up to the maximum supported analog-style delay time.
+- Feedback is low-pass filtered and softly compressed before it re-enters the delay path.
+- `tone` blends darker filtered repeats with a brighter compressed repeat path.
+- Output is clamped and exported through a low output source impedance.
+
+## Validation
+
+Current validation is behavioral:
+
+- feedback creates an audible delay tail after a short input burst,
+- active FX-loop output remains audible,
+- rig parser accepts all Brigade controls,
+- CLI runtime controls are shared atomics so the monitor can edit delay time without locking the audio callback.
+
+Useful next checks:
+
+- render impulse responses for several `time_ms` values,
+- verify repeat decay time against reference settings,
+- add optional modulation/noise controls after the base delay is stable.
+
+## References
+
+- The Boss DM-2 family is the primary musical reference: compact BBD delay with dark repeats and a simple repeat-rate/intensity/level control surface.
+- Public BBD delay schematics are used only as topology references. The source of truth for Greybound remains this model document plus the Rust implementation.

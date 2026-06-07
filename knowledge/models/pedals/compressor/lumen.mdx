@@ -1,0 +1,54 @@
+---
+title: Lumen
+description: High-end opto-inspired guitar compressor engineering baseline.
+---
+
+Lumen is Greybound's first compressor model. The reference target is a high-end optical/tube-style leveling amplifier adapted for the front of a guitar rig: smooth gain reduction, musical sustain, low artifact level, and a sidechain that avoids excessive low-end pumping.
+
+It is not a literal studio rack clone. The implementation keeps the useful behavior for a guitar pedalboard: high input impedance, guitar-level headroom, a faster front-end attack than a pure LA-2A, program-dependent optical release, tube-style softening, sidechain voicing, and parallel compression.
+
+## Reference Placement
+
+The reference rig places Lumen first in `pre_amp`:
+
+- guitar/source loading through `ConnectionState`,
+- high input impedance at the first pedal boundary,
+- compressed signal drives fuzz, overdrive, distortion, and amp input consistently,
+- low output source impedance into the next chain slot.
+
+This is the default guitar-rig placement. Later studio-style post-amp leveling can reuse the same model in another rig section if needed.
+
+## Controls
+
+- `peak_reduction`: amount of optical gain reduction.
+- `gain`: makeup/output gain.
+- `emphasis`: sidechain voicing; higher values make the detector less dominated by low fundamentals.
+- `mix`: dry/compressed blend for parallel compression.
+- `bypass`: routing state; detector and optical memory remain private to the pedal instance.
+
+## DSP Mapping
+
+- Input boundary uses `ConnectionState` with high input impedance and cable capacitance.
+- Input coupling removes DC before detection and audio processing.
+- Sidechain high-pass emphasis lets the detector respond more musically to guitar.
+- Detector maps level above threshold through a soft knee.
+- Optical memory smooths gain reduction with faster attack and program-dependent release.
+- Makeup gain restores level after gain reduction.
+- A mild tube-style saturating stage rounds the compressed path.
+- Dry/compressed mix preserves pick transient if desired.
+- Output is clamped and exported through a low output source impedance.
+
+## Validation
+
+Current validation is behavioral:
+
+- high peak reduction reduces the loud/quiet ratio versus the open path,
+- active pre-amp chain output remains audible,
+- rig parser accepts all Lumen controls,
+- CLI runtime controls are shared atomics so the monitor can edit peak reduction without locking the audio callback.
+
+Useful next checks:
+
+- render transient files at different `peak_reduction` values,
+- plot gain-reduction envelope from a pulse train,
+- compare Lumen before and after fuzz/overdrive in full rigs.

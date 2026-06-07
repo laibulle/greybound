@@ -1,0 +1,25 @@
+---
+title: State Ledger
+description: Decisions and open questions that should steer upcoming implementation.
+---
+
+## Decisions
+
+- Fumadocs is the project memory for implementation state, analysis, and contributor context.
+- The chain must be flexible and configured externally, not hardcoded to a Muffin or any single pedal.
+- Pedals and amps keep private DSP memory private.
+- Shared electrical behavior is passed through an explicit chain state.
+- Monitor tests should render to WAV rather than only writing to a null output.
+
+## Open Questions
+
+- Which rig fields should be added next without mixing runtime session settings into JSON5 rig files?
+- Should shared electrical state be sample-block level only, or should some fields support slower control-rate smoothing?
+- How much impedance interaction should be modeled in the first pass before adding circuit-specific refinements?
+- Which monitor metrics should become hard test assertions versus human-analysis signals?
+
+## Risks
+
+- Over-modeling electrical state too early could make the chain hard to evolve.
+- Under-modeling impedance and voltage behavior could make pedal ordering sound unrealistic.
+- Monitor logs can become noisy unless every metric has a clear diagnostic purpose.

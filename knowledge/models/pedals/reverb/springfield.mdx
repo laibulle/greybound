@@ -1,0 +1,57 @@
+---
+title: Springfield
+description: Spring-tank-inspired reverb engineering baseline for Greybound FX-loop and chain modeling.
+---
+
+Springfield is Greybound's first reverb model. It targets the musical behavior of a guitar spring reverb: a driven transducer feel, short metallic diffusion, bright splash, and a controllable wet/dry blend.
+
+The first implementation is a stable graybox model, not a component-exact spring tank simulation. It is intended to be useful in the rig now while leaving room for a later tank/transducer model.
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving an amp FX return or another post-preamp device.
+- Best default placement is `fx_loop`, after preamp drive and before the power section.
+- The wet path has private delay/tank state.
+- Bypass is routing state; the active tank state remains private to the Springfield instance.
+
+## Controls
+
+- `dwell`: drive into the spring tank and feedback intensity.
+- `tone`: tank brightness and splash emphasis.
+- `mix`: wet/dry blend.
+- `bypass`: routing state.
+
+## External Boundaries
+
+The effect receives and emits voltage plus impedance:
+
+- input source: amp FX send, previous FX-loop device, guitar pickup, or previous pedal output,
+- input load: Springfield input impedance plus cable capacitance memory,
+- output source: reverb-mixed voltage plus output impedance,
+- output load: amp FX return, next pedal, or post-amp section.
+
+`ConnectionState` owns cable capacitance and source/load division. Springfield should not mutate amp internals.
+
+## Current DSP Approximation
+
+The current implementation uses:
+
+- source/load input boundary and input coupling,
+- dwell-dependent input drive into the tank,
+- four short delay lines with cross-fed feedback to mimic spring dispersion,
+- tone-dependent pre-emphasis and wet-path brightness,
+- output low-pass smoothing,
+- wet/dry mix with conservative level scaling,
+- low output source impedance.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- dwell sweep is checked for stable decay and useful drive range,
+- tone sweep changes splash/brightness without runaway level,
+- mix sweep preserves dry level at low settings and gives a musical wet blend at high settings,
+- bypass behavior preserves the direct path,
+- FX-loop placement and post-amp placement produce expected musical differences,
+- measured or SPICE captures define a specific spring tank reference.
