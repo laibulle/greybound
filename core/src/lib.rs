@@ -24,11 +24,16 @@ pub use pedal::{
 };
 pub use rig::RigConfig;
 
+#[cfg(feature = "plugin")]
 use amp::AMP_LATENCY;
+#[cfg(feature = "plugin")]
 use ir::{SpeakerStage, CONVOLUTION_LATENCY};
+#[cfg(feature = "plugin")]
 use nih_plug::prelude::*;
+#[cfg(feature = "plugin")]
 use std::sync::Arc;
 
+#[cfg(feature = "plugin")]
 pub struct Greybound {
     params: Arc<GreyboundParams>,
     channels: Vec<SignalChain>,
@@ -38,6 +43,7 @@ pub struct Greybound {
     sample_rate: Option<f32>,
 }
 
+#[cfg(feature = "plugin")]
 #[derive(Params)]
 struct GreyboundParams {
     #[id = "gain"]
@@ -72,6 +78,7 @@ struct GreyboundParams {
     overdrive_output: FloatParam,
 }
 
+#[cfg(feature = "plugin")]
 impl Default for Greybound {
     fn default() -> Self {
         Self {
@@ -85,6 +92,7 @@ impl Default for Greybound {
     }
 }
 
+#[cfg(feature = "plugin")]
 impl Default for GreyboundParams {
     fn default() -> Self {
         Self {
@@ -180,6 +188,7 @@ impl Default for GreyboundParams {
     }
 }
 
+#[cfg(feature = "plugin")]
 impl Plugin for Greybound {
     const NAME: &'static str = "Greybound";
     const VENDOR: &'static str = "Greybound";
@@ -312,6 +321,7 @@ impl Plugin for Greybound {
     }
 }
 
+#[cfg(feature = "plugin")]
 impl Greybound {
     /// Set a float parameter by id (0.0..=1.0 for floats).
     pub fn set_param_value(&mut self, id: &str, _value: f32) {
@@ -357,6 +367,7 @@ impl Greybound {
     }
 }
 
+#[cfg(feature = "plugin")]
 fn build_signal_chains(
     sample_rate: f32,
     channels: usize,
@@ -367,6 +378,7 @@ fn build_signal_chains(
         .collect()
 }
 
+#[cfg(feature = "plugin")]
 impl ClapPlugin for Greybound {
     const CLAP_ID: &'static str = "com.greybound.graybox-amp";
     const CLAP_DESCRIPTION: Option<&'static str> = Some("Nox30 circuit-informed guitar amp");
@@ -379,11 +391,14 @@ impl ClapPlugin for Greybound {
     ];
 }
 
+#[cfg(feature = "plugin")]
 impl Vst3Plugin for Greybound {
     const VST3_CLASS_ID: [u8; 16] = *b"GreyboundGrayAmp";
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
         &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
 }
 
+#[cfg(feature = "plugin")]
 nih_export_clap!(Greybound);
+#[cfg(feature = "plugin")]
 nih_export_vst3!(Greybound);

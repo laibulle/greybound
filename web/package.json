@@ -2,6 +2,7 @@
   "name": "greybound-web",
   "private": true,
   "scripts": {
+    "build:wasm": "cd .. && make wasm-build",
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",

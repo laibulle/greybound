@@ -58,6 +58,7 @@ NEURAL_BLEND_DIR ?= lab/reports/neural-blend-first-stage-anchor-current
 NEURAL_BLEND_REPORT ?= lab/reports/neural-blend-first-stage-anchor-current.md
 NEURAL_BLEND_METADATA ?= lab/reports/neural-blend-first-stage-anchor-current.run.json
 NEURAL_BLEND_ALPHAS ?= 0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1
+WASM_OUT_DIR ?= web/lib/greybound-wasm
 OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
@@ -231,4 +232,7 @@ lab-evaluate-analytic-common-cathode:
 		--stride "$(NEURAL_STRIDE)" \
 		--split "$(NEURAL_EVAL_SPLIT)"
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode
+wasm-build:
+	wasm-pack build wasm --target web --out-dir "../$(WASM_OUT_DIR)" --out-name greybound_wasm
+
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset lab-train-neural-cell lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode wasm-build
