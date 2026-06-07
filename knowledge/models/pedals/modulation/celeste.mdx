@@ -1,0 +1,57 @@
+---
+title: Celeste
+description: Boss CE-2-inspired BBD-style chorus engineering baseline.
+---
+
+Celeste is Boutique59's first chorus model. The reference target is the classic Boss CE-2 family: musical analog chorus with a short BBD delay, slow LFO motion, rounded bandwidth, and a smooth wet/dry blend.
+
+The implementation does not copy a factory schematic. It is a graybox model that captures the useful engineering behavior: buffered high input impedance, input coupling, BBD-like bandwidth limits, two gently detuned modulated delay voices, wet-path tone shaping, wet/dry mix, and low output impedance.
+
+## Reference Placement
+
+The reference rig places Celeste before the amp input:
+
+- guitar/source loading through `ConnectionState`,
+- nominal high input impedance,
+- modulated delay before Nox30 preamp drive,
+- low output source impedance into the next chain slot.
+
+This placement gives the familiar pedal-into-amp chorus feel. Celeste can also be moved into `fx_loop` when the rig should chorus the amp preamp output instead.
+
+## Controls
+
+- `rate_hz`: LFO rate in Hz.
+- `depth`: LFO sweep width.
+- `tone`: wet-path brightness.
+- `mix`: wet/dry blend.
+- `bypass`: routing state; private LFO and delay state remain owned by the pedal instance.
+
+## DSP Mapping
+
+- Input boundary uses `ConnectionState` with high input impedance and cable capacitance.
+- Input coupling removes DC before the BBD-style path.
+- Pre-delay low-pass filtering limits the signal entering the delay lines.
+- Two fractional delay lines use different LFO offsets to create a wider mono chorus.
+- Wet-path low-pass filtering supplies the darker analog voice.
+- `tone` blends the darker wet voice with the brighter raw delayed voice.
+- Output is clamped and exported through a low output source impedance.
+
+## Validation
+
+Current validation is behavioral:
+
+- deeper sweep changes output versus a shallow sweep,
+- active chain output remains audible,
+- rig parser accepts all Celeste controls,
+- CLI runtime controls are shared atomics so the monitor can edit controls without locking the audio callback.
+
+Useful next checks:
+
+- render swept sine and chord samples to inspect pitch-motion smoothness,
+- compare pre-amp versus FX-loop placement,
+- add stereo left/right delay offsets when the chain has stereo-aware device processors.
+
+## References
+
+- The Boss CE-2 family is the primary musical reference: compact analog BBD chorus with rate/depth-style modulation and a smooth, rounded wet path.
+- Public BBD chorus schematics are used only as topology references. The source of truth for Boutique59 remains this model document plus the Rust implementation.

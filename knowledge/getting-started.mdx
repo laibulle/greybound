@@ -1,0 +1,183 @@
+---
+title: Getting Started
+description: Build Boutique59, run the standalone, choose rigs, and understand the main runtime concepts.
+---
+
+This page is the practical entry point for compiling Boutique59 and running a rig. The source of truth for authored docs is `knowledge/`; the `docs/` directory is only the Fumadocs/Next UI layer.
+
+## Prerequisites
+
+Boutique59 is a Rust workspace with a small Fumadocs site.
+
+- Rust toolchain with `cargo`.
+- Node.js and npm for the docs site.
+- macOS/CoreAudio for the current real-time standalone path.
+- A guitar input interface or a WAV file for repeatable test runs.
+
+## Compile
+
+From the repository root:
+
+```bash
+cargo test
+cargo build --release
+```
+
+Useful focused checks:
+
+```bash
+cargo test -p boutique59
+cargo test -p boutique59-cli
+```
+
+## Docs
+
+From `docs/`:
+
+```bash
+npm run dev
+npm run build
+npm run typecheck
+```
+
+The dev server can be pinned to a local URL:
+
+```bash
+npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+## Run A Rig
+
+Rigs are JSON5 files in `rigs/`. They describe the musical rig only: amp, pedals, order, and controls. Runtime choices such as audio devices, monitor logging, sample rate, and WAV paths stay in CLI parameters.
+
+Live guitar input to the configured output device:
+
+```bash
+target/release/boutique59-cli --rig rigs/muffin-nox30.json5 --device 'DEVICE NAME' --input-channel 1 --output-channels 1,2 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Dry WAV input to the configured output device:
+
+```bash
+target/release/boutique59-cli --rig rigs/muffin-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --device 'DEVICE NAME' --output-channels 1,2 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Dry WAV input rendered to a WAV file:
+
+```bash
+target/release/boutique59-cli --rig rigs/muffin-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-fuzz-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Minotaur overdrive rendered to a WAV file:
+
+```bash
+target/release/boutique59-cli --rig rigs/minotaur-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-overdrive-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Godess One distortion rendered to a WAV file:
+
+```bash
+target/release/boutique59-cli --rig rigs/godess-one-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-godess-one-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Dartford in the Nox30 FX loop rendered to a WAV file:
+
+```bash
+target/release/boutique59-cli --rig rigs/dartford-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-dartford-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Null output is useful when only the monitor log matters:
+
+```bash
+target/release/boutique59-cli --rig rigs/nox30-driven.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --null-output --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+## Runtime Parameters
+
+Generic live run:
+
+```bash
+target/release/boutique59-cli --rig rigs/nox30-driven.json5 --device 'DEVICE NAME' --input-channel 1 --output-channels 1,2 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Main parameters:
+
+- `--rig PATH`: required JSON5 rig file for amp/pedal topology and controls.
+- `--device NAME`: device used when input and output are the same device.
+- `--input-device NAME` / `--output-device NAME`: split input and output devices.
+- `--input-channel N`: one-based input channel for guitar.
+- `--output-channels N,N`: comma-separated one-based output channels.
+- `--input-wav PATH`: WAV file used instead of live input.
+- `--output-wav PATH`: destination WAV file for offline rendering.
+- `--null-output`: run DSP and monitoring without an output device.
+- `--render-seconds N`: offline render duration when `--output-wav` is used.
+- `--sample-rate HZ`: audio sample rate; use a rate supported by the device and input WAV.
+- `--period-size SAMPLES`: audio buffer size in samples.
+- `--ir`: enable the embedded speaker IR.
+- `--monitor`: enable the terminal monitor and `boutique59-monitor.log`.
+- `--input-db DB`: input calibration trim before the modeled rig.
+- `--output-db DB`: safety output trim after the modeled rig.
+
+Rig files are the supported way to describe amp and pedal controls. Runtime flags should stay focused on devices, files, rendering, monitoring, calibration, and safety trim.
+
+## CLI Parameters
+
+The release CLI is `target/release/boutique59-cli`.
+
+```bash
+target/release/boutique59-cli --help
+target/release/boutique59-cli --list-devices
+```
+
+Common CLI flags:
+
+- `--rig PATH`: load a JSON5 rig. Required for every processing run.
+- `--device NAME`: use one device for both input and output.
+- `--input-device NAME` / `--output-device NAME`: split input and output devices.
+- `--input-wav PATH`: use a WAV file instead of live input.
+- `--output-wav PATH`: render processed audio to a mono float WAV.
+- `--null-output`: run DSP and monitoring without opening an output device.
+- `--sample-rate HZ`: engine/device sample rate.
+- `--period-size SAMPLES`: audio buffer size.
+- `--input-db DB`: input trim.
+- `--output-db DB`: final output trim.
+- `--ir`: enable speaker IR.
+- `--monitor`: interactive terminal monitor.
+- `--monitor-log PATH`: monitor log path, default `boutique59-monitor.log`.
+
+## Interactive Monitor
+
+With `--monitor`, live/device runs open a terminal monitor. It still writes `boutique59-monitor.log` for the log-analysis workflow.
+
+- `Tab` / `Shift-Tab`: select volume, bass, treble, cut, drive, presence, or sag.
+- `Left` / `Right`: adjust the selected knob by 0.1 on the 0-10 scale.
+- `Up` / `Down`: adjust the selected knob by 1.0 on the 0-10 scale.
+- `q`: quit the standalone process.
+
+The audio thread reads knob changes through atomics, so terminal interaction does not lock the real-time callback.
+
+## Concepts
+
+Rig:
+
+A rig is the musical configuration: amp model, amp bypass state, cab/IR state, pedal slots, pedal ordering, pedal bypass state, and control values. It intentionally does not include runtime concerns like audio devices or output files.
+
+Signal chain:
+
+The signal chain is an ordered DSP graph. It supports pre-amp devices, the amp, and future FX-loop/post-amp sections without hardcoding one pedal into the amp.
+
+Shared electrical state:
+
+Devices process samples, but connection boundaries also carry electrical context: voltage, source impedance, load impedance, and cable capacitance. This is what lets pedal order matter beyond a simple sequence of sample transforms.
+
+Amp controls:
+
+Controls use the familiar `0-10` knob scale at the CLI/rig boundary and are normalized internally. `OUTPUT_DB` remains a safety trim after the modeled rig.
+
+Pedals:
+
+Pedals should be implemented as chain devices with private DSP state and explicit effects on shared connection state. Lumen is an opto-inspired compressor chain device with peak reduction, gain, sidechain emphasis, mix, private detector/optical memory, and a reference first-position `pre_amp` placement. Muon is a Mu-Tron III-inspired envelope filter chain device with sensitivity, range, resonance, mix, private detector/filter memory, and a reference `pre_amp` placement. Muffin is a pre-amp fuzz chain device with sustain, tone, level, clipping stages, tone blend, and impedance behavior. Minotaur is a pre-amp overdrive chain device with gain, treble, output, buffered impedance behavior, and clean/drive blend. Godess One is a pre-amp distortion chain device with distortion, tone, level, Standard/Custom mode, buffered impedance behavior, and harder clipping. Dartford is a modulation chain device with private LFO state and is intended to run in the amp `fx_loop`. Tron is an optical-style phaser chain device with rate, depth, feedback, mix, private LFO/all-pass state, and a reference pre-amp placement. Jetstream is a BBD-style flanger chain device with manual, rate, depth, feedback, mix, private LFO/delay state, and a reference pre-amp placement. Celeste is a BBD-style chorus chain device with rate, depth, tone, mix, private LFO/dual-delay state, and a reference pre-amp placement. Brigade is a BBD-style analog delay chain device with time, repeats, tone, mix, private delay/feedback state, and a reference `fx_loop` placement. Springfield is a spring reverb chain device with dwell, tone, mix, private tank delay state, and a reference `fx_loop` placement.
+
+Monitoring:
+
+Monitor output has two roles: immediate terminal feedback for a player/developer, and stable `boutique59-monitor.log` lines for analysis. Automated checks should prefer `target/release/boutique59-cli --input-wav ... --output-wav ... --render-seconds ...` because it exits by itself and produces both a log and a WAV artifact.

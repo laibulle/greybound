@@ -1,0 +1,118 @@
+---
+title: Rig Files
+description: JSON5 files that describe only Boutique59 rig topology and controls.
+---
+
+Rig files describe the musical rig, not the runtime session. They should not contain input devices, output devices, WAV paths, monitor settings, sample rate, or render duration.
+
+Runtime stays in CLI flags:
+
+```bash
+target/release/boutique59-cli --rig rigs/muffin-nox30.json5 --device 'DEVICE NAME' --input-channel 1 --output-channels 1,2 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+## Format
+
+Rig files use JSON5 so they can keep JSON-like structure while supporting comments, trailing commas, unquoted keys, and single-quoted strings.
+
+```json5
+{
+  name: "muffin-nox30",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [
+    {
+      id: "fuzz",
+      device: "muffin",
+      bypassed: false,
+      controls: {
+        sustain: 0.7,
+        tone: 0.46,
+        level: 0.45,
+      },
+    },
+  ],
+
+  amp: {
+    model: "nox30",
+    bypassed: false,
+    controls: {
+      volume: 0.48,
+      bass: 0.52,
+      treble: 0.58,
+      cut: 0.46,
+      drive: 0.25,
+      presence: 0.32,
+      sag: 0.55,
+    },
+  },
+
+  cab: {
+    ir: "embedded-v30",
+    bypassed: false,
+  },
+}
+```
+
+## Current Fields
+
+- `name`: optional rig name.
+- `chain.cable_capacitance_pf`: optional shared cable capacitance for chain connections.
+- `pre_amp`: ordered devices before the amp input.
+- `fx_loop`: ordered devices between the amp preamp send and return/power section. Nox30 has an explicit split here; other amp models currently use the compatible chain API until their internals are split.
+- `post_amp`: ordered devices after the amp, currently available in the data model.
+- `*.bypassed`: explicit activation state for pedal slots, `amp`, and `cab`. Use `false` for active and `true` for bypassed.
+- `amp.model`: `nox30`, `dumbler`, or `sheriff800`.
+- `amp.controls`: normalized `0.0..1.0` amp controls.
+- `cab.ir`: currently `embedded-v30`.
+- `cab.bypassed`: whether the embedded speaker IR starts bypassed.
+
+Supported device ids:
+
+- `lumen`
+- `muon`
+- `muffin`
+- `godess-one`
+- `dartford`
+- `springfield`
+- `minotaur`
+- `monarch`
+- `tron`
+- `jetstream`
+- `celeste`
+- `brigade`
+
+## Included Rigs
+
+- `rigs/nox30-clean.json5`
+- `rigs/nox30-edge.json5`
+- `rigs/nox30-driven.json5`
+- `rigs/nox30-all-pedals-bypassed.json5`
+- `rigs/lumen-nox30.json5`
+- `rigs/muon-nox30.json5`
+- `rigs/muffin-nox30.json5`
+- `rigs/godess-one-nox30.json5`
+- `rigs/dartford-nox30.json5`
+- `rigs/springfield-nox30.json5`
+- `rigs/minotaur-nox30.json5`
+- `rigs/monarch-nox30.json5`
+- `rigs/tron-nox30.json5`
+- `rigs/jetstream-nox30.json5`
+- `rigs/celeste-nox30.json5`
+- `rigs/brigade-nox30.json5`
+
+## Boundaries
+
+Do not add runtime execution fields to rig files. These are intentionally rejected by the parser:
+
+- input device
+- output device
+- monitor/log paths
+- render duration
+- sample rate
+- output WAV path
+
+That separation keeps rigs portable and lets the same rig run live, into null output, or into a WAV render.

@@ -1,0 +1,387 @@
+{
+  schema: "boutique59.circuit-diagram.v1",
+  model: "monarch",
+  title: "Monarch dual-stage overdrive documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1560,
+    preferredHeight: 760,
+  },
+
+  groups: [
+    {
+      id: "input",
+      label: "Input and coupling",
+      nodes: ["input_jack", "input_load", "input_coupling", "preclip_filter"],
+    },
+    {
+      id: "clip",
+      label: "Dual soft clipping",
+      nodes: [
+        "first_drive_gain",
+        "first_asymmetric_clip",
+        "first_stage_filter",
+        "second_drive_gain",
+        "second_asymmetric_clip",
+        "second_stage_filter",
+      ],
+    },
+    {
+      id: "voice",
+      label: "Tone and output",
+      nodes: ["clean_residual", "tone_blend", "output_level", "output_source"],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_jack",
+      label: "Input jack",
+      kind: "connector",
+      ports: ["out"],
+      hardware: {
+        role: "guitar or previous pedal input",
+        confidence: "high",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "voltage plus source impedance enters the pedal",
+      },
+      spice: null,
+      layout: { x: 40, y: 330 },
+    },
+    {
+      id: "input_load",
+      label: "Buffered input load",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "high input impedance input buffer and bias network",
+        parts: ["input buffer", "bias network"],
+        value: "about 1 MOhm input impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["ConnectionState", "Load"],
+        state: ["input_connection"],
+        algorithm: "source/load division with cable capacitance memory",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rin",
+        nodes: ["in", "0"],
+        value: "1Meg",
+      },
+      layout: { x: 210, y: 300 },
+    },
+    {
+      id: "input_coupling",
+      label: "Input coupling",
+      kind: "highpass",
+      ports: ["in", "out"],
+      hardware: {
+        role: "DC blocking and low-frequency shaping before clipping",
+        parts: ["coupling capacitor", "bias/load resistance"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["OnePoleHighpass"],
+        state: ["input_highpass"],
+        algorithm: "28 Hz one-pole high-pass",
+      },
+      spice: null,
+      layout: { x: 390, y: 300 },
+    },
+    {
+      id: "preclip_filter",
+      label: "Pre-clip filter",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "limits brittle high-frequency content before clipping",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["OnePoleLowpass"],
+        state: ["preclip_lowpass"],
+        algorithm: "8.2 kHz one-pole low-pass",
+      },
+      spice: null,
+      layout: { x: 570, y: 300 },
+    },
+    {
+      id: "first_drive_gain",
+      label: "First drive gain",
+      kind: "gain_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "first gain-controlled clipping amplifier",
+        parts: ["op amp section", "gain potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        algorithm: "drive = 1.4 + gain * 22.0",
+      },
+      spice: null,
+      layout: { x: 760, y: 300 },
+    },
+    {
+      id: "first_asymmetric_clip",
+      label: "First asymmetric clip",
+      kind: "diode_pair",
+      ports: ["in", "out"],
+      hardware: {
+        role: "asymmetric soft clipping in first drive stage",
+        parts: ["diode network"],
+        value: "0.50 V negative knee, 0.74 V positive knee target",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::asymmetric_diode_clip",
+        algorithm: "polarity-dependent knee_voltage * tanh(input / knee_voltage)",
+      },
+      spice: {
+        primitive: "DPAIR_ASYM",
+        name: "Dclip1",
+        nodes: ["drive1", "drive1_clipped"],
+        model: "asymmetric_silicon_soft_clip",
+        params: { vf_negative: 0.5, vf_positive: 0.74 },
+      },
+      layout: { x: 950, y: 300 },
+    },
+    {
+      id: "first_stage_filter",
+      label: "First stage smoothing",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-clip high-frequency shaping after first stage",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["OnePoleLowpass"],
+        state: ["first_stage_lowpass"],
+        algorithm: "4.5 kHz one-pole low-pass after first clip",
+      },
+      spice: null,
+      layout: { x: 1130, y: 300 },
+    },
+    {
+      id: "second_drive_gain",
+      label: "Second drive gain",
+      kind: "gain_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "second gain stage pushed by the first clipped stage",
+        parts: ["op amp section"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        algorithm: "second_drive = first_stage * (1.15 + gain * 7.5)",
+      },
+      spice: null,
+      layout: { x: 760, y: 500 },
+    },
+    {
+      id: "second_asymmetric_clip",
+      label: "Second asymmetric clip",
+      kind: "diode_pair",
+      ports: ["in", "out"],
+      hardware: {
+        role: "asymmetric soft clipping in second drive stage",
+        parts: ["diode network"],
+        value: "0.56 V negative knee, 0.86 V positive knee target",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::asymmetric_diode_clip",
+        algorithm: "polarity-dependent knee_voltage * tanh(input / knee_voltage)",
+      },
+      spice: {
+        primitive: "DPAIR_ASYM",
+        name: "Dclip2",
+        nodes: ["drive2", "drive2_clipped"],
+        model: "asymmetric_silicon_soft_clip",
+        params: { vf_negative: 0.56, vf_positive: 0.86 },
+      },
+      layout: { x: 950, y: 500 },
+    },
+    {
+      id: "second_stage_filter",
+      label: "Second stage smoothing",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-clip high-frequency shaping after second stage",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["OnePoleLowpass"],
+        state: ["second_stage_lowpass"],
+        algorithm: "5.8 kHz one-pole low-pass after second clip",
+      },
+      spice: null,
+      layout: { x: 1130, y: 500 },
+    },
+    {
+      id: "clean_residual",
+      label: "Clean residual",
+      kind: "mixer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "small un-clipped residual path preserving attack at low gain",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        algorithm: "input * max(0.38 - gain * 0.22, 0.06)",
+      },
+      spice: null,
+      layout: { x: 1260, y: 180 },
+    },
+    {
+      id: "tone_blend",
+      label: "Tone blend",
+      kind: "tone_control",
+      ports: ["in", "out"],
+      hardware: {
+        role: "blend low-frequency body with high-frequency edge",
+        parts: ["tone potentiometer", "filter network"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        library: ["OnePoleLowpass", "OnePoleHighpass"],
+        state: ["tone_lowpass", "tone_highpass"],
+        algorithm: "blend 680 Hz low-pass and 1.45 kHz high-pass paths from the mixed signal",
+      },
+      spice: null,
+      layout: { x: 1330, y: 330 },
+    },
+    {
+      id: "output_level",
+      label: "Output level",
+      kind: "potentiometer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "final level control",
+        parts: ["output potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Monarch",
+        algorithm: "level = 0.20 + output * 2.25",
+      },
+      spice: null,
+      layout: { x: 1500, y: 330 },
+    },
+    {
+      id: "output_source",
+      label: "Output source",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "moderate low impedance output driver",
+        value: "about 4.7 kOhm output impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "emit voltage with Monarch::OUTPUT_IMPEDANCE_OHMS",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rout",
+        nodes: ["out", "out_src"],
+        value: "4.7k",
+      },
+      layout: { x: 1660, y: 330 },
+    },
+  ],
+
+  edges: [
+    {
+      from: "input_jack.out",
+      to: "input_load.in",
+      signal: "audio_voltage",
+      spiceNet: "in",
+    },
+    {
+      from: "input_load.out",
+      to: "input_coupling.in",
+      signal: "loaded_audio_voltage",
+    },
+    {
+      from: "input_coupling.out",
+      to: "preclip_filter.in",
+      signal: "coupled_audio",
+    },
+    {
+      from: "preclip_filter.out",
+      to: "first_drive_gain.in",
+      signal: "filtered_audio",
+    },
+    {
+      from: "first_drive_gain.out",
+      to: "first_asymmetric_clip.in",
+      signal: "amplified_drive_1",
+    },
+    {
+      from: "first_asymmetric_clip.out",
+      to: "first_stage_filter.in",
+      signal: "clipped_drive_1",
+    },
+    {
+      from: "first_stage_filter.out",
+      to: "second_drive_gain.in",
+      signal: "smoothed_drive_1",
+    },
+    {
+      from: "second_drive_gain.out",
+      to: "second_asymmetric_clip.in",
+      signal: "amplified_drive_2",
+    },
+    {
+      from: "second_asymmetric_clip.out",
+      to: "second_stage_filter.in",
+      signal: "clipped_drive_2",
+    },
+    {
+      from: "input_coupling.out",
+      to: "clean_residual.in",
+      signal: "attack_residual",
+    },
+    {
+      from: "clean_residual.out",
+      to: "tone_blend.in",
+      signal: "clean_residual",
+    },
+    {
+      from: "second_stage_filter.out",
+      to: "tone_blend.in",
+      signal: "driven_audio",
+    },
+    { from: "tone_blend.out", to: "output_level.in", signal: "voiced_audio" },
+    {
+      from: "output_level.out",
+      to: "output_source.in",
+      signal: "level_trimmed_audio",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "SPICE export is partial: only explicit impedance and diode placeholders are exportable today.",
+    },
+  ],
+}

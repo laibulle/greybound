@@ -1,0 +1,34 @@
+---
+title: Circuit Components
+description: Reusable circuit-component knowledge for Boutique59 models.
+---
+
+This section contains reusable circuit-component knowledge: cells, passive networks, solver rules, validation gates, and shared electrical behavior. Product or family targets belong under `knowledge/models/`.
+
+## Policy
+
+Do not store copied schematic scans, service PDFs, or current-production circuit artwork in this repository. In this section, document:
+
+- reusable component cells,
+- generic topology patterns,
+- solver assumptions,
+- state variables,
+- validation plans,
+- public source URLs for readers to consult themselves.
+
+When a circuit source is copyrighted or has unclear redistribution rights, link to it and summarize only the engineering facts needed by Boutique59.
+
+## Current Component Areas
+
+- Passive networks: tone stacks, coupling, loading, and cable behavior.
+- Tube stages: ECC83/12AX7 stages, phase inverters, power stages, supply sag.
+- BJT stages: transistor pedal cells, diode clipping, coupling capacitors.
+- Validation: shared evidence gates for component-level work.
+
+## Confidence Vocabulary
+
+- `high`: stable topology or value across trusted references, or measured in our own fixtures.
+- `medium`: plausible public-reference value, but variant-sensitive or not yet measured.
+- `low`: implementation placeholder or modeling assumption needing measurement.
+
+Use this vocabulary when adding new circuit notes so implementation choices remain auditable.

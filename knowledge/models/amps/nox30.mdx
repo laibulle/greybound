@@ -1,0 +1,117 @@
+---
+title: Nox30
+description: Reverse-engineered topology map for the Nox30 amp model and its reference circuit.
+---
+
+Nox30 is Boutique59's circuit-informed amp model. Its reference target is a JMI-era AC30/6 fitted with the OS/010 Top Boost unit. There is no single canonical circuit across all production years, so Boutique59 treats Nox30 as a chosen engineering target rather than a universal clone.
+
+## Modeling Scope
+
+The current model is a real-time graybox implementation. It is not a SPICE netlist and not a component-exact wave-digital simulation. The OS/010 tone network is the most circuit-derived part: it is solved with trapezoidal Modified Nodal Analysis.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/amps/diagrams/nox30.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps each stage to the current Rust emulation and marks SPICE export as intentionally empty until subcircuits are promoted to concrete component data.
+
+<CircuitDiagram model="nox30" />
+
+## Extracted Topology
+
+Top Boost volume:
+
+- 500 kOhm volume potentiometer.
+- 100 pF bright cap.
+- Modeled as frequency-dependent gain before the first Top Boost ECC83 stage.
+
+First Top Boost triode:
+
+- ECC83 / 12AX7 common-cathode gain stage.
+- 100 kOhm plate resistor.
+- 1.5 kOhm cathode resistor.
+- 25 uF cathode bypass capacitor.
+- Modeled as asymmetric nonlinear gain with cathode-bypass frequency response.
+
+Tone network:
+
+- 1 MOhm treble potentiometer.
+- 1 MOhm bass potentiometer.
+- 50 pF treble capacitor.
+- Two 22 nF bass-path capacitors.
+- 100 kOhm slope path.
+- 10 kOhm bass output/ground path.
+- Approximate cathode-follower source impedance: 820 Ohm.
+- Downstream load target: 220 kOhm.
+- Implemented as a seven-node passive MNA solve.
+
+Recovery / follower behavior:
+
+- ECC83 / 12AX7 stage feeding the passive tone network.
+- 50 kOhm cathode resistance target for the follower behavior.
+- Modeled as low-distortion drive into the passive network.
+
+Phase inverter and Cut:
+
+- ECC83 / 12AX7 long-tail-pair phase inverter.
+- Opposed nonlinear phases with small gain imbalance.
+- Cut control is across the opposed phase-inverter outputs.
+- Cut control target: 500 kOhm pot with 4.7 nF capacitor.
+
+Power stage:
+
+- Four EL84 tubes, two per phase.
+- Hot cathode-biased push-pull class AB behavior.
+- 50 Ohm shared cathode resistor.
+- 250 uF cathode bypass capacitor.
+- Plate supply target around 320 V.
+- Output transformer primary target around 4 kOhm.
+- No negative feedback in this target.
+- Modeled with push-pull saturation, dynamic cathode-bias shift, and supply sag.
+
+Speaker:
+
+- The speaker IR is an optional external impulse-response stage.
+- It is not part of the amp core.
+
+## Nox30 Component Boundaries
+
+Nox30 is structurally complete enough for component-level replacement work. The model exposes boundaries for:
+
+- input volume and bright-bypass behavior,
+- first nonlinear ECC83 common-cathode stage,
+- cathode follower,
+- Top Boost tone stack,
+- drive and recovery stages,
+- long-tail-pair phase inverter,
+- cut/presence shaping,
+- EL84 push-pull power stage,
+- shared B+ sag network,
+- output transformer filtering and core-flux state.
+
+## Observable State
+
+`VoxAmp::nox30_operating_point()` exposes:
+
+- preamp, phase-inverter, and power rail voltages,
+- ECC83 stage currents and cathode voltages,
+- long-tail-pair currents and cathode voltage,
+- EL84 plate current, screen current, screen voltage, and cathode bias,
+- output transformer core flux.
+
+This telemetry is used by monitor logging and future graybox/component training.
+
+## Validation State
+
+Current validation is block-level and deterministic:
+
+- sample WAV render stays in fixed RMS/peak/checksum bands,
+- Nox30 does not go silent over long sample renders,
+- shared supply rails sag and recover,
+- EL84 screen voltage sags under sustained drive and recovers after overload,
+- transformer blocks DC, rolls off highs, and compresses low-end drive,
+- triode stages match the current ngspice fixture tolerances.
+
+## Source Notes
+
+Reference sources used for engineering extraction include public circuit archives and service-reference sites. Do not commit their scans or PDFs. Link to public sources when needed and keep the repository content to our topology map and implementation notes.

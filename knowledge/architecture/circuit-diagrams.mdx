@@ -1,0 +1,115 @@
+---
+title: Circuit Diagrams
+description: JSON5 graph format for model documentation diagrams, renderer input, and optional SPICE export.
+---
+
+Circuit diagrams are documentation artifacts. They are not the runtime source of truth and they are not required to be complete SPICE netlists.
+
+The diagram format is a JSON5 graph. It is intentionally richer than SPICE because each node can describe:
+
+- the circuit concept or physical part,
+- how it maps to Boutique59 circuit-library or DSP code,
+- the renderer layout and visual grouping,
+- whether it has enough concrete electrical data for SPICE export.
+
+## File Location
+
+Store diagrams beside the model documentation:
+
+- `knowledge/models/amps/diagrams/nox30.diagram.json5`
+- `knowledge/models/pedals/fuzz/diagrams/muffin.diagram.json5`
+- `knowledge/models/pedals/distortion/diagrams/godess-one.diagram.json5`
+- `knowledge/models/pedals/overdrive/diagrams/minotaur.diagram.json5`
+- `knowledge/models/pedals/overdrive/diagrams/monarch.diagram.json5`
+- `knowledge/models/pedals/modulation/diagrams/dartford.diagram.json5`
+
+## Top-Level Shape
+
+```json5
+{
+  schema: "boutique59.circuit-diagram.v1",
+  model: "minotaur",
+  title: "Minotaur overdrive",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1400,
+    preferredHeight: 760,
+  },
+
+  nodes: [],
+  edges: [],
+  groups: [],
+  annotations: [],
+}
+```
+
+## Nodes
+
+Nodes are renderer-level circuit blocks. They can represent a physical component, a grouped stage, or an algorithmic block.
+
+```json5
+{
+  id: "input_buffer",
+  label: "Input buffer",
+  kind: "buffer",
+  ports: ["in", "out"],
+  hardware: {
+    role: "high input impedance buffer",
+    parts: ["op amp section", "bias network"],
+    confidence: "medium",
+  },
+  emulation: {
+    implementation: "core/src/pedal.rs::Minotaur",
+    library: ["ConnectionState", "OnePoleHighpass"],
+    state: ["input_connection", "input_highpass"],
+    algorithm: "source/load division plus input high-pass coupling",
+  },
+  spice: null,
+  layout: { x: 80, y: 220 },
+}
+```
+
+## Edges
+
+Edges connect ports and can carry semantic signal labels:
+
+```json5
+{
+  from: "input_buffer.out",
+  to: "drive_path.in",
+  signal: "audio_voltage",
+}
+```
+
+## SPICE Export
+
+SPICE is generated only from nodes that provide concrete `spice` data.
+
+```json5
+{
+  id: "input_coupling_cap",
+  kind: "capacitor",
+  hardware: { value: "100 nF", confidence: "medium" },
+  spice: {
+    primitive: "C",
+    name: "Cin",
+    nodes: ["input", "buffer_in"],
+    value: "100n",
+  },
+}
+```
+
+Exporter rule: skip `spice: null` and skip nodes with missing primitive, nodes, or value. The export is a lossy derived artifact; the JSON5 graph remains the documentation source for diagrams and model-to-code mapping.
+
+## Renderer Contract
+
+The future TypeScript renderer should:
+
+- parse the JSON5 graph,
+- draw groups, nodes, ports, and edges on canvas,
+- expose hover panels for `hardware`, `emulation`, and `spice`,
+- visually distinguish physical, inferred, and algorithmic nodes,
+- provide a SPICE-export view that shows which nodes were included or skipped.

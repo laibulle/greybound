@@ -1,0 +1,66 @@
+---
+title: Muon
+description: Mu-Tron III-inspired envelope filter engineering baseline.
+---
+
+Muon is Boutique59's first envelope filter model. The reference direction is the Mu-Tron III family: a touch-sensitive filter known for vocal, percussive, organic sweeps rather than clocked modulation.
+
+The implementation does not copy a factory schematic. It is a graybox model that captures the useful engineering behavior: high input impedance, an envelope detector, program-dependent sweep memory, a resonant band-pass filter, dry/wet blend, and low output impedance.
+
+## Baseline Assumptions
+
+- Input impedance is high enough for guitar, compressor, or drive outputs.
+- Output impedance is low enough to drive another pedal or the amp input.
+- The detector belongs to private pedal state and follows guitar attack faster than it releases.
+- The filter should open from pick attack and close musically as the note decays.
+- Pre-amp placement is the reference rig because envelope filters usually react best before amp gain and time-based effects.
+
+## Controls
+
+- `sensitivity`: envelope detector drive and sweep trigger threshold.
+- `range`: low-to-high sweep span and release feel.
+- `resonance`: band-pass emphasis around the moving center frequency.
+- `mix`: dry/filter blend.
+- `bypass`: routing state; detector and filter state remain owned by the pedal instance.
+
+## Current DSP Approximation
+
+The current implementation uses:
+
+- source/load input boundary and light input coupling,
+- rectified sidechain with one-pole smoothing,
+- fast envelope attack and slower release,
+- exponential center-frequency sweep from low-mid to upper-mid range,
+- state-variable band-pass filter with bounded resonance,
+- dry body retention so the effect does not disappear at high mix settings,
+- output lowpass and headroom guard.
+
+This is not a SPICE model and it is not component-exact. It gives Boutique59 a dynamic touch filter while leaving room for future diode/op-amp/OTA or opto-style circuit validation.
+
+## Reference Direction
+
+Useful future reference work:
+
+- collect public Mu-Tron III topology notes and measured sweeps,
+- compare low-pass, band-pass, and high-pass modes,
+- add up/down sweep direction if the model needs the full original control behavior,
+- validate envelope attack/release against rendered pick transients,
+- measure output level across sensitivity and resonance settings,
+- compare placement before and after compressor/drive pedals.
+
+## References
+
+- Mu-Tron III family envelope filter topology and control behavior.
+- Musitronics-era envelope filters using detector-driven resonant filter movement.
+- State-variable filter models for controllable low-pass, band-pass, and high-pass responses.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- center-frequency sweep is measured across sensitivity and range settings,
+- resonance is validated for stability and musical output level,
+- attack and release are measured from rendered transient material,
+- bypass and active output levels are matched within a useful range,
+- ordering before/after compressor and overdrive is compared with renders,
+- measured hardware or SPICE captures define a specific reference unit.

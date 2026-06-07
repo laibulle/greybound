@@ -1,0 +1,20 @@
+---
+title: Architecture
+description: How Boutique59 should separate DSP models, routing, shared electrical state, and monitor tooling.
+---
+
+Boutique59 should keep circuit behavior, routing, and runtime analysis separate enough that each can evolve independently.
+
+## Main Boundaries
+
+- DSP modules own their private internal state: filters, nonlinear integrator memory, envelope followers, thermal approximations, and oversampling buffers.
+- The chain owns ordering, bypass, slot addressing, and audio/control flow between modules.
+- The shared electrical state describes what a module exposes to its neighbors: source impedance, load impedance, nominal voltage, headroom, coupling, and accumulated gain context.
+- Monitor tooling records evidence without requiring a real audio device.
+- Speaker and room impulse-response work belongs behind the IR/convolution boundary so amp cores stay focused on circuit behavior.
+
+This split matters because pedals do not only transform samples. A pedal can change the impedance and voltage environment seen by the next stage, and an amp or FX loop can change what the pedal itself sees.
+
+## Design Constraint
+
+No effect should be hardcoded into the chain. Muffin and Minotaur are detailed pedal models inside the same configurable chain, and the chain must support any pedal or amp processor in any order.

@@ -1,0 +1,32 @@
+---
+title: Contributor Guide
+description: How to understand the project and make changes without losing engineering context.
+---
+
+Start with the architecture and progress pages before changing code. They describe the current design direction and the known tradeoffs.
+
+## Before Changing DSP Behavior
+
+- Read the relevant architecture page.
+- Check the current progress and state ledger.
+- Run the focused Rust tests for the crate you touch.
+- If behavior affects monitoring, run the WAV monitor workflow.
+- Update docs with the decision and evidence.
+
+## Before Adding a Pedal
+
+- Add or update model-specific reverse-engineering notes under `knowledge/models/`.
+- Add reusable circuit-cell notes under `knowledge/circuits/`.
+- Do not commit third-party schematic scans or PDFs.
+- Document shared-state expectations.
+- Add the processor through the generic chain registry.
+- Avoid adding pedal-specific behavior to the chain itself.
+
+## Review Standard
+
+A good change should explain:
+
+- what behavior changed,
+- how it was validated,
+- what monitor evidence changed,
+- what assumptions remain.

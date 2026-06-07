@@ -1,0 +1,69 @@
+---
+title: Dumbler
+description: Reverse-engineered graybox topology target for a Dumbler style model.
+---
+
+The Dumbler target is a graybox family model, not a component-exact clone of a specific amplifier. Public references differ, and many Dumbler examples are custom-built or variant-specific.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/amps/diagrams/dumbler.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the clean, lead, and power-amp blocks to the current Rust emulation and deliberately avoids pretending to be a complete SPICE netlist.
+
+<CircuitDiagram model="dumbler" />
+
+## Extracted Topology
+
+Input stage:
+
+- 12AX7 / ECC83 first gain stage.
+- 100 kOhm plate resistor target.
+- 1.5 kOhm cathode resistor target.
+- 1 MOhm grid leak target.
+- 68 pF input cap target.
+- Modeled as classic first-stage gain with asymmetric distortion.
+
+Drive stage:
+
+- 12AX7 / ECC83 second gain stage.
+- 100 kOhm plate resistor target.
+- 2.2 kOhm cathode resistor target.
+- 25 uF cathode bypass target.
+- 250 kOhm volume pot target.
+- Feeds the tone stack and volume control.
+
+Tone stack:
+
+- Passive three-band low/mid/treble network.
+- 250 kOhm low, mid, and treble pots.
+- Bass cap target: 22 nF.
+- Mid cap target: 2.2 nF.
+- Treble cap target: 220 pF.
+- Slope resistor target: 4.7 kOhm.
+- Modeled as an interactive passive network with frequency-dependent attenuation.
+
+Recovery and overdrive:
+
+- 12AX7 / ECC83 recovery stage.
+- 82 kOhm plate resistor target.
+- 1.5 kOhm cathode resistor target.
+- 25 uF cathode bypass target.
+- Separate asymmetric overdrive path after the clean/tone path.
+
+Phase inverter and power stage:
+
+- 12AX7 / ECC83 long-tail-pair phase inverter.
+- Push-pull fixed-bias class AB 6L6GC power section.
+- Plate supply target around 420 V.
+- Output transformer primary target around 5 kOhm.
+- Negative feedback enabled.
+- Presence control lives in the power-amp negative-feedback loop.
+
+## Modeling Notes
+
+The Dumbler model should expose clean/lead path interaction and feedback-loop presence behavior, but it should remain a variant-aware graybox until measured hardware or a selected public reference variant is chosen.
+
+## Source Notes
+
+Useful references include public Dumbler schematic archives, builder guides, and service notes. Do not commit scans or PDFs; keep only our extracted topology and confidence notes.

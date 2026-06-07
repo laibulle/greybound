@@ -1,0 +1,38 @@
+---
+title: Development Workflow
+description: Commands for validating Rust code, monitor output, and the Fumadocs site.
+---
+
+## Rust Checks
+
+```bash
+cargo test -p boutique59
+cargo test -p boutique59-cli
+```
+
+## Monitor Render
+
+```bash
+target/release/boutique59-cli --rig rigs/nox30-driven.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+target/release/boutique59-cli --rig rigs/muffin-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-fuzz-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+target/release/boutique59-cli --rig rigs/minotaur-nox30.json5 --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav --output-wav target/boutique59-overdrive-nox30-monitor.wav --render-seconds 10 --sample-rate 44100 --period-size 16 --ir --monitor
+```
+
+Expected outputs:
+
+- `boutique59-monitor.log`
+- `target/boutique59-nox30-monitor.wav`
+- `target/boutique59-fuzz-nox30-monitor.wav`
+- `target/boutique59-overdrive-nox30-monitor.wav`
+
+## Docs
+
+From the `docs` directory:
+
+```bash
+npm run dev
+npm run build
+npm run typecheck
+```
+
+Use the docs to record the state of the system as part of the implementation, not only after implementation is complete.

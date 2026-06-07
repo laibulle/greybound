@@ -1,0 +1,8 @@
+/target
+.DS_Store
+*.log
+docs/.next
+docs/.source
+docs/node_modules
+docs/out
+docs/tsconfig.tsbuildinfo

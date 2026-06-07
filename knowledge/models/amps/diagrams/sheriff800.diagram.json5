@@ -1,0 +1,229 @@
+{
+  schema: "boutique59.circuit-diagram.v1",
+  model: "sheriff800",
+  title: "Sheriff800 documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1500,
+    preferredHeight: 720,
+  },
+
+  groups: [
+    {
+      id: "preamp",
+      label: "Cascaded preamp",
+      nodes: [
+        "input_highpass",
+        "gain_stage_a",
+        "cold_clipper",
+        "preamp_volume",
+      ],
+    },
+    {
+      id: "tone_and_power",
+      label: "Tone, master, power",
+      nodes: [
+        "tone_stack",
+        "master_volume",
+        "phase_inverter",
+        "el34_power",
+        "negative_feedback",
+      ],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_highpass",
+      label: "Tight input coupling",
+      kind: "highpass",
+      ports: ["in", "out"],
+      hardware: {
+        role: "high-sensitivity input with tight low-frequency coupling",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "tight high-pass emphasis before cascaded gain",
+      },
+      spice: null,
+      layout: { x: 80, y: 300 },
+    },
+    {
+      id: "gain_stage_a",
+      label: "Cascaded gain stages",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "ECC83 / 12AX7 cascaded preamp gain",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "asymmetric triode-stage cascade with bright gain behavior",
+      },
+      spice: null,
+      layout: { x: 300, y: 300 },
+    },
+    {
+      id: "cold_clipper",
+      label: "Cold clipper",
+      kind: "triode_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "cold-biased clipping stage central to the family sound",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "cold-biased asymmetric clipping approximation",
+      },
+      spice: null,
+      layout: { x: 520, y: 300 },
+    },
+    {
+      id: "preamp_volume",
+      label: "Preamp volume",
+      kind: "potentiometer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "preamp gain/volume control with bright behavior",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "gain-dependent preamp level and brightness shaping",
+      },
+      spice: null,
+      layout: { x: 740, y: 300 },
+    },
+    {
+      id: "tone_stack",
+      label: "TMB tone stack",
+      kind: "tone_stack",
+      ports: ["in", "out"],
+      hardware: {
+        role: "bass/mid/treble passive network",
+        parts: [
+          "470 pF treble cap",
+          "22 nF bass cap",
+          "22 nF mid cap",
+          "33 kOhm slope resistor",
+        ],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "retuned passive MNA tone-stack approximation",
+      },
+      spice: null,
+      layout: { x: 960, y: 300 },
+    },
+    {
+      id: "master_volume",
+      label: "Master volume",
+      kind: "potentiometer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "pre-phase-inverter master volume",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "standalone gain staging and output trim",
+      },
+      spice: null,
+      layout: { x: 1180, y: 300 },
+    },
+    {
+      id: "phase_inverter",
+      label: "Long-tail pair",
+      kind: "phase_inverter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "ECC83 / 12AX7 phase inverter",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "graybox phase-inverter drive into power stage",
+      },
+      spice: null,
+      layout: { x: 1400, y: 300 },
+    },
+    {
+      id: "el34_power",
+      label: "EL34 power section",
+      kind: "power_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "fixed-bias push-pull EL34 power section",
+        parts: ["EL34 fixed-bias output stage family"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "power-stage current compression, dynamic bias shift, and supply sag",
+      },
+      spice: null,
+      layout: { x: 1620, y: 300 },
+    },
+    {
+      id: "negative_feedback",
+      label: "Presence feedback",
+      kind: "feedback",
+      ports: ["sample", "return"],
+      hardware: {
+        role: "negative-feedback loop with presence control",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/amp/models/sheriff800.rs",
+        algorithm: "presence-shaped feedback approximation",
+      },
+      spice: null,
+      layout: { x: 1510, y: 560 },
+    },
+  ],
+
+  edges: [
+    {
+      from: "input_highpass.out",
+      to: "gain_stage_a.in",
+      signal: "tight_input",
+    },
+    { from: "gain_stage_a.out", to: "cold_clipper.in", signal: "preamp_drive" },
+    {
+      from: "cold_clipper.out",
+      to: "preamp_volume.in",
+      signal: "clipped_preamp",
+    },
+    { from: "preamp_volume.out", to: "tone_stack.in", signal: "preamp_output" },
+    { from: "tone_stack.out", to: "master_volume.in", signal: "tone_output" },
+    {
+      from: "master_volume.out",
+      to: "phase_inverter.in",
+      signal: "master_output",
+    },
+    { from: "phase_inverter.out", to: "el34_power.in", signal: "phase_drive" },
+    {
+      from: "el34_power.out",
+      to: "negative_feedback.sample",
+      signal: "feedback_sample",
+    },
+    {
+      from: "negative_feedback.return",
+      to: "phase_inverter.in",
+      signal: "presence_feedback",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "Sheriff800 diagram is family-level and does not yet encode a component-exact netlist.",
+    },
+  ],
+}

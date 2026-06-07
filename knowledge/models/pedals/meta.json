@@ -1,0 +1,4 @@
+{
+  "title": "Pedals",
+  "pages": ["index", "compressor", "filter", "fuzz", "overdrive", "distortion", "modulation", "delay", "reverb"]
+}

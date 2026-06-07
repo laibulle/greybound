@@ -1,0 +1,40 @@
+---
+title: Passive Networks
+description: Reusable passive circuit-network modeling notes for tone stacks, coupling, loading, and cable behavior.
+---
+
+Passive networks are reusable circuit components, not model pages. They describe how Boutique59 represents frequency-dependent loading, tone shaping, and connection behavior shared by amps and pedals.
+
+## Current Uses
+
+- Nox30 Top Boost style tone stack.
+- Muffin passive tone blend target.
+- Future amp tone stacks and FX-loop return networks.
+- Cable capacitance in `ConnectionState`.
+
+## Modeling Rules
+
+- Prefer trapezoidal Modified Nodal Analysis for interactive passive networks.
+- Include source impedance and downstream load when the original circuit depends on loading.
+- Keep coupling-capacitor state at the boundary where it belongs; do not hide it inside unrelated gain constants.
+- Treat potentiometers as split resistors when their wiper interaction matters.
+
+## Known Cells
+
+Top Boost tone network:
+
+- Uses split treble and bass potentiometers.
+- Includes small treble capacitor, bass-path capacitors, slope path, ground/output paths, source impedance, and downstream load.
+- Current implementation uses a seven-node MNA solve.
+
+Muffin tone blend target:
+
+- Low-pass branch target: 39 kOhm and 10 nF.
+- High-pass branch target: 3.9 nF and 22 kOhm.
+- Blend potentiometer target: 100 kOhm.
+- Should be solved as one passive network including source and recovery-stage load.
+
+Connection network:
+
+- Source impedance, load impedance, and cable capacitance affect voltage presented to the next device.
+- This is why pedal order matters beyond a sequence of isolated sample transforms.

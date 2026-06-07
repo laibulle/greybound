@@ -1,0 +1,78 @@
+---
+title: Minotaur
+description: Reverse-engineered Minotaur overdrive engineering baseline for Boutique59 pedal modeling.
+---
+
+Minotaur is Boutique59's first overdrive pedal model. It targets the broad behavior of buffered clean-blend overdrives: high input impedance, low output impedance, gain-dependent clipping, a treble/presence control, and enough headroom to push an amp without behaving like a fuzz.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/overdrive/diagrams/minotaur.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the buffered input, clean/drive blend, clipping, treble, and output stages to the current Rust emulation and includes partial SPICE export fields for explicit electrical boundaries.
+
+<CircuitDiagram model="minotaur" />
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving long cables or another pedal.
+- Input coupling that removes DC and keeps low frequencies controlled.
+- Gain path with soft symmetrical clipping.
+- Clean path blended with the clipped path so low and medium gain settings preserve pick attack.
+- Treble control that emphasizes presence rather than creating a deep mid scoop.
+
+## Controls
+
+- `gain`: amount of clipped drive path and clean/drive blend.
+- `treble`: presence-band lift after the clean/drive blend.
+- `output`: final level into the next load.
+- `bypass`: routing state; active circuit state remains private to the pedal instance.
+
+## External Boundaries
+
+The pedal receives and emits voltage plus impedance:
+
+- input source: guitar pickup or previous pedal output,
+- input load: Minotaur input impedance plus cable capacitance memory,
+- output source: pedal output voltage plus output impedance,
+- output load: amp input, next pedal, or FX-loop return.
+
+`ConnectionState` owns cable capacitance and source/load division. Minotaur should not mutate amp internals.
+
+## Current DSP Approximation
+
+The first implementation is a scalar approximation:
+
+- high-pass input coupling,
+- low-passed clean path,
+- soft-clipped drive path,
+- gain-controlled clean/drive blend,
+- treble high-pass presence path,
+- output low-pass smoothing and low source impedance.
+
+This is not yet a component-exact op-amp/diode solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- input and output impedance targets are measured against reference data,
+- gain sweep changes harmonic density while preserving clean blend at low settings,
+- treble sweep changes presence without excessive level jumps,
+- output level into 1 MOhm, 500 kOhm, 220 kOhm, and 100 kOhm loads behaves plausibly,
+- buffered-source and guitar-source inputs produce sensible differences,
+- SPICE or measured captures validate individual stage responses.
+
+## Measurement Protocol
+
+Hardware or SPICE captures should include:
+
+- supply voltage and current draw,
+- input impedance at 100 Hz, 1 kHz, 5 kHz, and 10 kHz,
+- output impedance across output settings,
+- bypass behavior,
+- gain, treble, and output potentiometer taper,
+- clean path, clipping path, tone output, and final output probes,
+- sine tests at 82 Hz, 110 Hz, 220 Hz, 440 Hz, 1 kHz, 3 kHz, and 6 kHz,
+- input amplitudes from 20 mV RMS to 1 V RMS, with large amplitudes only from a buffered source.

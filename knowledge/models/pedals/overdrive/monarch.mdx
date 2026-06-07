@@ -1,0 +1,81 @@
+---
+title: Monarch
+description: Reverse-engineered Monarch dual-stage overdrive engineering baseline for Boutique59 pedal modeling.
+---
+
+Monarch is Boutique59's dual-stage soft-clip overdrive model. It targets the broad behavior of stacked bluesbreaker-style overdrives: high input impedance, moderate buffered output impedance, asymmetric clipping, tone shaping, and enough output level to push an amp while preserving guitar dynamics.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/overdrive/diagrams/monarch.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the input load, two clipping stages, tone network, output level, and source impedance to the current Rust emulation and includes partial SPICE export fields for explicit electrical boundaries.
+
+<CircuitDiagram model="monarch" />
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Moderate low output impedance, currently modeled at 4.7 kOhm.
+- Input coupling that removes DC and keeps low frequencies controlled.
+- Two gain-dependent soft clipping stages.
+- Asymmetric diode clipping to avoid perfectly mirrored distortion products.
+- Tone control that blends low-passed body with high-passed edge.
+- Output control that can drive the next pedal or amp input harder than unity.
+
+## Controls
+
+- `gain`: amount of drive into both soft-clipping stages.
+- `tone`: low/high tone blend after the second clipping stage.
+- `output`: final level into the next load.
+- `bypass`: routing state; active circuit state remains private to the pedal instance.
+
+## External Boundaries
+
+The pedal receives and emits voltage plus impedance:
+
+- input source: guitar pickup or previous pedal output,
+- input load: Monarch input impedance plus cable capacitance memory,
+- output source: pedal output voltage plus output impedance,
+- output load: amp input, next pedal, or FX-loop return.
+
+`ConnectionState` owns cable capacitance and source/load division. Monarch should not mutate amp internals.
+
+## Current DSP Approximation
+
+The first implementation is a scalar approximation:
+
+- high-pass input coupling,
+- pre-clip low-pass filtering,
+- first asymmetric soft-clip stage,
+- low-pass smoothing after the first stage,
+- second gain stage and asymmetric soft clip,
+- clean residual mixed with the driven path,
+- tone low/high blend,
+- output low-pass smoothing and source impedance.
+
+This is not yet a component-exact op-amp/diode solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- input and output impedance targets are measured against reference data,
+- gain sweep changes harmonic density without collapsing pick attack at low settings,
+- tone sweep changes high-band energy without large level jumps,
+- output level into 1 MOhm, 500 kOhm, 220 kOhm, and 100 kOhm loads behaves plausibly,
+- buffered-source and guitar-source inputs produce sensible differences,
+- SPICE or measured captures validate individual stage responses.
+
+## Measurement Protocol
+
+Hardware or SPICE captures should include:
+
+- supply voltage and current draw,
+- input impedance at 100 Hz, 1 kHz, 5 kHz, and 10 kHz,
+- output impedance across output settings,
+- bypass behavior,
+- gain, tone, and output potentiometer taper,
+- first clip, second clip, tone output, and final output probes,
+- sine tests at 82 Hz, 110 Hz, 220 Hz, 440 Hz, 1 kHz, 3 kHz, and 6 kHz,
+- input amplitudes from 20 mV RMS to 1 V RMS, with large amplitudes only from a buffered source.

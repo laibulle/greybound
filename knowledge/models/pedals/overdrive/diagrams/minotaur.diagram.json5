@@ -1,0 +1,277 @@
+{
+  schema: "boutique59.circuit-diagram.v1",
+  model: "minotaur",
+  title: "Minotaur overdrive documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1400,
+    preferredHeight: 720,
+  },
+
+  groups: [
+    {
+      id: "input",
+      label: "Input and buffer",
+      nodes: ["input_jack", "input_load", "input_coupling"],
+    },
+    {
+      id: "blend",
+      label: "Clean / drive blend",
+      nodes: ["clean_path", "drive_gain", "soft_clip", "drive_filter"],
+    },
+    {
+      id: "output",
+      label: "Treble and output buffer",
+      nodes: ["treble_presence", "output_level", "output_buffer"],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_jack",
+      label: "Input jack",
+      kind: "connector",
+      ports: ["out"],
+      hardware: {
+        role: "guitar or previous pedal input",
+        confidence: "high",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "voltage plus source impedance enters the pedal",
+      },
+      spice: null,
+      layout: { x: 40, y: 300 },
+    },
+    {
+      id: "input_load",
+      label: "Buffered input load",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "high input impedance buffer and bias network",
+        parts: ["input buffer", "bias network"],
+        value: "about 1 MOhm input impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        library: ["ConnectionState", "Load"],
+        state: ["input_connection"],
+        algorithm: "source/load division with cable capacitance memory",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rin",
+        nodes: ["in", "0"],
+        value: "1Meg",
+      },
+      layout: { x: 210, y: 260 },
+    },
+    {
+      id: "input_coupling",
+      label: "Input coupling",
+      kind: "highpass",
+      ports: ["in", "out"],
+      hardware: {
+        role: "DC blocking and low-frequency shaping before the drive network",
+        parts: ["coupling capacitor", "bias/load resistance"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        library: ["OnePoleHighpass"],
+        state: ["input_highpass"],
+        algorithm: "20 Hz one-pole high-pass",
+      },
+      spice: null,
+      layout: { x: 390, y: 260 },
+    },
+    {
+      id: "clean_path",
+      label: "Clean path",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "clean signal path blended back with the clipped path",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        library: ["OnePoleLowpass"],
+        state: ["clean_lowpass"],
+        algorithm: "low-passed clean path scaled down as gain rises",
+      },
+      spice: null,
+      layout: { x: 590, y: 160 },
+    },
+    {
+      id: "drive_gain",
+      label: "Drive gain",
+      kind: "gain_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "gain-controlled clipping amplifier",
+        parts: ["op amp gain network", "gain potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        algorithm: "drive_gain = 2.0 + gain * 34.0",
+      },
+      spice: null,
+      layout: { x: 590, y: 370 },
+    },
+    {
+      id: "soft_clip",
+      label: "Soft clipping pair",
+      kind: "diode_pair",
+      ports: ["in", "out"],
+      hardware: {
+        role: "symmetrical soft clipping in the drive path",
+        parts: ["diode pair"],
+        value: "0.68 V knee target",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::diode_pair_clip",
+        algorithm: "knee_voltage * tanh(input / knee_voltage)",
+      },
+      spice: {
+        primitive: "DPAIR",
+        name: "Dclip",
+        nodes: ["drive", "drive_clipped"],
+        model: "silicon_soft_clip",
+        params: { vf: 0.68 },
+      },
+      layout: { x: 760, y: 370 },
+    },
+    {
+      id: "drive_filter",
+      label: "Drive smoothing",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-clip high-frequency shaping",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        library: ["OnePoleLowpass"],
+        state: ["drive_lowpass"],
+        algorithm: "5.6 kHz one-pole low-pass after clipping",
+      },
+      spice: null,
+      layout: { x: 930, y: 370 },
+    },
+    {
+      id: "treble_presence",
+      label: "Treble / presence",
+      kind: "tone_control",
+      ports: ["in", "out"],
+      hardware: {
+        role: "presence-band lift rather than deep scoop",
+        parts: ["treble potentiometer", "filter network"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        library: ["OnePoleHighpass"],
+        state: ["treble_highpass"],
+        algorithm: "blend main path with high-passed presence path",
+      },
+      spice: null,
+      layout: { x: 1110, y: 260 },
+    },
+    {
+      id: "output_level",
+      label: "Output level",
+      kind: "potentiometer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "final level control",
+        parts: ["output potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Minotaur",
+        algorithm: "level = 0.18 + output * 2.4",
+      },
+      spice: null,
+      layout: { x: 1260, y: 260 },
+    },
+    {
+      id: "output_buffer",
+      label: "Buffered output",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "low impedance output driver",
+        value: "about 560 Ohm output impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "emit voltage with Minotaur::OUTPUT_IMPEDANCE_OHMS",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rout",
+        nodes: ["out", "out_src"],
+        value: "560",
+      },
+      layout: { x: 1420, y: 260 },
+    },
+  ],
+
+  edges: [
+    {
+      from: "input_jack.out",
+      to: "input_load.in",
+      signal: "audio_voltage",
+      spiceNet: "in",
+    },
+    {
+      from: "input_load.out",
+      to: "input_coupling.in",
+      signal: "loaded_audio_voltage",
+    },
+    {
+      from: "input_coupling.out",
+      to: "clean_path.in",
+      signal: "buffered_audio",
+    },
+    {
+      from: "input_coupling.out",
+      to: "drive_gain.in",
+      signal: "buffered_audio",
+    },
+    { from: "drive_gain.out", to: "soft_clip.in", signal: "amplified_drive" },
+    { from: "soft_clip.out", to: "drive_filter.in", signal: "clipped_drive" },
+    { from: "clean_path.out", to: "treble_presence.in", signal: "clean_blend" },
+    {
+      from: "drive_filter.out",
+      to: "treble_presence.in",
+      signal: "drive_blend",
+    },
+    {
+      from: "treble_presence.out",
+      to: "output_level.in",
+      signal: "voiced_audio",
+    },
+    {
+      from: "output_level.out",
+      to: "output_buffer.in",
+      signal: "level_trimmed_audio",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "SPICE export is partial: only explicit impedance and diode-pair placeholders are exportable today.",
+    },
+  ],
+}
