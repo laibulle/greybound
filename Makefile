@@ -31,6 +31,8 @@ NAM_SAMPLE_RATE ?= 48000
 NAM_RENDER_SECONDS ?= 20
 NAM_INPUT_DB ?= -70
 NAM_OUTPUT_DB ?= -12
+SPICE_FIXTURE ?= common-cathode-12ax7
+SPICE_DATASET_DIR ?= lab/datasets/spice
 OVERWRITE ?= 0
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
@@ -123,4 +125,9 @@ lab-render-nam:
 		--input-db "$(NAM_INPUT_DB)" \
 		--output-db "$(NAM_OUTPUT_DB)"
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam
+lab-spice-dataset:
+	uv --project lab run greybound-lab spice-dataset \
+		--fixture "$(SPICE_FIXTURE)" \
+		--output-dir "$(SPICE_DATASET_DIR)"
+
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-spice-dataset

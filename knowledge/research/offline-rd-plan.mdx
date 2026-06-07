@@ -121,6 +121,28 @@ Exported artifacts should be simple enough to review:
 - generated Rust constants when the model is frozen,
 - golden WAV and metric snapshots for regression tests.
 
+Current toolchain decision:
+
+- train and analyze in PyTorch,
+- export accepted cells as Greybound artifacts,
+- run accepted artifacts in a specialized Rust implementation,
+- optionally export ONNX for inspection and compatibility tests.
+
+The planned source-of-truth artifact pair is:
+
+```text
+model.greybound.json
+weights.greybound.bin
+```
+
+ONNX is intentionally secondary. It is useful for checking portability and for
+comparing against external runtimes, but the live audio path needs explicit
+streaming state, denormal handling, fixed latency, and no allocation.
+
+This decision is provisional. It should be challenged after the first complete
+SPICE dataset, PyTorch training, Greybound export, Rust inference, and
+Python/Rust equivalence pass.
+
 ## Rust Integration
 
 The Rust side should not depend on Python at runtime.
@@ -220,12 +242,30 @@ spice-run`. The first pass covers DC operating point and a settled 1 kHz
 small-signal transient. The next SPICE step is to add level sweeps and two-tone
 IMD for large-signal behavior.
 
+The first multi-stimulus dataset command is:
+
+```sh
+uv --project lab run greybound-lab spice-dataset \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/datasets/spice
+```
+
+It writes local raw traces, generated netlists, a `.npz` trace package, a human
+dataset report, and a source-describing manifest. The current corpus covers
+several sine amplitudes and two-tone IMD cases with train/validation/test
+splits. It is good enough for the first trainer/export smoke test, but it still
+needs source/load impedance sweeps, B+ perturbation, component tolerances, and
+real DI before a model can be accepted into the live engine.
+
 Phase 4: first fitted micro-model
 
 - train or optimize the smallest viable model,
 - export a Rust-consumable artifact,
 - add golden tests and runtime guards,
 - compare the full rig before and after the cell replacement.
+
+The detailed first-pass neural-cell plan is
+`lab/experiments/006-spice-to-neural-cell-plan.md`.
 
 Phase 5: consolidated docs
 
@@ -252,3 +292,5 @@ A research result is ready to become implementation work when:
 - Do we want generated Rust source for frozen micro-models, or external artifacts loaded at runtime?
 - What is the minimum NAM comparison protocol that is useful without becoming a production profiling tool?
 - Which first cell gives the best ratio of audible improvement to implementation risk?
+- Should the Greybound artifact loader stay runtime-loadable, or should accepted
+  cells eventually become generated Rust source for maximum optimization?

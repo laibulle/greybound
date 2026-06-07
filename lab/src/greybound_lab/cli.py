@@ -11,7 +11,7 @@ from greybound_lab.nam_render import render_nam
 from greybound_lab.report import write_markdown_report
 from greybound_lab.render import render_rig
 from greybound_lab.segments import load_segments
-from greybound_lab.spice import run_spice_fixture
+from greybound_lab.spice import run_spice_fixture, write_spice_dataset
 from greybound_lab.stimuli import generate_stimuli
 
 
@@ -47,6 +47,13 @@ def main() -> None:
     spice = subparsers.add_parser("spice-run", help="Run a supported SPICE fixture and write a lab report.")
     spice.add_argument("--fixture", required=True, choices=["common-cathode-12ax7"])
     spice.add_argument("--output-dir", type=Path, default=Path("lab/references/spice"))
+
+    spice_dataset = subparsers.add_parser(
+        "spice-dataset",
+        help="Run a supported SPICE fixture and write a dataset artifact plus manifest.",
+    )
+    spice_dataset.add_argument("--fixture", required=True, choices=["common-cathode-12ax7"])
+    spice_dataset.add_argument("--output-dir", type=Path, default=Path("lab/datasets/spice"))
 
     inputs = subparsers.add_parser(
         "download-tone3000-inputs",
@@ -95,6 +102,8 @@ def main() -> None:
         run_generate_stimuli(args)
     elif args.command == "spice-run":
         run_spice(args)
+    elif args.command == "spice-dataset":
+        run_spice_dataset(args)
     elif args.command == "download-tone3000-inputs":
         run_download_tone3000_inputs(args)
     elif args.command == "download-tone3000-irs":
@@ -161,6 +170,12 @@ def run_spice(args: argparse.Namespace) -> None:
     data_path, report_path = run_spice_fixture(args.fixture, args.output_dir, repo_root=Path.cwd())
     print(f"wrote {data_path}")
     print(f"wrote {report_path}")
+
+
+def run_spice_dataset(args: argparse.Namespace) -> None:
+    dataset_path, manifest_path = write_spice_dataset(args.fixture, args.output_dir, repo_root=Path.cwd())
+    print(f"wrote {dataset_path}")
+    print(f"wrote {manifest_path}")
 
 
 def run_download_tone3000_inputs(args: argparse.Namespace) -> None:

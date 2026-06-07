@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://greybound.local/schemas/neural-cell-artifact.schema.json",
+  "title": "Greybound Neural Cell Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "cell_kind",
+    "architecture",
+    "created_at",
+    "sample_rate_policy",
+    "io",
+    "controls",
+    "state",
+    "weights",
+    "training",
+    "validation",
+    "runtime"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "cell_kind": {
+      "type": "string",
+      "enum": [
+        "triode_gain_stage",
+        "cathode_follower",
+        "diode_clipper",
+        "tone_network",
+        "sag_cell",
+        "bbd_cell",
+        "jfet_variable_resistance",
+        "other"
+      ]
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "layers"],
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": ["mlp", "causal_tcn", "state_cell", "table", "analytic_fit"]
+        },
+        "activation": {
+          "type": "string",
+          "enum": ["tanh", "relu", "silu", "linear", "custom"]
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "integer", "boolean", "null"]
+            }
+          }
+        },
+        "receptive_field_samples": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "sample_rate_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["fixed", "resample_required", "multi_rate"]
+        },
+        "sample_rate_hz": { "type": "integer", "minimum": 1 },
+        "supported_sample_rates_hz": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "outputs"],
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/channel" }
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/channel" }
+        },
+        "normalization": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "min", "max", "default"],
+        "properties": {
+          "id": { "type": "string" },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "default": { "type": "number" },
+          "smoothing_ms": { "type": "number", "minimum": 0 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["samples", "floats"],
+      "properties": {
+        "samples": { "type": "integer", "minimum": 0 },
+        "floats": { "type": "integer", "minimum": 0 },
+        "description": { "type": "string" }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "path", "sha256", "dtype", "endianness"],
+      "properties": {
+        "format": { "type": "string", "enum": ["greybound-bin-v1", "inline-json"] },
+        "path": { "type": "string" },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "dtype": { "type": "string", "enum": ["f32", "f16", "i16", "i8"] },
+        "endianness": { "type": "string", "enum": ["little", "big", "none"] },
+        "layout": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "integer", "boolean", "null"]
+            }
+          }
+        }
+      }
+    },
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["framework", "code_revision", "dataset_manifest"],
+      "properties": {
+        "framework": { "type": "string" },
+        "framework_version": { "type": "string" },
+        "code_revision": { "type": "string" },
+        "dataset_manifest": { "type": "string" },
+        "dataset_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "metrics"],
+      "properties": {
+        "status": { "type": "string", "enum": ["experimental", "accepted", "rejected"] },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        },
+        "report": { "type": "string" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "latency_samples",
+        "max_block_size",
+        "allocates_on_audio_thread",
+        "denormal_safe"
+      ],
+      "properties": {
+        "latency_samples": { "type": "integer", "minimum": 0 },
+        "max_block_size": { "type": "integer", "minimum": 1 },
+        "allocates_on_audio_thread": { "type": "boolean" },
+        "denormal_safe": { "type": "boolean" },
+        "cpu_notes": { "type": "string" },
+        "safety_clamps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  },
+  "$defs": {
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "unit"],
+      "properties": {
+        "id": { "type": "string" },
+        "unit": { "type": "string" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

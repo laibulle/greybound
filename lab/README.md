@@ -59,6 +59,21 @@ uv --project lab run greybound-lab spice-run \
   --output-dir lab/references/spice
 ```
 
+Write the first local SPICE dataset artifact and manifest:
+
+```sh
+uv --project lab run greybound-lab spice-dataset \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/datasets/spice
+```
+
+This first dataset is a small multi-stimulus corpus. It runs generated SPICE
+netlists for several 1 kHz sine levels plus two-tone IMD cases, writes raw
+traces, packs a `.npz`, and records hashes, node roles, train/validation/test
+splits, component values, and generated netlists. It is useful for the first
+trainer/export smoke test, but it is not yet broad enough for final tube-stage
+acceptance.
+
 Download public TONE3000 DI input WAV files for local NAM and Greybound
 integration tests:
 
@@ -128,10 +143,34 @@ The first experiment is:
 - [003 Common-Cathode SPICE Reference](experiments/003-common-cathode-spice-reference.md)
 - [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
 - [005 AC30HWH NAM A2 First Render](experiments/005-ac30hwh-nam-a2-first-render.md)
+- [006 SPICE To Neural Cell Plan](experiments/006-spice-to-neural-cell-plan.md)
 
 These define the minimum useful analysis loop and the first controlled-stimulus
 comparison between Greybound rigs, then bridge into the first cell-level SPICE
-reference and first NAM A2 integration comparison.
+reference, first NAM A2 integration comparison, and the planned neural-cell
+artifact boundary.
+
+## Neural Cell Strategy
+
+The current R&D decision is:
+
+```text
+PyTorch trains.
+Greybound exports.
+Rust runs.
+ONNX verifies.
+```
+
+Python and PyTorch are the research stack for fitting micro-models from SPICE
+datasets. Accepted cells should be exported as versioned Greybound artifacts,
+then consumed by a small specialized Rust runtime rather than by a generic
+Python or ONNX runtime in the live audio path.
+
+This is still an experimental decision. The first complete benchmark may change
+the details if SPICE data quality, export stability, CPU cost, or validation
+metrics point in another direction. See
+[006 SPICE To Neural Cell Plan](experiments/006-spice-to-neural-cell-plan.md)
+for the current disclaimer, architecture contract, and milestone sequence.
 
 ## Directory Layout
 
@@ -143,7 +182,9 @@ reference and first NAM A2 integration comparison.
 `schemas/`
 
 : JSON schemas for lab metadata. These are committed so generated datasets and
-  reports have stable structure.
+  reports have stable structure. `spice-dataset-manifest.schema.json` describes
+  generated SPICE datasets, and `neural-cell-artifact.schema.json` describes the
+  planned Greybound neural-cell export descriptor.
 
 `segments/`
 
@@ -159,6 +200,12 @@ reference and first NAM A2 integration comparison.
 
 : Generated or imported training datasets. Keep large data out of git unless it
   is tiny, source-safe, and necessary for tests.
+
+`models/`
+
+: Local experimental neural-cell artifacts. Keep descriptors, weights,
+  checkpoints, ONNX exports, and generated plots out of git by default unless an
+  artifact has been explicitly reviewed and promoted.
 
 `references/`
 

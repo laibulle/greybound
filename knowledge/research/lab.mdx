@@ -38,6 +38,42 @@ Rust remains the target for accepted runtime work:
 
 In short: Python for research, Rust for the engine.
 
+## Neural Cell Strategy
+
+The current neural-cell decision is deliberately split:
+
+```text
+PyTorch trains.
+Greybound exports.
+Rust runs.
+ONNX verifies.
+```
+
+PyTorch is the default training and R&D environment because it gives the lab the
+strongest scientific workflow for fitting, plotting, debugging, and comparing
+small circuit-cell models. The live engine should not run PyTorch.
+
+Accepted cells should be exported as versioned Greybound artifacts:
+
+- `model.greybound.json` for architecture, controls, state, normalization,
+  provenance, validation metrics, and runtime requirements,
+- `weights.greybound.bin` for packed numeric weights.
+
+The Rust runtime should implement only the tiny set of operations we accept for
+real-time audio: dense layers, small activation functions, causal convolution or
+explicit state update when justified, normalization, control conditioning, and
+safety clamps. This keeps the audio path deterministic, bounded, and free from
+generic graph-runtime behavior.
+
+ONNX may still be exported for inspection, compatibility tests, or external
+runtime comparison. It is not the source of truth for Greybound's live runtime.
+
+Important uncertainty: this is a current engineering decision, not a proven
+benchmark result. It may change after the first full loop if SPICE quality,
+PyTorch export stability, Rust CPU cost, or validation metrics contradict the
+assumption. The detailed plan and decision gates live in
+`lab/experiments/006-spice-to-neural-cell-plan.md`.
+
 ## Current Workflow
 
 The first implemented loop is complete-chain WAV analysis.
@@ -64,6 +100,9 @@ uv --project lab run pytest
 ```
 
 The lab commands are exposed through `greybound-lab`.
+
+The neural-cell work starts with `spice-dataset`, then later adds PyTorch
+training and Greybound artifact export.
 
 ## Render A Rig
 
@@ -140,6 +179,27 @@ This is the bridge from full-rig observations to cell-level validation. The
 first report gives the common-cathode stage a reproducible electrical anchor:
 plate around `250.544 V`, cathode around `0.402 V`, B+ around `277.322 V`, and
 small-signal plate gain around `14.88x`.
+
+Use `spice-dataset` to package that fixture as a local dataset artifact:
+
+```sh
+uv --project lab run greybound-lab spice-dataset \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/datasets/spice
+```
+
+The command writes:
+
+- `common-cathode-12ax7.dataset.npz`,
+- `common-cathode-12ax7.dataset.json`.
+
+This is the first small multi-stimulus corpus. It runs generated SPICE netlists
+for several 1 kHz sine levels plus two-tone IMD cases, writes raw traces, packs
+a `.npz`, and records hashes, node roles, train/validation/test splits,
+component values, generated netlists, and operating point. Its purpose is to
+make the SPICE-to-training contract executable before we expand to source/load
+impedance sweeps, B+ perturbation, component tolerance sweeps, transient plucks,
+and real DI windows.
 
 ## NAM References
 
@@ -414,6 +474,12 @@ the bundled dry guitar sample, not a canonical transcription of the performance.
 
 : Local generated or imported datasets. Ignored by git by default.
 
+`lab/models/`
+
+: Local generated neural-cell artifacts, checkpoints, optional ONNX exports,
+  and experimental descriptors. Ignored by git by default except for source-safe
+  notes.
+
 `lab/references/`
 
 : Local reference WAVs, NAM renders, measured captures, or SPICE exports.
@@ -436,6 +502,8 @@ Implemented:
 - `compare-wav` command,
 - run metadata schema,
 - segment marker schema,
+- SPICE dataset manifest schema,
+- neural-cell artifact descriptor schema,
 - segment-level diagnostics for attack, harmonic, high-band/aliasing, and sag
   windows,
 - band residual diagnostics for every segment,
@@ -454,9 +522,10 @@ Not implemented yet:
 - plots in reports,
 - NAM render batch workflow for priority models,
 - broader SPICE fixture automation beyond the first common-cathode import,
-- dataset manifests for training,
+- generated SPICE datasets using the dataset manifest schema,
 - fitted micro-model training,
-- Rust artifact export.
+- Rust artifact export,
+- specialized Rust neural-cell inference.
 
 ## Next Research Steps
 
@@ -467,6 +536,11 @@ The next useful improvements are:
 - add a stronger aliasing score that separates harmonics from folded non-harmonic
   residuals,
 - extend the common-cathode SPICE fixture to level sweeps and two-tone IMD,
+- generate the first common-cathode SPICE dataset manifest,
+- train the smallest PyTorch baseline model that can beat a trivial baseline on
+  held-out SPICE windows,
+- export a first experimental `model.greybound.json` and
+  `weights.greybound.bin`,
 - standardize one Nox30-style NAM comparison,
 - decide the first fitted cell only after the reports show where the largest
   error is.

@@ -1,5 +1,6 @@
 # Local research artifacts.
 datasets/*
+models/*
 references/*
 renders/*
 reports/*
@@ -7,6 +8,9 @@ stimuli/*
 
 # Keep directory placeholders.
 !datasets/.gitkeep
+!models/
+!models/.gitkeep
+!models/README.md
 !references/.gitkeep
 !references/nam/
 references/nam/*
