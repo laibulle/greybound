@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from greybound_lab.rig_sweep import replace_amp_control
+from greybound_lab.rig_sweep import replace_amp_control, replace_amp_controls
 
 
 def test_replace_amp_control_updates_control_and_name() -> None:
@@ -30,3 +30,25 @@ def test_replace_amp_control_rejects_missing_control() -> None:
         assert "could not find amp.controls.presence" in str(exc)
     else:
         raise AssertionError("expected missing control to fail")
+
+
+def test_replace_amp_controls_updates_multiple_controls_once() -> None:
+    rig = """{
+  name: 'nox30-driven',
+  amp: {
+    model: 'nox30',
+    controls: {
+      volume: 0.76,
+      drive: 0.68,
+      sag: 0.70,
+    },
+  },
+}
+"""
+
+    updated = replace_amp_controls(rig, {"volume": 0.82, "drive": 0.74, "sag": 0.55}, "grid")
+
+    assert "name: 'grid'," in updated
+    assert "volume: 0.820000," in updated
+    assert "drive: 0.740000," in updated
+    assert "sag: 0.550000," in updated

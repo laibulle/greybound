@@ -1,0 +1,469 @@
+:root {
+  color-scheme: dark;
+  --bg: #121417;
+  --panel: #1d2024;
+  --panel-2: #252931;
+  --line: #3b4048;
+  --text: #f2eee6;
+  --muted: #a8a29a;
+  --green: #6fbf73;
+  --cyan: #62b6cb;
+  --amber: #d7a84f;
+  --red: #d25f4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.topbar,
+.workspace,
+.monitorHeader,
+.meters,
+.lowerGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.topbar {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 30px;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+.engineState {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.stateDot,
+.pedalLed {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--amber);
+  box-shadow: 0 0 12px rgba(215, 168, 79, 0.8);
+}
+
+.workspace {
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  align-items: start;
+}
+
+.sidebar,
+.mainPanel,
+.controlsPanel,
+.commandPanel,
+.telemetry {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.sidebar {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.mainPanel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.fieldLabel,
+.field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+select,
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: var(--text);
+  background: #101215;
+}
+
+.runtimeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.switches {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.monitorHeader {
+  grid-template-columns: minmax(180px, 1fr) 2fr;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.monitorHeader dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.monitorHeader div div,
+.monitorHeader dl div {
+  min-width: 0;
+}
+
+dt {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pedalboard {
+  display: grid;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+
+.signalRow {
+  display: flex;
+  align-items: center;
+  min-width: max-content;
+  gap: 8px;
+}
+
+.signalRow.empty {
+  display: none;
+}
+
+.node {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.cable {
+  width: 34px;
+  height: 2px;
+  background: var(--line);
+}
+
+.pedal,
+.ampBox,
+.cabBox {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  width: 116px;
+  height: 94px;
+  border: 2px solid color-mix(in srgb, var(--pedal-color, #9a8b72) 85%, white 15%);
+  border-radius: 7px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pedal-color, #8e7a56) 58%, #202329 42%), #181b20);
+  text-align: center;
+}
+
+.ampBox {
+  --pedal-color: #c88c40;
+  width: 132px;
+}
+
+.cabBox {
+  --pedal-color: #5c6570;
+  width: 106px;
+}
+
+.bypassed {
+  filter: grayscale(0.9);
+  opacity: 0.58;
+}
+
+.pedal strong,
+.ampBox strong,
+.cabBox strong {
+  font-size: 13px;
+}
+
+.pedal span,
+.ampBox span,
+.cabBox span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pedal button,
+.ampBox button,
+.cabBox button {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #d7d0c4;
+  border-radius: 999px;
+  background: #2b2e34;
+}
+
+.meters {
+  grid-template-columns: 1fr 1fr auto;
+  align-items: stretch;
+}
+
+.meter,
+.xrun {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px;
+  background: var(--panel-2);
+}
+
+.meterLabel {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.meterLabel span {
+  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.meterLabel strong {
+  font-size: 13px;
+}
+
+.meterLabel em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  text-align: right;
+}
+
+.bar {
+  height: 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #101215;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--cyan), var(--amber), var(--red));
+}
+
+.xrun {
+  display: grid;
+  place-items: center;
+  min-width: 118px;
+}
+
+.xrun span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.telemetry {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.telemetryLine,
+.probeStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.telemetryLine span {
+  color: var(--muted);
+}
+
+.probeStrip span {
+  color: #c8d1d6;
+}
+
+.lowerGrid {
+  grid-template-columns: minmax(320px, 0.9fr) 1.1fr;
+}
+
+.controlsPanel,
+.commandPanel {
+  padding: 12px;
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panelTitle span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.knobGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.knob {
+  display: grid;
+  grid-template-columns: 74px 1fr 42px;
+  align-items: center;
+  gap: 10px;
+}
+
+.knob span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.knob strong {
+  text-align: right;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--amber);
+}
+
+.commandPanel code {
+  display: block;
+  min-height: 128px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  background: #101215;
+  color: #d9d2c7;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .workspace,
+  .lowerGrid,
+  .meters,
+  .monitorHeader {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 620px) {
+  .shell {
+    padding: 12px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .runtimeGrid,
+  .knobGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .knob {
+    grid-template-columns: 68px 1fr 38px;
+  }
+
+  .meterLabel {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .meterLabel em {
+    text-align: left;
+  }
+}

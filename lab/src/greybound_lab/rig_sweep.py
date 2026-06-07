@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from itertools import product
 from pathlib import Path
 
 from greybound_lab.audio import read_wav_mono
@@ -13,7 +14,7 @@ from greybound_lab.segments import SegmentSpec
 
 @dataclass(frozen=True)
 class SweepPoint:
-    value: float
+    values: dict[str, float]
     rig_path: Path
     output_wav: Path
     metadata_path: Path
@@ -40,11 +41,46 @@ def run_amp_control_sweep(
     segments: list[SegmentSpec] | None = None,
     max_lag_ms: float = 100.0,
 ) -> list[SweepPoint]:
-    if not values:
-        raise ValueError("sweep needs at least one value")
-    for value in values:
-        if not 0.0 <= value <= 1.0:
-            raise ValueError(f"sweep value {value:g} is outside normalized 0.0..1.0 range")
+    return run_amp_control_grid_sweep(
+        repo_root=repo_root,
+        binary=binary,
+        rig=rig,
+        sweeps={control: values},
+        input_wav=input_wav,
+        reference_wav=reference_wav,
+        output_dir=output_dir,
+        report=report,
+        metadata=metadata,
+        render_seconds=render_seconds,
+        sample_rate_hz=sample_rate_hz,
+        period_size=period_size,
+        input_gain_db=input_gain_db,
+        output_gain_db=output_gain_db,
+        segments=segments,
+        max_lag_ms=max_lag_ms,
+    )
+
+
+def run_amp_control_grid_sweep(
+    *,
+    repo_root: Path,
+    binary: Path,
+    rig: Path,
+    sweeps: dict[str, list[float]],
+    input_wav: Path,
+    reference_wav: Path,
+    output_dir: Path,
+    report: Path,
+    metadata: Path,
+    render_seconds: float,
+    sample_rate_hz: int,
+    period_size: int,
+    input_gain_db: float,
+    output_gain_db: float,
+    segments: list[SegmentSpec] | None = None,
+    max_lag_ms: float = 100.0,
+) -> list[SweepPoint]:
+    validate_sweeps(sweeps)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     generated_rig_dir = output_dir / "generated-rigs"
@@ -58,9 +94,12 @@ def run_amp_control_sweep(
     reference = read_wav_mono(reference_wav)
     points: list[SweepPoint] = []
 
-    for index, value in enumerate(values):
-        label = f"{control}-{value:.3f}".replace(".", "p").replace("_", "-")
-        generated_rig_text = replace_amp_control(base_rig_text, control, value, sweep_name(label))
+    controls = list(sweeps)
+    combinations = [dict(zip(controls, values)) for values in product(*(sweeps[control] for control in controls))]
+
+    for index, values in enumerate(combinations):
+        label = sweep_label(values)
+        generated_rig_text = replace_amp_controls(base_rig_text, values, sweep_name(label))
         generated_rig_path = generated_rig_dir / f"{index:02d}-{label}.json5"
         output_wav = render_dir / f"{index:02d}-{label}.wav"
         run_metadata = metadata_dir / f"{index:02d}-{label}.run.json"
@@ -97,7 +136,7 @@ def run_amp_control_sweep(
         )
         points.append(
             SweepPoint(
-                value=value,
+                values=values,
                 rig_path=generated_rig_path,
                 output_wav=output_wav,
                 metadata_path=run_metadata,
@@ -108,7 +147,7 @@ def run_amp_control_sweep(
     write_sweep_report(
         report,
         rig=rig,
-        control=control,
+        controls=controls,
         input_wav=input_wav,
         reference_wav=reference_wav,
         points=points,
@@ -117,7 +156,8 @@ def run_amp_control_sweep(
         metadata,
         repo_root=repo_root,
         rig=rig,
-        control=control,
+        controls=controls,
+        sweeps=sweeps,
         input_wav=input_wav,
         reference_wav=reference_wav,
         output_dir=output_dir,
@@ -131,14 +171,43 @@ def run_amp_control_sweep(
     return points
 
 
-def replace_amp_control(rig_text: str, control: str, value: float, name: str) -> str:
+def validate_sweeps(sweeps: dict[str, list[float]]) -> None:
+    if not sweeps:
+        raise ValueError("sweep needs at least one control")
+    for control, values in sweeps.items():
+        validate_control_name(control)
+        if not values:
+            raise ValueError(f"sweep for {control} needs at least one value")
+        for value in values:
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"sweep value {control}={value:g} is outside normalized 0.0..1.0 range")
+
+
+def validate_control_name(control: str) -> None:
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", control):
         raise ValueError(f"unsupported amp control name: {control}")
+
+
+def replace_amp_controls(rig_text: str, values: dict[str, float], name: str) -> str:
+    for control, value in values.items():
+        rig_text = replace_amp_control_value(rig_text, control, value)
+    return replace_rig_name(rig_text, name)
+
+
+def replace_amp_control(rig_text: str, control: str, value: float, name: str) -> str:
+    return replace_amp_controls(rig_text, {control: value}, name)
+
+
+def replace_amp_control_value(rig_text: str, control: str, value: float) -> str:
+    validate_control_name(control)
     control_pattern = re.compile(rf"(^\s*{re.escape(control)}\s*:\s*)([-+]?\d+(?:\.\d+)?)(\s*,)", re.MULTILINE)
     rig_text, control_count = control_pattern.subn(rf"\g<1>{value:.6f}\3", rig_text, count=1)
     if control_count != 1:
         raise ValueError(f"could not find amp.controls.{control} in rig")
+    return rig_text
 
+
+def replace_rig_name(rig_text: str, name: str) -> str:
     name_pattern = re.compile(r"(^\s*name\s*:\s*)(['\"])(.*?)(\2)(\s*,)", re.MULTILINE)
     rig_text, name_count = name_pattern.subn(rf"\g<1>'{name}'\5", rig_text, count=1)
     if name_count == 0:
@@ -150,11 +219,15 @@ def sweep_name(label: str) -> str:
     return f"sweep-{label}"
 
 
+def sweep_label(values: dict[str, float]) -> str:
+    return "__".join(f"{control}-{value:.3f}".replace(".", "p").replace("_", "-") for control, value in values.items())
+
+
 def write_sweep_report(
     path: Path,
     *,
     rig: Path,
-    control: str,
+    controls: list[str],
     input_wav: Path,
     reference_wav: Path,
     points: list[SweepPoint],
@@ -168,28 +241,43 @@ def write_sweep_report(
         "## Protocol",
         "",
         f"- Base rig: `{rig}`",
-        f"- Swept control: `amp.controls.{control}`",
+        f"- Swept controls: `{', '.join(f'amp.controls.{control}' for control in controls)}`",
         f"- Input DI: `{input_wav}`",
         f"- Reference WAV: `{reference_wav}`",
         "- IR policy: `amp-head-no-ir`; Greybound is rendered without `--ir`.",
         "",
         "## Best Point",
         "",
-        f"- Value: `{best.value:.3f}`",
+        f"- Values: `{format_values(best.values)}`",
         f"- Log-spectral distance: `{best.metrics.log_spectral_distance_db:.2f} dB`",
         f"- Null residual relative: `{best.metrics.null_relative_db:.2f} dB`",
         f"- Gain correction: `{best.metrics.gain_db:.2f} dB`",
         f"- WAV: `{best.output_wav}`",
         "",
+        "## Top Candidates",
+        "",
+        "| Rank | Values | Null rel dB | Log-spectral dB | Envelope dB |",
+        "| ---: | --- | ---: | ---: | ---: |",
+    ]
+    for rank, point in enumerate(ranked[: min(5, len(ranked))], start=1):
+        metrics = point.metrics
+        lines.append(
+            f"| {rank} | {format_values(point.values)} | {metrics.null_relative_db:.2f} | "
+            f"{metrics.log_spectral_distance_db:.2f} | {metrics.envelope_error_db:.2f} |"
+        )
+    lines.extend(
+        [
+            "",
         "## Sweep Table",
         "",
-        "| Value | Gain corr dB | Null rel dB | Log-spectral dB | Envelope dB | Candidate RMS | Candidate peak | WAV |",
+        "| Values | Gain corr dB | Null rel dB | Log-spectral dB | Envelope dB | Candidate RMS | Candidate peak | WAV |",
         "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-    ]
+        ]
+    )
     for point in points:
         metrics = point.metrics
         lines.append(
-            f"| {point.value:.3f} | {metrics.gain_db:.2f} | {metrics.null_relative_db:.2f} | "
+            f"| {format_values(point.values)} | {metrics.gain_db:.2f} | {metrics.null_relative_db:.2f} | "
             f"{metrics.log_spectral_distance_db:.2f} | {metrics.envelope_error_db:.2f} | "
             f"{metrics.candidate.rms_dbfs:.2f} | {metrics.candidate.peak_dbfs:.2f} | `{point.output_wav}` |"
         )
@@ -210,7 +298,8 @@ def write_sweep_metadata(
     *,
     repo_root: Path,
     rig: Path,
-    control: str,
+    controls: list[str],
+    sweeps: dict[str, list[float]],
     input_wav: Path,
     reference_wav: Path,
     output_dir: Path,
@@ -232,7 +321,8 @@ def write_sweep_metadata(
         },
         "inputs": {
             "base_rig": str(rig),
-            "control": f"amp.controls.{control}",
+            "controls": [f"amp.controls.{control}" for control in controls],
+            "sweeps": sweeps,
             "input_wav": str(input_wav),
             "reference_wav": str(reference_wav),
             "output_dir": str(output_dir),
@@ -244,7 +334,7 @@ def write_sweep_metadata(
         },
         "points": [
             {
-                "value": point.value,
+                "values": point.values,
                 "generated_rig": str(point.rig_path),
                 "output_wav": str(point.output_wav),
                 "metadata": str(point.metadata_path),
@@ -259,3 +349,7 @@ def write_sweep_metadata(
         ],
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def format_values(values: dict[str, float]) -> str:
+    return ", ".join(f"{control}={value:.3f}" for control, value in values.items())

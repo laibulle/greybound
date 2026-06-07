@@ -199,13 +199,14 @@ sides.
 ```sh
 uv --project lab run greybound-lab sweep-rig-vs-reference \
   --rig rigs/nox30-driven.json5 \
-  --control drive \
-  --values 0.45,0.55,0.68,0.80,0.95 \
+  --sweep volume=0.64,0.76,0.88 \
+  --sweep drive=0.68,0.80,0.92 \
+  --sweep sag=0.55,0.70 \
   --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
   --reference-wav lab/reports/nam-diagnostics-ac30hwh-topboost-gain5-brit-noir.wav \
-  --output-dir lab/reports/sweeps/nox30-drive-vs-topboost-gain5 \
-  --report lab/reports/nox30-drive-sweep-vs-nam-topboost-gain5.md \
-  --metadata lab/reports/nox30-drive-sweep-vs-nam-topboost-gain5.run.json \
+  --output-dir lab/reports/sweeps/nox30-volume-drive-sag-vs-topboost-gain5 \
+  --report lab/reports/nox30-volume-drive-sag-sweep-vs-nam-topboost-gain5.md \
+  --metadata lab/reports/nox30-volume-drive-sag-sweep-vs-nam-topboost-gain5.run.json \
   --render-seconds 10 \
   --sample-rate 48000 \
   --period-size 16 \
