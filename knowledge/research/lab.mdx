@@ -1,0 +1,177 @@
+---
+title: Greybound Lab
+description: Public guide to the offline R&D workspace used for renders, comparisons, and future model fitting.
+---
+
+`lab/` is the offline scientific workspace for Greybound. It is intentionally
+separate from the real-time Rust engine: the lab can use slower analysis tools,
+large generated files, SPICE renders, NAM references, plots, and training
+artifacts. The runtime crates should only consume artifacts after they have been
+reviewed, tested, and frozen.
+
+## Why It Exists
+
+Greybound is moving toward a stronger gray-box modeling workflow. That means we
+need evidence before changing models:
+
+- render rigs in a reproducible way,
+- compare renders against references,
+- measure latency, gain, spectrum, envelope, and residual error,
+- keep metadata for every run,
+- later generate SPICE datasets and fitted micro-models.
+
+The lab is not a product runtime. It is where we search, measure, and decide.
+
+## Tooling Boundary
+
+The lab is Python-first because the R&D work needs the scientific audio
+ecosystem: `numpy`, `scipy`, plotting, optimization, neural tooling, and
+eventually SPICE automation.
+
+Rust remains the target for accepted runtime work:
+
+- deterministic inference,
+- bounded latency,
+- no Python dependency in the live path,
+- golden tests for frozen artifacts,
+- explicit model descriptors and controls.
+
+In short: Python for research, Rust for the engine.
+
+## Current Workflow
+
+The first implemented loop is complete-chain WAV analysis.
+
+1. Render a Greybound rig to a WAV file and metadata JSON.
+2. Compare that WAV against a reference WAV.
+3. Read the generated Markdown report to decide what to investigate next.
+
+This is deliberately before NAM integration or neural training. Without a
+stable comparison loop, training would produce numbers without engineering
+meaning.
+
+## Setup
+
+From the repository root:
+
+```sh
+uv --project lab sync --dev
+uv --project lab run pytest
+```
+
+The lab commands are exposed through `greybound-lab`.
+
+## Render A Rig
+
+Use `render-rig` to call the release `greybound-cli`, write a WAV into
+`lab/renders/`, and write provenance metadata next to it:
+
+```sh
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/nox30-driven.json5 \
+  --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav \
+  --output-wav lab/renders/nox30-driven.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --render-seconds 10 \
+  --sample-rate 44100 \
+  --period-size 16 \
+  --output-db -18 \
+  --ir
+```
+
+The metadata file records:
+
+- git revision,
+- rig path,
+- exact render command,
+- input WAV,
+- sample rate,
+- render duration,
+- input and output gain,
+- IR enabled state,
+- local environment summary.
+
+## Compare WAV Files
+
+Use `compare-wav` to compare a candidate WAV against a reference WAV:
+
+```sh
+uv --project lab run greybound-lab compare-wav \
+  --candidate lab/renders/nox30-driven.wav \
+  --reference lab/references/nox30-reference.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --report lab/reports/nox30-driven-vs-reference.md
+```
+
+The current report includes:
+
+- sample-rate and duration information,
+- estimated candidate latency,
+- gain correction,
+- RMS, peak, and crest factor,
+- null residual after alignment and gain correction,
+- log-spectral distance,
+- envelope error.
+
+These metrics are diagnostic, not a single quality score. They should tell us
+whether the difference is mostly alignment, gain, spectral shape, transient
+behavior, or nonlinear dynamics.
+
+## Directory Layout
+
+`lab/experiments/`
+
+: Committed experiment plans. The first one is
+  `001-chain-reference-analysis.md`.
+
+`lab/schemas/`
+
+: Committed JSON schemas for reproducible metadata.
+
+`lab/datasets/`
+
+: Local generated or imported datasets. Ignored by git by default.
+
+`lab/references/`
+
+: Local reference WAVs, NAM renders, measured captures, or SPICE exports.
+  Ignored by git by default unless redistribution rights are explicit.
+
+`lab/renders/`
+
+: Local Greybound WAV renders and run metadata. Ignored by git by default.
+
+`lab/reports/`
+
+: Local generated comparison reports. Ignored by git by default.
+
+## Current Status
+
+Implemented:
+
+- Python package `greybound-lab`,
+- `render-rig` command,
+- `compare-wav` command,
+- run metadata schema,
+- tests for metric alignment and metadata generation,
+- first experiment plan for chain reference analysis.
+
+Not implemented yet:
+
+- plots in reports,
+- NAM profile rendering/import workflow,
+- SPICE automation,
+- dataset manifests for training,
+- fitted micro-model training,
+- Rust artifact export.
+
+## Next Research Steps
+
+The next useful improvements are:
+
+- add plots to comparison reports,
+- define a real reference WAV protocol,
+- standardize one Nox30-style NAM comparison,
+- add SPICE export analysis for one small circuit cell,
+- decide the first fitted cell only after the reports show where the largest
+  error is.

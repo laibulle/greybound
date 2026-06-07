@@ -27,19 +27,34 @@ comparison report.
 
 ## Initial Command Shape
 
-The first tool should eventually look like this:
+Render a candidate:
 
 ```sh
-lab/bin/compare-wav \
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/nox30-driven.json5 \
+  --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav \
+  --output-wav lab/renders/nox30-driven.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --render-seconds 10 \
+  --sample-rate 44100 \
+  --period-size 16 \
+  --output-db -18 \
+  --ir
+```
+
+Compare it against a reference:
+
+```sh
+uv --project lab run greybound-lab compare-wav \
   --candidate lab/renders/nox30-driven.wav \
   --reference lab/references/nox30-reference.wav \
   --metadata lab/renders/nox30-driven.run.json \
   --report lab/reports/nox30-driven-vs-reference.md
 ```
 
-The exact implementation language is not decided yet. Python is pragmatic for
-analysis and plotting. Rust is preferable for reusable DSP kernels. The runtime
-engine must not depend on the lab toolchain.
+Python is the primary lab language because the long-term work needs the
+scientific audio, plotting, optimization, and neural tooling ecosystem. Rust is
+still the target for accepted runtime artifacts.
 
 ## Required Metadata
 

@@ -5,6 +5,43 @@ real-time engine on purpose: experiments may use slower tools, generated WAV
 files, SPICE renders, NAM references, plots, and training artifacts. The runtime
 crates should only consume artifacts after they have been reviewed and frozen.
 
+## Setup
+
+The lab is a Python scientific workspace managed with `uv`. From the repository
+root:
+
+```sh
+uv --project lab sync --dev
+uv --project lab run pytest
+```
+
+Run the first comparison tool with:
+
+```sh
+uv --project lab run greybound-lab compare-wav \
+  --candidate lab/renders/nox30-driven.wav \
+  --reference lab/references/nox30-reference.wav \
+  --report lab/reports/nox30-driven-vs-reference.md
+```
+
+From inside `lab/`, use `uv run ...` and drop the leading `lab/` path
+components.
+
+Render a Greybound rig into the lab with reproducible metadata:
+
+```sh
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/nox30-driven.json5 \
+  --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav \
+  --output-wav lab/renders/nox30-driven.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --render-seconds 10 \
+  --sample-rate 44100 \
+  --period-size 16 \
+  --output-db -18 \
+  --ir
+```
+
 ## Start Here
 
 The first R&D target is not training. It is measurement.
@@ -66,8 +103,7 @@ and report.
 
 ## First Implementation Boundary
 
-The first lab tool should consume WAV pairs and produce a JSON or Markdown
-report with:
+The first lab tool consumes WAV pairs and produces a Markdown report with:
 
 - sample rate and channel validation,
 - gain and latency alignment,
