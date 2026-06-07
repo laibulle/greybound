@@ -1,11 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { ampControls, defaultRuntimeConfig, rigPresets, type AmpControlId, type Pedal, type RuntimeConfig } from "../lib/rigs";
-import { formatDbfs, runtimePreview, simulateMonitor, type MonitorStats } from "../lib/simulation";
+import { formatDbfs, runtimePreview, type MonitorStats } from "../lib/simulation";
 import { defaultTone3000Input, defaultTone3000Ir, tone3000Inputs, tone3000Irs } from "../lib/tone3000";
-import { createWasmRenderState, renderWasmMonitorBlock, type WasmRenderState } from "../lib/wasmMonitor";
+import { createWasmRenderState, renderWasmAudioBlock, type WasmRenderState } from "../lib/wasmMonitor";
+
+const silentMonitorStats: MonitorStats = {
+  inputRms: 0,
+  inputPeak: 0,
+  outputRms: 0,
+  outputPeak: 0,
+  inputNearClips: 0,
+  inputClips: 0,
+  outputNearClips: 0,
+  outputClips: 0,
+  inputOverruns: 0,
+  outputUnderruns: 0,
+  rails: {
+    preampAvg: 0,
+    preampMin: 0,
+    piAvg: 0,
+    piMin: 0,
+    powerAvg: 0,
+    powerMin: 0,
+    screenAvg: 0,
+    screenMin: 0,
+  },
+  currents: {
+    firstAvg: 0,
+    firstMax: 0,
+    piAvg: 0,
+    piMax: 0,
+    powerAvg: 0,
+    powerMax: 0,
+    attackAvg: 0,
+    attackMax: 0,
+    screenAvg: 0,
+    screenMax: 0,
+  },
+  cathodeAvg: 0,
+  cathodeMax: 0,
+  fluxAvg: 0,
+  fluxMax: 0,
+  probes: ["in", "amp", "tone", "send", "out"].map((label) => ({ label, avg: 0, max: 0 })),
+};
 
 export function GreyboundConsole() {
   const [rigId, setRigId] = useState("nox30-driven");
@@ -14,24 +54,110 @@ export function GreyboundConsole() {
     inputSourceUrl: defaultTone3000Input.url,
     irSourceUrl: defaultTone3000Ir.url,
   });
-  const [tick, setTick] = useState(0);
-  const [stats, setStats] = useState<MonitorStats | null>(null);
+  const [stats, setStats] = useState<MonitorStats>(silentMonitorStats);
   const [engineStatus, setEngineStatus] = useState("loading wasm");
+  const [playbackStatus, setPlaybackStatus] = useState<"stopped" | "starting" | "playing">("stopped");
   const renderStateRef = useRef<WasmRenderState | null>(null);
+  const playbackRef = useRef<{
+    context: AudioContext;
+    intervalId: number;
+    nextStartTime: number;
+    sources: Set<AudioBufferSourceNode>;
+  } | null>(null);
   const rig = useMemo(() => rigPresets.find((preset) => preset.id === rigId) ?? rigPresets[0], [rigId]);
   const [ampValues, setAmpValues] = useState(rig.amp);
   const liveRig = useMemo(() => ({ ...rig, amp: ampValues }), [rig, ampValues]);
-  const fallbackStats = useMemo(() => simulateMonitor(liveRig, runtime, tick), [liveRig, runtime, tick]);
-  const monitorStats = stats ?? fallbackStats;
+  const liveRigRef = useRef(liveRig);
+  const ampValuesRef = useRef(ampValues);
+  const runtimeRef = useRef(runtime);
+  const monitorStats = stats;
 
   useEffect(() => {
     setAmpValues(rig.amp);
   }, [rig]);
 
   useEffect(() => {
+    liveRigRef.current = liveRig;
+    ampValuesRef.current = ampValues;
+    runtimeRef.current = runtime;
+  }, [ampValues, liveRig, runtime]);
+
+  const stopPlayback = useCallback(() => {
+    const playback = playbackRef.current;
+    if (!playback) {
+      setPlaybackStatus("stopped");
+      setStats(silentMonitorStats);
+      return;
+    }
+    window.clearInterval(playback.intervalId);
+    playback.sources.forEach((source) => {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        // Already stopped by the browser.
+      }
+    });
+    playback.context.close().catch(() => undefined);
+    playbackRef.current = null;
+    setPlaybackStatus("stopped");
+    setStats(silentMonitorStats);
+  }, []);
+
+  const schedulePlaybackBlocks = useCallback(() => {
+    const playback = playbackRef.current;
+    const state = renderStateRef.current;
+    if (!playback || !state) return;
+
+    const runtimeSnapshot = runtimeRef.current;
+    const sampleRate = runtimeSnapshot.sampleRate;
+    const blockSize = Math.max(1024, runtimeSnapshot.periodSize);
+    const lookaheadSeconds = 0.35;
+
+    while (playback.nextStartTime < playback.context.currentTime + lookaheadSeconds) {
+      const block = renderWasmAudioBlock(
+        state,
+        liveRigRef.current,
+        ampValuesRef.current,
+        runtimeSnapshot,
+        blockSize,
+      );
+      const audioBuffer = playback.context.createBuffer(1, block.output.length, sampleRate);
+      audioBuffer.getChannelData(0).set(block.output);
+      const source = playback.context.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(playback.context.destination);
+      playback.sources.add(source);
+      source.onended = () => {
+        playback.sources.delete(source);
+      };
+      source.start(playback.nextStartTime);
+      playback.nextStartTime += block.output.length / sampleRate;
+      setStats(block.stats);
+    }
+  }, []);
+
+  const startPlayback = useCallback(async () => {
+    if (playbackRef.current || !renderStateRef.current) return;
+    setPlaybackStatus("starting");
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    const context = new AudioContextCtor({ sampleRate: runtimeRef.current.sampleRate });
+    await context.resume();
+    playbackRef.current = {
+      context,
+      intervalId: window.setInterval(schedulePlaybackBlocks, 50),
+      nextStartTime: context.currentTime + 0.06,
+      sources: new Set(),
+    };
+    schedulePlaybackBlocks();
+    setPlaybackStatus("playing");
+  }, [schedulePlaybackBlocks]);
+
+  useEffect(() => {
     let cancelled = false;
+    stopPlayback();
     renderStateRef.current = null;
-    setStats(null);
+    setStats(silentMonitorStats);
     setEngineStatus("loading sources");
     createWasmRenderState({
       sampleRate: runtime.sampleRate,
@@ -55,17 +181,9 @@ export function GreyboundConsole() {
       renderStateRef.current?.engine.free();
       renderStateRef.current = null;
     };
-  }, [runtime.sampleRate, runtime.inputSourceUrl, runtime.irSourceUrl, runtime.speakerIr]);
+  }, [runtime.sampleRate, runtime.inputSourceUrl, runtime.irSourceUrl, runtime.speakerIr, stopPlayback]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setTick((value) => value + 1);
-      const state = renderStateRef.current;
-      if (!state) return;
-      setStats(renderWasmMonitorBlock(state, liveRig, ampValues, runtime));
-    }, 250);
-    return () => window.clearInterval(interval);
-  }, [ampValues, liveRig, runtime]);
+  useEffect(() => stopPlayback, [stopPlayback]);
 
   const runtimeDetails = runtimePreview(liveRig, runtime);
 
@@ -119,7 +237,15 @@ export function GreyboundConsole() {
         </aside>
 
         <section className="mainPanel">
-          <MonitorHeader rigName={liveRig.name} file={liveRig.file} log={runtime.monitorLog} />
+          <MonitorHeader
+            rigName={liveRig.name}
+            file={liveRig.file}
+            log={runtime.monitorLog}
+            playbackStatus={playbackStatus}
+            canPlay={engineStatus === "wasm live"}
+            onStart={startPlayback}
+            onStop={stopPlayback}
+          />
           <Pedalboard pedals={liveRig.pedals} ampBypassed={liveRig.ampBypassed} cabEnabled={runtime.speakerIr || liveRig.cabEnabled} />
           <Meters stats={monitorStats} />
           <ComponentTelemetry stats={monitorStats} />
@@ -133,7 +259,23 @@ export function GreyboundConsole() {
   );
 }
 
-function MonitorHeader({ rigName, file, log }: { rigName: string; file: string; log: string }) {
+function MonitorHeader({
+  rigName,
+  file,
+  log,
+  playbackStatus,
+  canPlay,
+  onStart,
+  onStop,
+}: {
+  rigName: string;
+  file: string;
+  log: string;
+  playbackStatus: "stopped" | "starting" | "playing";
+  canPlay: boolean;
+  onStart: () => void;
+  onStop: () => void;
+}) {
   return (
     <div className="monitorHeader">
       <div>
@@ -144,6 +286,12 @@ function MonitorHeader({ rigName, file, log }: { rigName: string; file: string; 
         <div><dt>rig</dt><dd>{file}</dd></div>
         <div><dt>log</dt><dd>{log}</dd></div>
       </dl>
+      <div className="transport">
+        <button type="button" onClick={playbackStatus === "playing" ? onStop : onStart} disabled={!canPlay || playbackStatus === "starting"}>
+          {playbackStatus === "playing" ? "Stop" : playbackStatus === "starting" ? "Starting" : "Play"}
+        </button>
+        <span>{playbackStatus}</span>
+      </div>
     </div>
   );
 }
@@ -334,4 +482,10 @@ function Switch({ label, checked, onChange }: { label: string; checked: boolean;
       <span>{label}</span>
     </label>
   );
+}
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
 }

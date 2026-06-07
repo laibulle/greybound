@@ -18,6 +18,12 @@ export type WasmRenderState = {
   irState: Float32Array;
 };
 
+export type WasmAudioBlock = {
+  input: Float32Array;
+  output: Float32Array;
+  stats: MonitorStats;
+};
+
 export async function decodeMonoWav(url: string, sampleRateHint = 48_000): Promise<DecodedMonoAudio> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -66,6 +72,16 @@ export function renderWasmMonitorBlock(
   runtime: RuntimeConfig,
   blockSize = 4096,
 ): MonitorStats {
+  return renderWasmAudioBlock(state, rig, ampValues, runtime, blockSize).stats;
+}
+
+export function renderWasmAudioBlock(
+  state: WasmRenderState,
+  rig: RigPreset,
+  ampValues: AmpValues,
+  runtime: RuntimeConfig,
+  blockSize = 4096,
+): WasmAudioBlock {
   const inputBlock = nextInputBlock(state, blockSize);
   const inputGain = Math.pow(10, runtime.inputDb / 20);
   for (let index = 0; index < inputBlock.length; index += 1) {
@@ -79,7 +95,11 @@ export function renderWasmMonitorBlock(
   );
   const ampOutput = rig.ampBypassed ? inputBlock.slice() : state.engine.process_block(inputBlock);
   const output = runtime.speakerIr && state.ir ? applySimpleIr(state, ampOutput) : ampOutput;
-  return monitorStatsFromAudio(inputBlock, output, rig, runtime);
+  return {
+    input: inputBlock,
+    output,
+    stats: monitorStatsFromAudio(inputBlock, output, rig, runtime),
+  };
 }
 
 function nextInputBlock(state: WasmRenderState, blockSize: number): Float32Array {
