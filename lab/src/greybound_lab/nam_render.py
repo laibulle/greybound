@@ -19,6 +19,8 @@ def render_nam(
     renderer_command: str,
     render_seconds: float,
     sample_rate_hz: int,
+    input_gain_db: float,
+    output_gain_db: float,
     ir_wav: Path | None = None,
     dry_run: bool = False,
 ) -> list[str]:
@@ -36,6 +38,8 @@ def render_nam(
         metadata=metadata,
         sample_rate_hz=sample_rate_hz,
         render_seconds=render_seconds,
+        input_gain_db=input_gain_db,
+        output_gain_db=output_gain_db,
         ir_wav=ir_wav,
     )
     if not dry_run:
@@ -55,6 +59,8 @@ def render_nam(
             "sample_rate_hz": sample_rate_hz,
             "duration_seconds": render_seconds,
             "input_wav": relative_or_absolute(input_wav, repo_root),
+            "input_gain_db": input_gain_db,
+            "output_gain_db": output_gain_db,
             "ir_enabled": ir_wav is not None,
             "ir_path": relative_or_absolute(ir_wav, repo_root) if ir_wav else None,
         },
@@ -79,6 +85,8 @@ def expand_renderer_command(
     metadata: Path,
     sample_rate_hz: int,
     render_seconds: float,
+    input_gain_db: float = 0.0,
+    output_gain_db: float = 0.0,
     ir_wav: Path | None,
 ) -> list[str]:
     placeholders = {
@@ -88,6 +96,8 @@ def expand_renderer_command(
         "metadata": str(metadata),
         "sample_rate": str(sample_rate_hz),
         "render_seconds": f"{render_seconds:g}",
+        "input_db": f"{input_gain_db:g}",
+        "output_db": f"{output_gain_db:g}",
         "ir_wav": str(ir_wav) if ir_wav else "",
     }
     try:

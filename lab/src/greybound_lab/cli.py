@@ -81,6 +81,8 @@ def main() -> None:
     nam_render.add_argument("--renderer-command", required=True)
     nam_render.add_argument("--render-seconds", type=float, default=20.0)
     nam_render.add_argument("--sample-rate", type=int, default=48_000)
+    nam_render.add_argument("--input-db", type=float, default=0.0)
+    nam_render.add_argument("--output-db", type=float, default=0.0)
     nam_render.add_argument("--ir-wav", type=Path)
     nam_render.add_argument("--dry-run", action="store_true")
 
@@ -196,6 +198,8 @@ def run_render_nam(args: argparse.Namespace) -> None:
         renderer_command=args.renderer_command,
         render_seconds=args.render_seconds,
         sample_rate_hz=args.sample_rate,
+        input_gain_db=args.input_db,
+        output_gain_db=args.output_db,
         ir_wav=args.ir_wav,
         dry_run=args.dry_run,
     )

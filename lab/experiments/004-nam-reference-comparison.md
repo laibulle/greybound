@@ -175,7 +175,8 @@ make lab-render-nam \
   NAM_MODEL=lab/references/nam/AC30HWH/TopBoost-Gain5.nam \
   NAM_OUTPUT_WAV=lab/references/nam/renders/ac30hwh-6580-topboost-gain5.wav \
   NAM_METADATA=lab/references/nam/renders/ac30hwh-6580-topboost-gain5.run.json \
-  NAM_RENDERER='nam-a2-render --model {model} --input {input_wav} --output {output_wav} --sample-rate {sample_rate}'
+  NAM_INPUT_DB=-70 \
+  NAM_OUTPUT_DB=-12
 ```
 
 The wrapper expands these placeholders:
@@ -188,8 +189,19 @@ The wrapper expands these placeholders:
 - `{render_seconds}`
 - `{ir_wav}`
 
-This keeps the experiment protocol stable while we decide whether the long-term
-renderer is NeuralAmpModelerCore, a Python binding, or a small local adapter.
+The default renderer uses `uv run --python 3.11 --with neural-amp-modeler==0.13.0`
+and `lab/scripts/nam_a2_render.py`. The adapter selects the highest-quality
+submodel from the A2 `SlimmableContainer` and renders it through the official
+NAM WaveNet loader.
+
+Current provisional gain staging:
+
+- `NAM_INPUT_DB=-70`
+- `NAM_OUTPUT_DB=-12`
+
+This keeps the exported float WAV in a sane range for the current dry guitar
+sample. It is a calibration setting, not a final statement about NAM's physical
+input reference.
 
 ## Comparison Command
 

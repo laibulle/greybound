@@ -15,6 +15,8 @@ def test_expand_renderer_command_uses_placeholders() -> None:
         metadata=Path("run.json"),
         sample_rate_hz=48000,
         render_seconds=2.5,
+        input_gain_db=-12.0,
+        output_gain_db=3.0,
         ir_wav=None,
     )
 
@@ -45,6 +47,8 @@ def test_render_nam_writes_metadata(tmp_path: Path) -> None:
         renderer_command=f"python {script} --model {{model}} --input {{input_wav}} --output {{output_wav}}",
         render_seconds=1.0,
         sample_rate_hz=48000,
+        input_gain_db=-18.0,
+        output_gain_db=-6.0,
         ir_wav=None,
     )
 
@@ -53,4 +57,6 @@ def test_render_nam_writes_metadata(tmp_path: Path) -> None:
     payload = json.loads(metadata.read_text(encoding="utf-8"))
     assert payload["candidate"]["kind"] == "nam-render"
     assert payload["audio"]["sample_rate_hz"] == 48000
+    assert payload["audio"]["input_gain_db"] == -18.0
+    assert payload["audio"]["output_gain_db"] == -6.0
     assert payload["controls"]["model"].endswith("model.nam")

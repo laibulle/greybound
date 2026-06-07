@@ -96,14 +96,17 @@ uv --project lab run greybound-lab render-nam \
   --input-wav samples/teenager-electric-guitar-smooth-chords-dry_94bpm_G_major.wav \
   --output-wav lab/references/nam/renders/ac30hwh-6580-topboost-gain5.wav \
   --metadata lab/references/nam/renders/ac30hwh-6580-topboost-gain5.run.json \
-  --renderer-command "nam-a2-render --model {model} --input {input_wav} --output {output_wav} --sample-rate {sample_rate}" \
+  --renderer-command "uv run --python 3.11 --with neural-amp-modeler==0.13.0 --with scipy python lab/scripts/nam_a2_render.py --model {model} --input {input_wav} --output {output_wav} --sample-rate {sample_rate} --seconds {render_seconds} --input-db {input_db} --output-db {output_db}" \
   --sample-rate 48000 \
-  --render-seconds 20
+  --render-seconds 20 \
+  --input-db -70 \
+  --output-db -12
 ```
 
-The renderer command is intentionally configurable. The lab does not vendor NAM
-inference code yet; it only standardizes metadata, input/output paths, and the
-render contract.
+The default Makefile renderer uses the official Python `neural-amp-modeler`
+package in a temporary `uv run` environment and the local
+`lab/scripts/nam_a2_render.py` adapter. The lab still keeps NAM inference out of
+the runtime engine.
 
 ## Start Here
 

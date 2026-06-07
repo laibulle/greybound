@@ -189,12 +189,15 @@ NAM rendering is handled by a wrapper around an external A2 renderer:
 ```sh
 make lab-render-nam \
   NAM_MODEL=lab/references/nam/AC30HWH/TopBoost-Gain5.nam \
-  NAM_RENDERER='nam-a2-render --model {model} --input {input_wav} --output {output_wav} --sample-rate {sample_rate}'
+  NAM_INPUT_DB=-70 \
+  NAM_OUTPUT_DB=-12
 ```
 
 The wrapper writes the output WAV and run metadata in the same shape as
-Greybound renders. The lab does not yet vendor NAM inference code; that choice
-stays separate from the comparison protocol.
+Greybound renders. The default adapter uses the official Python
+`neural-amp-modeler` package in a temporary Python 3.11 `uv run` environment,
+selects the highest-quality A2 submodel, and keeps NAM inference outside the
+runtime engine.
 
 ## External DI Inputs
 
