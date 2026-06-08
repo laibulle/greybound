@@ -757,8 +757,17 @@ This fixture models the full Klon-style pedal path as a practical ngspice macro:
 input buffer, clean/drive split, non-inverting gain stage, antiparallel germanium
 clipping around Vref, passive tone/level shaping, output buffer, and high-Z load.
 The passive component values are sourced from the public Klon Centaur BOM. The
-TL072 stages are finite-gain, single-pole, rail-limited macros; replace them
-with a measured/vendor macromodel before treating output-level metrics as final.
+TL072 stages use the Texas Instruments SLOJ067 PSpice macromodel, copied locally
+for ngspice with the documented `RP` supply-current correction. The charge-pump
+switching network is not simulated in this audio-path fixture; the op-amp rails
+are idealized nominal Klon rails.
+
+Primary references:
+
+- Zpag Klon Centaur schematic/BOM: `https://www.zpag.net/Electroniques/Guitar/klon_centaur_schematic.html`
+- Tiburonboy MNA/LTspice Klon analysis: `https://tiburonboy.github.io/Symbolic-Modified-Nodal-Analysis-using-Python/Klon%20Centaur%20part%202v0.html`
+- TI TL072 PSpice model SLOJ067: `https://www.ti.com/lit/zip/sloj067`
+- TI E2E TL072 model RP correction: `https://e2e.ti.com/support/tools/simulation-hardware-system-design-tools-group/sim-hw-system-design/f/simulation-hardware-system-design-tools-forum/622836/tina-spice-tl072-supply-current-result-of-tl072-spice-model`
 
 ## Settled 1 kHz Transient
 

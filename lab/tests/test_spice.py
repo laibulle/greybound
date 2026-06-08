@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from greybound_lab.spice import FIXTURES, common_cathode_dataset_cases, common_cathode_dataset_manifest
-from greybound_lab.spice import common_cathode_generated_netlist, common_cathode_metrics, parse_wrdata
+from greybound_lab.spice import common_cathode_generated_netlist, common_cathode_metrics, klon_centaur_metrics, parse_wrdata
 from greybound_lab.spice import sha256_file
 
 
@@ -49,6 +49,34 @@ def test_common_cathode_metrics(tmp_path: Path) -> None:
     assert 249.0 < metrics.plate_dc_v < 251.0
     assert 14.0 < metrics.plate_gain < 16.0
     assert metrics.grid_coupling_loss_db < 0.0
+
+
+def test_klon_centaur_metrics_parse_expected_columns(tmp_path: Path) -> None:
+    path = tmp_path / "klon.dat"
+    rows = []
+    for index in range(100):
+        time = index * 0.001
+        sign = 1.0 if index % 2 == 0 else -1.0
+        values = [
+            0.08 * sign,
+            4.5 + 0.08 * sign,
+            4.5 + 0.01 * sign,
+            4.5 + 0.35 * sign,
+            4.5 + 0.25 * sign,
+            4.5 + 0.90 * sign,
+            4.5 + 0.30 * sign,
+            4.5 + 0.70 * sign,
+        ]
+        rows.append(" ".join(f"{item:.9g}" for pair in [(time, value) for value in values] for item in pair))
+    path.write_text("\n".join(rows), encoding="utf-8")
+
+    trace = parse_wrdata(path, FIXTURES["klon-centaur"].signals)
+    metrics = klon_centaur_metrics(trace, settle_time_s=0.01)
+
+    assert 0.06 < metrics.input_rms_v < 0.10
+    assert 0.30 < metrics.drive_rms_v < 0.40
+    assert 0.20 < metrics.clip_peak_v < 0.30
+    assert metrics.output_gain > 7.0
 
 
 def test_common_cathode_dataset_manifest(tmp_path: Path) -> None:
