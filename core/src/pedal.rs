@@ -159,6 +159,8 @@ pub struct Minotaur {
     summing_lowpass: OnePoleLowpass,
     treble_lowpass: OnePoleLowpass,
     treble_highpass: OnePoleHighpass,
+    treble_mid_highpass: OnePoleHighpass,
+    treble_mid_lowpass: OnePoleLowpass,
     transient_fast_envelope: OnePoleLowpass,
     transient_slow_envelope: OnePoleLowpass,
     level_highpass: OnePoleHighpass,
@@ -577,6 +579,8 @@ impl Minotaur {
             summing_lowpass: OnePoleLowpass::new(sample_rate, 4_900.0),
             treble_lowpass: OnePoleLowpass::new(sample_rate, 2_100.0),
             treble_highpass: OnePoleHighpass::new(sample_rate, 1_650.0),
+            treble_mid_highpass: OnePoleHighpass::new(sample_rate, 850.0),
+            treble_mid_lowpass: OnePoleLowpass::new(sample_rate, 3_600.0),
             transient_fast_envelope: OnePoleLowpass::new(sample_rate, 120.0),
             transient_slow_envelope: OnePoleLowpass::new(sample_rate, 12.0),
             level_highpass: OnePoleHighpass::new(sample_rate, 0.34),
@@ -595,6 +599,8 @@ impl Minotaur {
         self.summing_lowpass.reset();
         self.treble_lowpass.reset();
         self.treble_highpass.reset();
+        self.treble_mid_highpass.reset();
+        self.treble_mid_lowpass.reset();
         self.transient_fast_envelope.reset();
         self.transient_slow_envelope.reset();
         self.level_highpass.reset();
@@ -651,8 +657,12 @@ impl Minotaur {
 
         let low = self.treble_lowpass.process(sum_node);
         let high = self.treble_highpass.process(sum_node);
+        let mid = self
+            .treble_mid_lowpass
+            .process(self.treble_mid_highpass.process(sum_node));
         let tone_gain = 0.78 + treble * 0.44;
-        let voiced = low * (0.92 - treble * 0.38) + high * (0.18 + treble * 1.15);
+        let voiced =
+            low * (0.92 - treble * 0.38) + high * (0.18 + treble * 1.15) + mid * 0.18;
         let envelope_input = voiced.abs();
         let fast_envelope = self.transient_fast_envelope.process(envelope_input);
         let slow_envelope = self.transient_slow_envelope.process(envelope_input);
