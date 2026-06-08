@@ -123,9 +123,14 @@ impl Default for MinotaurControls {
 pub struct Minotaur {
     input_connection: ConnectionState,
     input_highpass: OnePoleHighpass,
-    clean_lowpass: OnePoleLowpass,
-    drive_lowpass: OnePoleLowpass,
+    drive_input_highpass: OnePoleHighpass,
+    drive_feedback_lowpass: OnePoleLowpass,
+    clip_coupling_highpass: OnePoleHighpass,
+    clean_feed_highpass: OnePoleHighpass,
+    summing_lowpass: OnePoleLowpass,
+    treble_lowpass: OnePoleLowpass,
     treble_highpass: OnePoleHighpass,
+    level_highpass: OnePoleHighpass,
     output_lowpass: OnePoleLowpass,
 }
 
@@ -532,20 +537,30 @@ impl Minotaur {
     pub fn new(sample_rate: f32) -> Self {
         Self {
             input_connection: ConnectionState::new(sample_rate, 220e-12),
-            input_highpass: OnePoleHighpass::new(sample_rate, 20.0),
-            clean_lowpass: OnePoleLowpass::new(sample_rate, 3_200.0),
-            drive_lowpass: OnePoleLowpass::new(sample_rate, 5_600.0),
-            treble_highpass: OnePoleHighpass::new(sample_rate, 1_050.0),
-            output_lowpass: OnePoleLowpass::new(sample_rate, 14_000.0),
+            input_highpass: OnePoleHighpass::new(sample_rate, 1.6),
+            drive_input_highpass: OnePoleHighpass::new(sample_rate, 26.0),
+            drive_feedback_lowpass: OnePoleLowpass::new(sample_rate, 900.0),
+            clip_coupling_highpass: OnePoleHighpass::new(sample_rate, 3.4),
+            clean_feed_highpass: OnePoleHighpass::new(sample_rate, 106.0),
+            summing_lowpass: OnePoleLowpass::new(sample_rate, 4_900.0),
+            treble_lowpass: OnePoleLowpass::new(sample_rate, 2_100.0),
+            treble_highpass: OnePoleHighpass::new(sample_rate, 1_650.0),
+            level_highpass: OnePoleHighpass::new(sample_rate, 0.34),
+            output_lowpass: OnePoleLowpass::new(sample_rate, 18_000.0),
         }
     }
 
     pub fn reset(&mut self) {
         self.input_connection.reset();
         self.input_highpass.reset();
-        self.clean_lowpass.reset();
-        self.drive_lowpass.reset();
+        self.drive_input_highpass.reset();
+        self.drive_feedback_lowpass.reset();
+        self.clip_coupling_highpass.reset();
+        self.clean_feed_highpass.reset();
+        self.summing_lowpass.reset();
+        self.treble_lowpass.reset();
         self.treble_highpass.reset();
+        self.level_highpass.reset();
         self.output_lowpass.reset();
     }
 
@@ -570,15 +585,34 @@ impl Minotaur {
         let output = controls.output.clamp(0.0, 1.0);
 
         let buffered = self.input_highpass.process(loaded_input);
-        let clean = self.clean_lowpass.process(buffered) * (0.85 - gain * 0.35);
-        let drive_gain = 2.0 + gain * 34.0;
-        let clipped = diode_pair_clip(buffered * drive_gain, 0.68);
-        let driven = self.drive_lowpass.process(clipped) * (0.18 + gain * 1.15);
-        let blend = clean + driven;
-        let presence = self.treble_highpass.process(blend);
-        let voiced = blend * (1.0 - treble * 0.28) + presence * (0.18 + treble * 1.1);
-        let level = 0.18 + output * 2.4;
-        let final_output = self.output_lowpass.process(voiced * level).clamp(-3.8, 3.8);
+
+        // Klon-style dual-gang gain: the clean feed stays present while the
+        // non-inverting gain stage and summing contribution rise together.
+        let gain_pot = gain.powf(1.15);
+        let drive_input = self.drive_input_highpass.process(buffered);
+        let feedback_gain = 1.45 + gain_pot * 13.5;
+        let drive_stage = self
+            .drive_feedback_lowpass
+            .process(drive_input * feedback_gain);
+        let clip_input = self.clip_coupling_highpass.process(drive_stage);
+        let clipped = diode_pair_clip(clip_input, 0.42);
+
+        let clean_feed =
+            self.clean_feed_highpass.process(buffered) * (0.13 - gain * 0.06).max(0.035);
+        let drive_feed = clipped * (2.35 + gain_pot * 2.2);
+        let sum_node = self
+            .summing_lowpass
+            .process(drive_feed + clean_feed - drive_input * 0.08);
+
+        let low = self.treble_lowpass.process(sum_node);
+        let high = self.treble_highpass.process(sum_node);
+        let tone_gain = 0.78 + treble * 0.44;
+        let voiced = low * (0.92 - treble * 0.38) + high * (0.18 + treble * 1.15);
+        let level = 0.22 + output * 1.95;
+        let final_output = self
+            .output_lowpass
+            .process(self.level_highpass.process(voiced * tone_gain * level))
+            .clamp(-4.5, 4.5);
 
         ElectricalSignal::new(final_output, Self::OUTPUT_IMPEDANCE_OHMS)
     }
@@ -1707,6 +1741,48 @@ mod tests {
         }
 
         assert!(difference_sum > 2.0);
+    }
+
+    #[test]
+    fn minotaur_reference_setting_has_klon_like_makeup_gain() {
+        let mut pedal = Minotaur::new(48_000.0);
+        let mut input_sum = 0.0;
+        let mut output_sum = 0.0;
+        let mut count = 0.0;
+
+        for sample_idx in 0..12_000 {
+            let input =
+                (std::f32::consts::TAU * 1_000.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
+            let output = pedal.process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                MinotaurControls {
+                    gain: 0.55,
+                    treble: 0.60,
+                    output: 0.70,
+                },
+            );
+            if sample_idx >= 6_000 {
+                input_sum += input * input;
+                output_sum += output.voltage * output.voltage;
+                count += 1.0;
+            }
+        }
+
+        let input_rms = (input_sum / count).sqrt();
+        let output_rms = (output_sum / count).sqrt();
+        let gain = output_rms / input_rms;
+
+        assert!(
+            (7.0..18.0).contains(&gain),
+            "input_rms={input_rms}, output_rms={output_rms}, gain={gain}"
+        );
+    }
+
+    #[test]
+    fn minotaur_germanium_clip_knee_stays_below_silicon_range() {
+        let clipped = diode_pair_clip(1.2, 0.42);
+
+        assert!((0.40..0.43).contains(&clipped), "clipped={clipped}");
     }
 
     #[test]

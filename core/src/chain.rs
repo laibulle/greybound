@@ -1237,10 +1237,8 @@ mod tests {
         let mut difference_sum = 0.0;
 
         for sample_idx in 0..9_600 {
-            let input =
-                (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
-            let output =
-                chain.process_with_amp_enabled(input, chain_controls(&controls), false);
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
+            let output = chain.process_with_amp_enabled(input, chain_controls(&controls), false);
             if sample_idx >= 4_800 {
                 difference_sum += (output - input).abs();
             }
