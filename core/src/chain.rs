@@ -3,8 +3,8 @@ use crate::pedal::{
     Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,
     DartfordControls, ElectricalSignal, GodessOne, GodessOneControls, Jetstream, JetstreamControls,
     Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch, MonarchControls, Muffin,
-    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, Tron, TronControls,
-    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
+    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, StudioVerb,
+    StudioVerbControls, Tron, TronControls, AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
 };
 
 const DEFAULT_CABLE_CAPACITANCE_FARADS: f32 = 470e-12;
@@ -74,6 +74,7 @@ pub enum DeviceConfig {
     Celeste,
     Brigade,
     Springfield,
+    StudioVerb,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -200,6 +201,35 @@ const DARTFORD_CONTROLS: &[ControlDescriptor] = &[
 const SPRINGFIELD_CONTROLS: &[ControlDescriptor] = &[
     unit_pot("dwell", "dwell"),
     unit_pot("tone", "tone"),
+    unit_pot("mix", "mix"),
+];
+const STUDIOVERB_CONTROLS: &[ControlDescriptor] = &[
+    ControlDescriptor {
+        id: "algorithm",
+        label: "algo",
+        kind: ControlKind::Switch,
+        min: 0.0,
+        max: 1.0,
+        display_scale: 1.0,
+        step: 1.0,
+        large_step: 1.0,
+    },
+    unit_pot("decay", "decay"),
+    unit_pot("size", "size"),
+    ControlDescriptor {
+        id: "pre_delay_ms",
+        label: "pre ms",
+        kind: ControlKind::Slider,
+        min: 0.0,
+        max: 120.0,
+        display_scale: 1.0,
+        step: 1.0,
+        large_step: 10.0,
+    },
+    unit_pot("diffusion", "diff"),
+    unit_pot("tone", "tone"),
+    unit_pot("low_cut", "low cut"),
+    unit_pot("mod_depth", "mod"),
     unit_pot("mix", "mix"),
 ];
 const TRON_CONTROLS: &[ControlDescriptor] = &[
@@ -412,6 +442,16 @@ impl DeviceConfig {
                 },
                 controls: SPRINGFIELD_CONTROLS,
             },
+            Self::StudioVerb => DeviceModelDescriptor {
+                id: "studioverb",
+                label: "StudioVerb",
+                category: "reverb",
+                visual: DeviceVisualDescriptor {
+                    color: "midnight-blue",
+                    ..STANDARD_PEDAL_VISUAL
+                },
+                controls: STUDIOVERB_CONTROLS,
+            },
         }
     }
 }
@@ -493,6 +533,7 @@ pub enum DeviceControls {
     Celeste(CelesteControls),
     Brigade(BrigadeControls),
     Springfield(SpringfieldControls),
+    StudioVerb(StudioVerbControls),
 }
 
 pub struct SignalChain {
@@ -704,6 +745,7 @@ enum DeviceProcessor {
     Celeste(Celeste),
     Brigade(Brigade),
     Springfield(Springfield),
+    StudioVerb(StudioVerb),
 }
 
 impl DeviceProcessor {
@@ -721,6 +763,7 @@ impl DeviceProcessor {
             DeviceConfig::Celeste => Self::Celeste(Celeste::new(sample_rate)),
             DeviceConfig::Brigade => Self::Brigade(Brigade::new(sample_rate)),
             DeviceConfig::Springfield => Self::Springfield(Springfield::new(sample_rate)),
+            DeviceConfig::StudioVerb => Self::StudioVerb(StudioVerb::new(sample_rate)),
         }
     }
 
@@ -738,6 +781,7 @@ impl DeviceProcessor {
             Self::Celeste(pedal) => pedal.reset(),
             Self::Brigade(pedal) => pedal.reset(),
             Self::Springfield(pedal) => pedal.reset(),
+            Self::StudioVerb(pedal) => pedal.reset(),
         }
     }
 
@@ -755,6 +799,7 @@ impl DeviceProcessor {
             Self::Celeste(_) => Celeste::INPUT_IMPEDANCE_OHMS,
             Self::Brigade(_) => Brigade::INPUT_IMPEDANCE_OHMS,
             Self::Springfield(_) => Springfield::INPUT_IMPEDANCE_OHMS,
+            Self::StudioVerb(_) => StudioVerb::INPUT_IMPEDANCE_OHMS,
         }
     }
 
@@ -780,6 +825,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => LumenControls::default(),
                     DeviceControls::Brigade(_) => LumenControls::default(),
                     DeviceControls::Springfield(_) => LumenControls::default(),
+                    DeviceControls::StudioVerb(_) => LumenControls::default(),
                 },
             ),
             Self::Muon(pedal) => pedal.process_loaded_voltage(
@@ -798,6 +844,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MuonControls::default(),
                     DeviceControls::Brigade(_) => MuonControls::default(),
                     DeviceControls::Springfield(_) => MuonControls::default(),
+                    DeviceControls::StudioVerb(_) => MuonControls::default(),
                 },
             ),
             Self::Muffin(pedal) => pedal.process_loaded_voltage(
@@ -816,6 +863,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MuffinControls::default(),
                     DeviceControls::Brigade(_) => MuffinControls::default(),
                     DeviceControls::Springfield(_) => MuffinControls::default(),
+                    DeviceControls::StudioVerb(_) => MuffinControls::default(),
                 },
             ),
             Self::Minotaur(pedal) => pedal.process_loaded_voltage(
@@ -834,6 +882,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MinotaurControls::default(),
                     DeviceControls::Brigade(_) => MinotaurControls::default(),
                     DeviceControls::Springfield(_) => MinotaurControls::default(),
+                    DeviceControls::StudioVerb(_) => MinotaurControls::default(),
                 },
             ),
             Self::Monarch(pedal) => pedal.process_loaded_voltage(
@@ -852,6 +901,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MonarchControls::default(),
                     DeviceControls::Brigade(_) => MonarchControls::default(),
                     DeviceControls::Springfield(_) => MonarchControls::default(),
+                    DeviceControls::StudioVerb(_) => MonarchControls::default(),
                 },
             ),
             Self::GodessOne(pedal) => pedal.process_loaded_voltage(
@@ -870,6 +920,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => GodessOneControls::default(),
                     DeviceControls::Brigade(_) => GodessOneControls::default(),
                     DeviceControls::Springfield(_) => GodessOneControls::default(),
+                    DeviceControls::StudioVerb(_) => GodessOneControls::default(),
                 },
             ),
             Self::Dartford(pedal) => pedal.process_loaded_voltage(
@@ -888,6 +939,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => DartfordControls::default(),
                     DeviceControls::Brigade(_) => DartfordControls::default(),
                     DeviceControls::Springfield(_) => DartfordControls::default(),
+                    DeviceControls::StudioVerb(_) => DartfordControls::default(),
                 },
             ),
             Self::Tron(pedal) => pedal.process_loaded_voltage(
@@ -906,6 +958,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => TronControls::default(),
                     DeviceControls::Brigade(_) => TronControls::default(),
                     DeviceControls::Springfield(_) => TronControls::default(),
+                    DeviceControls::StudioVerb(_) => TronControls::default(),
                 },
             ),
             Self::Jetstream(pedal) => pedal.process_loaded_voltage(
@@ -924,6 +977,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => JetstreamControls::default(),
                     DeviceControls::Brigade(_) => JetstreamControls::default(),
                     DeviceControls::Springfield(_) => JetstreamControls::default(),
+                    DeviceControls::StudioVerb(_) => JetstreamControls::default(),
                 },
             ),
             Self::Celeste(pedal) => pedal.process_loaded_voltage(
@@ -942,6 +996,7 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => CelesteControls::default(),
                     DeviceControls::Brigade(_) => CelesteControls::default(),
                     DeviceControls::Springfield(_) => CelesteControls::default(),
+                    DeviceControls::StudioVerb(_) => CelesteControls::default(),
                 },
             ),
             Self::Brigade(pedal) => pedal.process_loaded_voltage(
@@ -960,6 +1015,7 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => BrigadeControls::default(),
                     DeviceControls::Celeste(_) => BrigadeControls::default(),
                     DeviceControls::Springfield(_) => BrigadeControls::default(),
+                    DeviceControls::StudioVerb(_) => BrigadeControls::default(),
                 },
             ),
             Self::Springfield(pedal) => pedal.process_loaded_voltage(
@@ -978,6 +1034,26 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => SpringfieldControls::default(),
                     DeviceControls::Celeste(_) => SpringfieldControls::default(),
                     DeviceControls::Brigade(_) => SpringfieldControls::default(),
+                    DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
+                },
+            ),
+            Self::StudioVerb(pedal) => pedal.process_loaded_voltage(
+                input_voltage,
+                match controls {
+                    DeviceControls::StudioVerb(controls) => controls,
+                    DeviceControls::Default => StudioVerbControls::default(),
+                    DeviceControls::Lumen(_) => StudioVerbControls::default(),
+                    DeviceControls::Muon(_) => StudioVerbControls::default(),
+                    DeviceControls::Muffin(_) => StudioVerbControls::default(),
+                    DeviceControls::Minotaur(_) => StudioVerbControls::default(),
+                    DeviceControls::Monarch(_) => StudioVerbControls::default(),
+                    DeviceControls::GodessOne(_) => StudioVerbControls::default(),
+                    DeviceControls::Dartford(_) => StudioVerbControls::default(),
+                    DeviceControls::Tron(_) => StudioVerbControls::default(),
+                    DeviceControls::Jetstream(_) => StudioVerbControls::default(),
+                    DeviceControls::Celeste(_) => StudioVerbControls::default(),
+                    DeviceControls::Brigade(_) => StudioVerbControls::default(),
+                    DeviceControls::Springfield(_) => StudioVerbControls::default(),
                 },
             ),
         }

@@ -140,6 +140,22 @@
         mix: 0.26,
       },
     },
+    {
+      id: "studio-room",
+      device: "studioverb",
+      bypassed: false,
+      controls: {
+        algorithm: "room",
+        decay: 0.46,
+        size: 0.50,
+        pre_delay_ms: 14.0,
+        diffusion: 0.68,
+        tone: 0.55,
+        low_cut: 0.42,
+        mod_depth: 0.18,
+        mix: 0.14,
+      },
+    },
   ],
 
   amp: {

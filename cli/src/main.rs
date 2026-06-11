@@ -20,7 +20,8 @@ use greybound::{
     DartfordWave, DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
     GodessOneControls, GodessOneMode, JetstreamControls, LumenControls, MinotaurControls,
     MonarchControls, MuffinControls, MuonControls, RigConfig, SignalChain, SignalChainConfig,
-    SignalChainControls, SpringfieldControls, TronControls,
+    SignalChainControls, SpringfieldControls, StudioVerbAlgorithm, StudioVerbControls,
+    TronControls,
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -151,6 +152,17 @@ enum SharedDeviceControl {
     Springfield {
         dwell: AtomicU32,
         tone: AtomicU32,
+        mix: AtomicU32,
+    },
+    StudioVerb {
+        algorithm: StudioVerbAlgorithm,
+        decay: AtomicU32,
+        size: AtomicU32,
+        pre_delay_ms: AtomicU32,
+        diffusion: AtomicU32,
+        tone: AtomicU32,
+        low_cut: AtomicU32,
+        mod_depth: AtomicU32,
         mix: AtomicU32,
     },
 }
@@ -408,6 +420,17 @@ impl SharedDeviceControl {
                 tone: AtomicU32::new(controls.tone.to_bits()),
                 mix: AtomicU32::new(controls.mix.to_bits()),
             },
+            DeviceControls::StudioVerb(controls) => Self::StudioVerb {
+                algorithm: controls.algorithm,
+                decay: AtomicU32::new(controls.decay.to_bits()),
+                size: AtomicU32::new(controls.size.to_bits()),
+                pre_delay_ms: AtomicU32::new(controls.pre_delay_ms.to_bits()),
+                diffusion: AtomicU32::new(controls.diffusion.to_bits()),
+                tone: AtomicU32::new(controls.tone.to_bits()),
+                low_cut: AtomicU32::new(controls.low_cut.to_bits()),
+                mod_depth: AtomicU32::new(controls.mod_depth.to_bits()),
+                mix: AtomicU32::new(controls.mix.to_bits()),
+            },
         }
     }
 
@@ -534,6 +557,27 @@ impl SharedDeviceControl {
                     mix: load_atomic_f32(mix),
                 })
             }
+            Self::StudioVerb {
+                algorithm,
+                decay,
+                size,
+                pre_delay_ms,
+                diffusion,
+                tone,
+                low_cut,
+                mod_depth,
+                mix,
+            } => DeviceControls::StudioVerb(StudioVerbControls {
+                algorithm: *algorithm,
+                decay: load_atomic_f32(decay),
+                size: load_atomic_f32(size),
+                pre_delay_ms: load_atomic_f32(pre_delay_ms),
+                diffusion: load_atomic_f32(diffusion),
+                tone: load_atomic_f32(tone),
+                low_cut: load_atomic_f32(low_cut),
+                mod_depth: load_atomic_f32(mod_depth),
+                mix: load_atomic_f32(mix),
+            }),
         }
     }
 
@@ -663,6 +707,33 @@ impl SharedDeviceControl {
             },
             Self::Springfield { dwell, tone, mix } => adjust_control_param(
                 [dwell, tone, mix].get(param_index).copied(),
+                delta,
+                min,
+                max,
+            ),
+            Self::StudioVerb {
+                decay,
+                size,
+                pre_delay_ms,
+                diffusion,
+                tone,
+                low_cut,
+                mod_depth,
+                mix,
+                ..
+            } => adjust_control_param(
+                [
+                    decay,
+                    size,
+                    pre_delay_ms,
+                    diffusion,
+                    tone,
+                    low_cut,
+                    mod_depth,
+                    mix,
+                ]
+                .get(param_index.saturating_sub(1))
+                .copied(),
                 delta,
                 min,
                 max,
@@ -1853,6 +1924,7 @@ fn default_device_controls(device: DeviceConfig) -> DeviceControls {
         DeviceConfig::Celeste => DeviceControls::Celeste(CelesteControls::default()),
         DeviceConfig::Brigade => DeviceControls::Brigade(BrigadeControls::default()),
         DeviceConfig::Springfield => DeviceControls::Springfield(SpringfieldControls::default()),
+        DeviceConfig::StudioVerb => DeviceControls::StudioVerb(StudioVerbControls::default()),
     }
 }
 
@@ -1960,6 +2032,21 @@ fn device_control_value(controls: DeviceControls, id: &str) -> ControlValue {
         DeviceControls::Springfield(controls) => match id {
             "dwell" => ControlValue::Number(controls.dwell),
             "tone" => ControlValue::Number(controls.tone),
+            "mix" => ControlValue::Number(controls.mix),
+            _ => ControlValue::Missing,
+        },
+        DeviceControls::StudioVerb(controls) => match id {
+            "algorithm" => ControlValue::Text(match controls.algorithm {
+                StudioVerbAlgorithm::Room => "room",
+                StudioVerbAlgorithm::Plate => "plate",
+            }),
+            "decay" => ControlValue::Number(controls.decay),
+            "size" => ControlValue::Number(controls.size),
+            "pre_delay_ms" => ControlValue::Number(controls.pre_delay_ms),
+            "diffusion" => ControlValue::Number(controls.diffusion),
+            "tone" => ControlValue::Number(controls.tone),
+            "low_cut" => ControlValue::Number(controls.low_cut),
+            "mod_depth" => ControlValue::Number(controls.mod_depth),
             "mix" => ControlValue::Number(controls.mix),
             _ => ControlValue::Missing,
         },

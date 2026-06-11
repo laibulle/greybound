@@ -1,0 +1,94 @@
+---
+title: StudioVerb
+description: Original digital room/plate reverb model for Greybound.
+---
+
+StudioVerb is Greybound's original digital reverb pedal. It is not a clone and
+not a graybox circuit model. The target is a practical studio-style reverb with
+multiple algorithms that can sit after delay/spring in `all-nox`.
+
+## Intended Role
+
+- `room`: shorter, denser ambience for general use.
+- `plate`: longer and smoother synthetic tail with less early-room emphasis.
+- Default placement is `fx_loop` or `post_amp`.
+- It belongs in `all-nox`; do not treat it as a real graybox reference for
+  `grey-nox`.
+
+## Controls
+
+- `algorithm`: `room` or `plate`.
+- `decay`: feedback intensity and tail persistence.
+- `size`: delay-length scale.
+- `pre_delay_ms`: dry-to-wet onset delay, clamped to 0-120 ms.
+- `diffusion`: early reflection and FDN input density.
+- `tone`: wet-path brightness.
+- `low_cut`: removes low-frequency buildup before the tank.
+- `mod_depth`: slow delay modulation depth.
+- `mix`: wet/dry blend.
+
+## Current DSP Approximation
+
+The implementation uses:
+
+- source/load input boundary and input coupling,
+- low-cut high-pass before the reverb network,
+- predelay,
+- four short early reflection delays,
+- 8-line feedback delay network mixed through a Hadamard matrix,
+- per-line damping,
+- slow line modulation,
+- tone-dependent wet filtering,
+- conservative wet/dry output scaling,
+- 1 MOhm input impedance and 1 kOhm output impedance.
+
+The model exposes meaningful voltage/input/output boundaries but does not map
+to a physical schematic. Validate it as a designed digital effect.
+
+## 2026-06-11 Integration
+
+Code integration:
+
+- `DeviceConfig::StudioVerb`,
+- `DeviceControls::StudioVerb`,
+- rig parser support for `device: "studioverb"`,
+- CLI/TUI display and runtime numeric control updates,
+- WebUI preset metadata,
+- `rigs/all-nox.json5` FX-loop placement after Springfield.
+
+Validation:
+
+```bash
+cargo test -p greybound studioverb --lib
+cargo test -p greybound rig::tests --lib
+cargo test -p greybound-cli
+cargo build --release
+target/release/greybound-cli --rig rigs/all-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/greybound-all-nox-studioverb-monitor.wav --render-seconds 10 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor
+uv --project lab run greybound-lab evaluate-reverb --dry lab/stimuli/reverb-diagnostics.wav --wet target/studioverb-room-reverb-diagnostics-wet.wav --report lab/reports/studioverb-room-reverb-diagnostics-eval.md --json lab/reports/studioverb-room-reverb-diagnostics-eval.json
+```
+
+Evidence:
+
+- `cargo test -p greybound studioverb --lib`: passed.
+- `cargo test -p greybound rig::tests --lib`: passed.
+- `cargo test -p greybound-cli`: passed.
+- `cargo build --release`: passed.
+- Isolated StudioVerb room render on `reverb-diagnostics.wav`: evaluation
+  verdict `pass`, no near-clips, no hard clips, wet component `-89.40 dBFS`
+  RMS, wet-to-dry `-23.78 dB`, wet component peak `-36.98 dBFS`, DC offset
+  `-118.06 dBFS`, early centroid `10003.7 Hz`, mid centroid `4018.3 Hz`, late
+  centroid `1557.0 Hz`, and late-to-early energy `-81.69 dB`.
+- `all-nox` monitor render produced zero xruns, but the full-board output still
+  clips heavily because every pedal is active. Treat that as the known all-board
+  gain-staging problem, not as isolated StudioVerb instability.
+
+## Open Work
+
+- Add direct CLI/runtime switching for `algorithm` if live toggling becomes
+  important.
+- Tune longer room/plate defaults against musical DI material, not only impulse
+  diagnostics.
+- Add a dedicated regression render for `room` and `plate` with fixed markers.
+- Consider more algorithms later: hall, chamber, shimmer, gated, and nonlinear
+  bloom. Keep them as algorithms of StudioVerb unless their controls or state
+  become too different.

@@ -64,6 +64,7 @@ const pedalColors: Record<string, string> = {
   celeste: "#81b9c9",
   brigade: "#4c9d83",
   springfield: "#9c6a34",
+  studioverb: "#344a77",
 };
 
 const pedalLabels: Record<string, string> = {
@@ -79,6 +80,7 @@ const pedalLabels: Record<string, string> = {
   celeste: "Celeste",
   brigade: "Brigade",
   springfield: "Springfield",
+  studioverb: "StudioVerb",
 };
 
 function pedal(device: string, section: PedalSection, controls: Record<string, number | string>) {
@@ -127,6 +129,17 @@ export const rigPresets: RigPreset[] = [
       pedal("brigade", "fx", { time_ms: 320.0, repeats: 0.46, tone: 0.38, mix: 0.34 }),
       pedal("dartford", "fx", { rate_hz: 10.2, depth: 1.0, level: 1.0, wave: "sine" }),
       pedal("springfield", "fx", { dwell: 0.48, tone: 0.58, mix: 0.26 }),
+      pedal("studioverb", "fx", {
+        algorithm: "room",
+        decay: 0.46,
+        size: 0.50,
+        pre_delay_ms: 14.0,
+        diffusion: 0.68,
+        tone: 0.55,
+        low_cut: 0.42,
+        mod_depth: 0.18,
+        mix: 0.14,
+      }),
     ],
     amp: { volume: 0.58, bass: 0.56, treble: 0.58, cut: 0.44, drive: 0.24, presence: 0.34, sag: 0.46 },
   }),

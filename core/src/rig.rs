@@ -5,7 +5,8 @@ use crate::chain::{
 use crate::pedal::{
     BrigadeControls, CelesteControls, DartfordControls, DartfordWave, GodessOneControls,
     GodessOneMode, JetstreamControls, LumenControls, MinotaurControls, MonarchControls,
-    MuffinControls, MuonControls, SpringfieldControls, TronControls,
+    MuffinControls, MuonControls, SpringfieldControls, StudioVerbAlgorithm, StudioVerbControls,
+    TronControls,
 };
 use anyhow::{bail, Result};
 use serde::Deserialize;
@@ -186,6 +187,7 @@ impl RigDeviceSlot {
             DeviceConfig::Celeste => DeviceControls::Celeste(self.controls.celeste()),
             DeviceConfig::Brigade => DeviceControls::Brigade(self.controls.brigade()),
             DeviceConfig::Springfield => DeviceControls::Springfield(self.controls.springfield()),
+            DeviceConfig::StudioVerb => DeviceControls::StudioVerb(self.controls.studioverb()),
         };
         Ok(DeviceSlotControls {
             bypassed: self.bypassed,
@@ -218,6 +220,13 @@ pub struct RigDeviceControls {
     pub repeats: f32,
     pub wave: DartfordWave,
     pub dwell: f32,
+    pub algorithm: StudioVerbAlgorithm,
+    pub decay: f32,
+    pub size: f32,
+    pub pre_delay_ms: f32,
+    pub diffusion: f32,
+    pub low_cut: f32,
+    pub mod_depth: f32,
     pub mix: f32,
 }
 
@@ -233,6 +242,7 @@ impl Default for RigDeviceControls {
         let jetstream = JetstreamControls::default();
         let brigade = BrigadeControls::default();
         let springfield = SpringfieldControls::default();
+        let studioverb = StudioVerbControls::default();
         Self {
             peak_reduction: lumen.peak_reduction,
             sensitivity: muon.sensitivity,
@@ -255,6 +265,13 @@ impl Default for RigDeviceControls {
             repeats: brigade.repeats,
             wave: dartford.wave,
             dwell: springfield.dwell,
+            algorithm: studioverb.algorithm,
+            decay: studioverb.decay,
+            size: studioverb.size,
+            pre_delay_ms: studioverb.pre_delay_ms,
+            diffusion: studioverb.diffusion,
+            low_cut: studioverb.low_cut,
+            mod_depth: studioverb.mod_depth,
             mix: springfield.mix,
         }
     }
@@ -365,6 +382,20 @@ impl RigDeviceControls {
             mix: self.mix.clamp(0.0, 1.0),
         }
     }
+
+    fn studioverb(self) -> StudioVerbControls {
+        StudioVerbControls {
+            algorithm: self.algorithm,
+            decay: self.decay.clamp(0.0, 1.0),
+            size: self.size.clamp(0.0, 1.0),
+            pre_delay_ms: self.pre_delay_ms.clamp(0.0, 120.0),
+            diffusion: self.diffusion.clamp(0.0, 1.0),
+            tone: self.tone.clamp(0.0, 1.0),
+            low_cut: self.low_cut.clamp(0.0, 1.0),
+            mod_depth: self.mod_depth.clamp(0.0, 1.0),
+            mix: self.mix.clamp(0.0, 1.0),
+        }
+    }
 }
 
 fn parse_device_config(device: &str) -> Result<DeviceConfig> {
@@ -381,6 +412,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "celeste" => Ok(DeviceConfig::Celeste),
         "brigade" => Ok(DeviceConfig::Brigade),
         "springfield" => Ok(DeviceConfig::Springfield),
+        "studioverb" => Ok(DeviceConfig::StudioVerb),
         _ => bail!("unknown rig device '{device}'"),
     }
 }
@@ -467,10 +499,10 @@ mod tests {
 
         assert_eq!(rig.name.as_deref(), Some("all-nox"));
         assert_eq!(chain.pre_amp.len(), 8);
-        assert_eq!(chain.fx_loop.len(), 4);
+        assert_eq!(chain.fx_loop.len(), 5);
         assert!(chain.pre_amp.iter().all(|slot| !slot.bypassed));
         assert!(chain.fx_loop.iter().all(|slot| !slot.bypassed));
-        assert_eq!(controls.len(), 12);
+        assert_eq!(controls.len(), 13);
         assert!(controls.iter().all(|slot| !slot.bypassed));
         assert!(rig.amp_enabled());
         assert!(rig.cab_ir_enabled());
@@ -488,11 +520,18 @@ mod tests {
             chain.pre_amp,
             vec![DeviceSlotConfig::active(DeviceConfig::Minotaur)]
         );
-        assert!(chain.fx_loop.is_empty());
-        assert_eq!(controls.len(), 1);
+        assert_eq!(
+            chain.fx_loop,
+            vec![DeviceSlotConfig::active(DeviceConfig::Springfield)]
+        );
+        assert_eq!(controls.len(), 2);
         assert!(matches!(
             controls[0].controls,
             DeviceControls::Minotaur(MinotaurControls { .. })
+        ));
+        assert!(matches!(
+            controls[1].controls,
+            DeviceControls::Springfield(SpringfieldControls { .. })
         ));
         assert!(rig.amp_enabled());
         assert!(rig.cab_ir_enabled());
@@ -775,6 +814,64 @@ mod tests {
             }) if (dwell - 0.48).abs() < 1e-6
                 && (tone - 0.62).abs() < 1e-6
                 && (mix - 0.28).abs() < 1e-6
+        ));
+    }
+
+    #[test]
+    fn parses_studioverb_reverb_controls() {
+        let rig = RigConfig::from_json5(
+            r#"
+            {
+              name: 'unit-test-rig',
+              fx_loop: [{
+                id: 'studio-plate',
+                device: 'studioverb',
+                controls: {
+                  algorithm: 'plate',
+                  decay: 0.67,
+                  size: 0.74,
+                  pre_delay_ms: 31.0,
+                  diffusion: 0.81,
+                  tone: 0.57,
+                  low_cut: 0.43,
+                  mod_depth: 0.22,
+                  mix: 0.19,
+                },
+              }],
+              amp: { model: 'nox30' },
+            }
+            "#,
+        )
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+        let controls = rig.device_controls().unwrap();
+
+        assert_eq!(rig.name.as_deref(), Some("unit-test-rig"));
+        assert_eq!(
+            chain.fx_loop,
+            vec![DeviceSlotConfig::active(DeviceConfig::StudioVerb)]
+        );
+        assert!(matches!(
+            controls[0].controls,
+            DeviceControls::StudioVerb(StudioVerbControls {
+                algorithm: StudioVerbAlgorithm::Plate,
+                decay,
+                size,
+                pre_delay_ms,
+                diffusion,
+                tone,
+                low_cut,
+                mod_depth,
+                mix,
+            }) if (decay - 0.67).abs() < 1e-6
+                && (size - 0.74).abs() < 1e-6
+                && (pre_delay_ms - 31.0).abs() < 1e-6
+                && (diffusion - 0.81).abs() < 1e-6
+                && (tone - 0.57).abs() < 1e-6
+                && (low_cut - 0.43).abs() < 1e-6
+                && (mod_depth - 0.22).abs() < 1e-6
+                && (mix - 0.19).abs() < 1e-6
         ));
     }
 

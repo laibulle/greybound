@@ -20,7 +20,8 @@ pub use pedal::{
     Celeste, CelesteControls, ConnectionState, Dartford, DartfordControls, DartfordWave,
     ElectricalSignal, GodessOne, GodessOneControls, GodessOneMode, Jetstream, JetstreamControls,
     Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch, MonarchControls, Muffin,
-    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, Tron, TronControls,
+    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, StudioVerb,
+    StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls,
 };
 pub use rig::RigConfig;
 

@@ -10,6 +10,9 @@ description: Decisions and open questions that should steer upcoming implementat
 - Pedals and amps keep private DSP memory private.
 - Shared electrical behavior is passed through an explicit chain state.
 - Monitor tests should render to WAV rather than only writing to a null output.
+- Reverbs are split by validation type: Springfield is the current spring
+  graybox/IR hybrid, while StudioVerb is an original digital room/plate FDN
+  effect for `all-nox`.
 
 ## Open Questions
 
@@ -17,9 +20,14 @@ description: Decisions and open questions that should steer upcoming implementat
 - Should shared electrical state be sample-block level only, or should some fields support slower control-rate smoothing?
 - How much impedance interaction should be modeled in the first pass before adding circuit-specific refinements?
 - Which monitor metrics should become hard test assertions versus human-analysis signals?
+- Should `all-nox` remain an intentionally all-active stress rig despite severe
+  full-board clipping, or should it gain a calibrated monitor-safe preset
+  variant?
 
 ## Risks
 
 - Over-modeling electrical state too early could make the chain hard to evolve.
 - Under-modeling impedance and voltage behavior could make pedal ordering sound unrealistic.
 - Monitor logs can become noisy unless every metric has a clear diagnostic purpose.
+- Full-board `all-nox` renders can mask isolated pedal health because the
+  aggregate chain clips even when an individual effect is stable.

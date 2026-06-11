@@ -138,8 +138,8 @@ impl ExperimentalNeuralCell {
         let mut values = vec![0.0; self.input_features];
         values[0] = (input_v - self.normalization.input_mean[0]) / self.normalization.input_std[0];
         for index in 1..self.input_features {
-            values[index] = (0.0 - self.normalization.input_mean[index])
-                / self.normalization.input_std[index];
+            values[index] =
+                (0.0 - self.normalization.input_mean[index]) / self.normalization.input_std[index];
         }
         self.process_normalized_features(values)
     }
