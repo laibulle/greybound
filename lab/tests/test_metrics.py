@@ -175,6 +175,175 @@ def test_dc_offset_metrics_are_reported() -> None:
     assert metrics.dc_offset_delta_db > -50.0
 
 
+def test_spectral_balance_reports_gain_normalized_band_drift() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    low_mid = np.sin(2.0 * np.pi * 500.0 * time)
+    presence = np.sin(2.0 * np.pi * 6_000.0 * time)
+    reference = 0.5 * low_mid + 0.5 * presence
+    candidate = 0.5 * low_mid + 1.0 * presence
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.spectral_balance.presence_delta_db > 2.0
+    assert metrics.spectral_balance.low_mid_delta_db < 0.0
+    assert metrics.spectral_balance.max_abs_delta_db >= metrics.spectral_balance.presence_delta_db
+
+
+def test_dynamics_metrics_report_short_term_compression() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    envelope = np.linspace(0.05, 0.8, sample_rate)
+    reference = envelope * np.sin(2.0 * np.pi * 997.0 * time)
+    candidate = np.tanh(reference * 3.0) / 3.0
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.dynamics.dynamic_range_delta_db < -2.0
+    assert metrics.dynamics.max_abs_percentile_delta_db > 1.0
+
+
+def test_level_response_metrics_report_level_dependent_gain() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    envelope = np.linspace(0.05, 0.8, sample_rate)
+    reference = envelope * np.sin(2.0 * np.pi * 997.0 * time)
+    candidate = np.tanh(reference * 3.0) / 3.0
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.level_response.active_windows > 0
+    assert metrics.level_response.quiet_gain_delta_db > metrics.level_response.loud_gain_delta_db
+    assert metrics.level_response.slope_delta_db < -1.0
+    assert metrics.level_response.max_abs_delta_db > 1.0
+
+
+def test_phase_metrics_report_group_delay_drift() -> None:
+    sample_rate = 48_000
+    reference = _chirp(80.0, 8_000.0, 1.0, sample_rate)
+    candidate = np.concatenate([np.zeros(24, dtype=np.float64), reference[:-24]])
+
+    metrics = compare_signals(candidate, reference, sample_rate, max_lag_ms=0.0)
+
+    assert metrics.phase.mean_abs_group_delay_delta_ms > 0.05
+    assert metrics.phase.mean_coherence > 0.5
+
+
+def test_decay_metrics_report_shorter_sustain() -> None:
+    sample_rate = 48_000
+    reference = _plucked_transients(sample_rate)
+    time = np.arange(reference.shape[0], dtype=np.float64) / sample_rate
+    candidate = reference * np.exp(-time * 8.0)
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.decay.decay_windows > 0
+    assert metrics.decay.late_level_delta_db < -3.0
+
+
+def test_modulation_metrics_report_extra_envelope_wobble() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate * 2, dtype=np.float64) / sample_rate
+    reference = 0.2 * np.sin(2.0 * np.pi * 440.0 * time)
+    candidate = reference * (1.0 + 0.25 * np.sin(2.0 * np.pi * 5.0 * time))
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.modulation.modulation_depth_delta_db > 3.0
+    assert metrics.modulation.envelope_lf_residual_db > -30.0
+
+
+def test_global_harmonic_metrics_report_distortion_fingerprint() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    reference = 0.2 * np.sin(2.0 * np.pi * 440.0 * time)
+    candidate = np.tanh(reference * 4.0) / 4.0
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.global_harmonics.stable_windows > 0
+    assert metrics.global_harmonics.max_abs_delta_db > 3.0
+
+
+def test_global_imd_and_aliasing_metrics_report_high_band_residuals() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    reference = 0.2 * (
+        np.sin(2.0 * np.pi * 440.0 * time)
+        + np.sin(2.0 * np.pi * 550.0 * time)
+    )
+    candidate = (
+        reference
+        + 0.02 * np.sin(2.0 * np.pi * 20_000.0 * time)
+        + 0.02 * np.sin(2.0 * np.pi * 330.0 * time)
+    )
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.global_aliasing.residual_near_nyquist_dbfs > -80.0
+    assert metrics.global_imd.residual_product_dbfs > -100.0
+
+
+def test_nonlinear_transfer_metrics_report_static_shape_change() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    envelope = np.linspace(0.02, 0.8, sample_rate)
+    reference = envelope * np.sin(2.0 * np.pi * 997.0 * time)
+    candidate = np.tanh(reference * 2.5) / 2.5
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.nonlinear_transfer.sample_pairs > 0
+    assert metrics.nonlinear_transfer.max_abs_shape_delta > 0.1
+
+
+def test_noise_floor_metrics_report_inactive_candidate_noise() -> None:
+    sample_rate = 48_000
+    time = np.arange(sample_rate, dtype=np.float64) / sample_rate
+    active = 0.2 * np.sin(2.0 * np.pi * 997.0 * time[: sample_rate // 2])
+    silence = np.zeros(sample_rate // 2, dtype=np.float64)
+    reference = np.concatenate([active, silence])
+    candidate = reference.copy()
+    candidate[sample_rate // 2 :] = 0.01
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.noise_floor.inactive_windows > 0
+    assert metrics.noise_floor.candidate_p90_dbfs > -45.0
+    assert metrics.noise_floor.p90_delta_db > 100.0
+
+
+def test_transient_metrics_report_softened_attacks() -> None:
+    sample_rate = 48_000
+    reference = _plucked_transients(sample_rate)
+    smoothing = np.ones(64, dtype=np.float64) / 64.0
+    candidate = np.convolve(reference, smoothing, mode="same")
+
+    metrics = compare_signals(candidate, reference, sample_rate)
+
+    assert metrics.transients.transient_count > 0
+    assert metrics.transients.peak_delta_db < -3.0
+    assert metrics.transients.max_abs_delta_db > 1.0
+
+
 def _sine(sample_rate: int, seconds: float) -> np.ndarray:
     time = np.arange(int(sample_rate * seconds), dtype=np.float64) / sample_rate
     return np.sin(2.0 * np.pi * 997.0 * time)
+
+
+def _chirp(start_hz: float, end_hz: float, seconds: float, sample_rate: int) -> np.ndarray:
+    time = np.arange(int(sample_rate * seconds), dtype=np.float64) / sample_rate
+    return np.sin(2.0 * np.pi * (start_hz * time + 0.5 * (end_hz - start_hz) * time * time / seconds))
+
+
+def _plucked_transients(sample_rate: int) -> np.ndarray:
+    samples = np.zeros(sample_rate, dtype=np.float64)
+    burst_samples = int(round(0.060 * sample_rate))
+    burst_time = np.arange(burst_samples, dtype=np.float64) / sample_rate
+    burst = np.exp(-burst_time * 45.0) * np.sin(2.0 * np.pi * 1_500.0 * burst_time)
+    click = np.zeros_like(burst)
+    click[:12] = np.hanning(24)[:12]
+    burst += 0.5 * click
+    for start in (4_800, 14_400, 24_000, 33_600):
+        samples[start : start + burst_samples] += burst
+    return 0.3 * samples

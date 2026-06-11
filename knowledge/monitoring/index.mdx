@@ -97,7 +97,12 @@ Profiles:
 
 - `amp-tone`: full-rig amp/pedal tone matching. It gates clipping, DC offset,
   gain correction, null residual, log-spectral distance, guitar-weighted
-  log-spectral distance, and envelope error.
+  log-spectral distance, gain-normalized spectral balance drift, short-term
+  dynamics drift, level-response drift, inactive noise-floor drift, global
+  transient-sharpness drift, group-delay drift, decay/sustain drift, modulation
+  instability, global harmonic drift, global intermodulation/chord-smear drift,
+  near-Nyquist aliasing triage, nonlinear transfer-shape drift, and envelope
+  error.
 - `clipper`: nonlinear pedal or amp clipping checks. It keeps the common health
   gates and adds segment gates for harmonic, intermodulation, and high-band
   aliasing diagnostics when those segment types are present.
@@ -109,3 +114,47 @@ the experiment is explicitly meant to trigger that gate, such as intentional
 hard clipping in a clipper stress test. The guitar-weighted spectral metric is
 diagnostic rather than psychoacoustic proof; it gives more influence to the
 musically sensitive guitar bands than the unweighted log-spectral distance.
+The spectral-balance metric reports candidate-minus-reference relative energy
+for low, low-mid, mid, presence, and air bands after latency and gain alignment.
+Use it to catch tonal drift that a single broadband score can hide.
+The short-term dynamics metric compares active-window RMS percentiles and
+P90-P10 range after alignment. Use it to catch over-compression, weak sustain,
+or level-dependent response changes that a spectral score can miss.
+The level-response metric compares candidate-minus-reference gain on paired
+active windows grouped by quiet, mid, and loud reference levels. Use it to catch
+gain-transfer mistakes such as too much compression, expansion, weak sustain,
+or level-dependent bias behavior even when the broadband gain has been aligned.
+The inactive noise-floor metric compares quiet reference windows only. Use it
+to catch hiss, DC leakage, unstable tails, or unwanted output during musical
+rests; it is skipped when the reference has no meaningful inactive windows.
+The transient-sharpness metric detects envelope onsets from the reference and
+compares short attack-window peak, crest factor, and high-band ratio deltas.
+Use it as a global triage signal for softened pick attack, excessive bite, or
+attack-shape drift when no explicit `attack` segment markers are available.
+For controlled attack experiments, segment-level `attack` diagnostics remain
+the stronger source because their windows are authored for the stimulus.
+The phase metric estimates candidate/reference group-delay drift in the guitar
+band from cross-spectral phase. Use it for tone stack, filter, cab, and coupling
+changes where EQ magnitude alone can look acceptable while timing is wrong.
+The decay metric measures post-attack slope and late-level drift after detected
+reference onsets. Use it for sustain, gate-like behavior, blocking distortion,
+bias recovery, and sag-tail checks.
+The modulation metric measures low-frequency envelope-depth drift and LF
+envelope residual. Use it to catch unintended tremolo, motorboating, unstable
+tails, or slow bias/supply wobble.
+The global harmonic fingerprint scans stable windows and reports THD/H2-H5
+drift without requiring authored harmonic segments. It is weaker than explicit
+sine markers but useful for autonomous triage on real material.
+The global intermodulation metric removes strong spectral lines and compares the
+remaining product/smear energy. Use it to flag chord harshness or muddy nonlinear
+products before running dedicated two-tone segments.
+The global aliasing metric measures near-Nyquist candidate/reference and
+residual energy. Treat it as triage only; generated aliasing stress stimuli and
+segment-level aliasing diagnostics remain the promotion-grade check.
+The nonlinear transfer metric fits paired candidate/reference samples after
+global alignment and reports slope, curvature, asymmetry, and residual shape.
+Use generated `nonlinear-transfer-probe.wav` for the strongest evidence; on real
+DI it is still useful but can be confounded by memory effects.
+`generate-stimuli` now also writes `frequency-response-sweep.wav` and
+`nonlinear-transfer-probe.wav` so transfer/phase and static nonlinearity checks
+can use dedicated deterministic inputs.

@@ -18,6 +18,8 @@ def generate_stimuli(output_dir: Path, sample_rate_hz: int = 44_100) -> list[Sti
     output_dir.mkdir(parents=True, exist_ok=True)
     generated = [
         _write_sine_level_sweep(output_dir, sample_rate_hz),
+        _write_frequency_response_sweep(output_dir, sample_rate_hz),
+        _write_nonlinear_transfer_probe(output_dir, sample_rate_hz),
         _write_two_tone(output_dir, sample_rate_hz),
         _write_aliasing_sweep(output_dir, sample_rate_hz),
         _write_sag_bursts(output_dir, sample_rate_hz),
@@ -53,6 +55,71 @@ def _write_sine_level_sweep(output_dir: Path, sample_rate_hz: int) -> StimulusFi
             cursor += gap_seconds
     wav_path = output_dir / "sine-level-sweep.wav"
     markers_path = output_dir / "sine-level-sweep.markers.json"
+    return _write_pair(wav_path, markers_path, np.concatenate(chunks), sample_rate_hz, segments)
+
+
+def _write_frequency_response_sweep(output_dir: Path, sample_rate_hz: int) -> StimulusFile:
+    chunks: list[np.ndarray] = []
+    segments = []
+    cursor = 0.0
+    for name, start_hz, end_hz, seconds in [
+        ("transfer_low_mid_sweep", 40.0, 2_000.0, 3.0),
+        ("transfer_presence_air_sweep", 2_000.0, 18_000.0, 3.0),
+    ]:
+        start = cursor
+        chunks.append(_fade(_chirp(start_hz, end_hz, -18.0, seconds, sample_rate_hz), sample_rate_hz))
+        cursor += seconds
+        segments.append(
+            {
+                "name": name,
+                "kind": "general",
+                "start_s": round(start + 0.15, 6),
+                "end_s": round(cursor - 0.10, 6),
+                "notes": "Frequency-response and phase/group-delay probe.",
+            }
+        )
+        chunks.append(np.zeros(int(round(0.10 * sample_rate_hz)), dtype=np.float32))
+        cursor += 0.10
+    wav_path = output_dir / "frequency-response-sweep.wav"
+    markers_path = output_dir / "frequency-response-sweep.markers.json"
+    return _write_pair(wav_path, markers_path, np.concatenate(chunks), sample_rate_hz, segments)
+
+
+def _write_nonlinear_transfer_probe(output_dir: Path, sample_rate_hz: int) -> StimulusFile:
+    chunks: list[np.ndarray] = []
+    segments = []
+    cursor = 0.0
+    for level_db in [-36.0, -24.0, -12.0, -6.0]:
+        start = cursor
+        chunks.append(_fade(_sine(1_000.0, level_db, 0.75, sample_rate_hz), sample_rate_hz))
+        cursor += 0.75
+        segments.append(
+            {
+                "name": f"transfer_1khz_{int(level_db)}dbfs",
+                "kind": "harmonic",
+                "start_s": round(start + 0.10, 6),
+                "end_s": round(cursor - 0.08, 6),
+                "fundamental_hz": 1_000.0,
+                "notes": "Level-dependent nonlinear transfer probe.",
+            }
+        )
+        chunks.append(np.zeros(int(round(0.08 * sample_rate_hz)), dtype=np.float32))
+        cursor += 0.08
+    start = cursor
+    ramp = _amplitude_ramp_sine(1_000.0, -42.0, -3.0, 3.0, sample_rate_hz)
+    chunks.append(_fade(ramp, sample_rate_hz))
+    cursor += 3.0
+    segments.append(
+        {
+            "name": "transfer_1khz_amplitude_ramp",
+            "kind": "general",
+            "start_s": round(start + 0.10, 6),
+            "end_s": round(cursor - 0.10, 6),
+            "notes": "Continuous input-level ramp for nonlinear transfer curve diagnostics.",
+        }
+    )
+    wav_path = output_dir / "nonlinear-transfer-probe.wav"
+    markers_path = output_dir / "nonlinear-transfer-probe.markers.json"
     return _write_pair(wav_path, markers_path, np.concatenate(chunks), sample_rate_hz, segments)
 
 
@@ -213,6 +280,19 @@ def _chirp(start_hz: float, end_hz: float, level_dbfs: float, seconds: float, sa
     time = _time(seconds, sample_rate_hz)
     sweep = np.sin(2.0 * np.pi * (start_hz * time + 0.5 * (end_hz - start_hz) * time * time / seconds))
     return (_db_to_linear(level_dbfs) * sweep).astype(np.float32)
+
+
+def _amplitude_ramp_sine(
+    frequency_hz: float,
+    start_dbfs: float,
+    end_dbfs: float,
+    seconds: float,
+    sample_rate_hz: int,
+) -> np.ndarray:
+    time = _time(seconds, sample_rate_hz)
+    envelope_db = np.linspace(start_dbfs, end_dbfs, time.shape[0])
+    envelope = np.power(10.0, envelope_db / 20.0)
+    return (envelope * np.sin(2.0 * np.pi * frequency_hz * time)).astype(np.float32)
 
 
 def _pluck(frequency_hz: float, level_dbfs: float, seconds: float, sample_rate_hz: int) -> np.ndarray:

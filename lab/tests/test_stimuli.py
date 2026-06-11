@@ -12,6 +12,8 @@ def test_generate_stimuli_writes_wavs_and_markers(tmp_path: Path) -> None:
 
     assert {item.wav_path.name for item in generated} == {
         "sine-level-sweep.wav",
+        "frequency-response-sweep.wav",
+        "nonlinear-transfer-probe.wav",
         "two-tone-imd.wav",
         "aliasing-stress.wav",
         "sag-bursts.wav",

@@ -61,6 +61,67 @@ def _render_markdown(
 - Envelope error: {metrics.envelope_error_db:.2f} dB
 - Aligned DC offset delta: {metrics.dc_offset_delta_db:.2f} dBFS
 
+## Spectral Balance
+
+Band deltas are candidate minus reference after latency and gain alignment.
+Positive values mean the candidate has more relative energy in that band.
+
+| Low 40-250 | Low-mid 250-1k | Mid 1-4k | Presence 4-8k | Air 8-18k | Max abs |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| {metrics.spectral_balance.low_delta_db:.2f} | {metrics.spectral_balance.low_mid_delta_db:.2f} | {metrics.spectral_balance.mid_delta_db:.2f} | {metrics.spectral_balance.presence_delta_db:.2f} | {metrics.spectral_balance.air_delta_db:.2f} | {metrics.spectral_balance.max_abs_delta_db:.2f} |
+
+## Short-Term Dynamics
+
+Percentiles are computed from active short-term RMS windows after latency and
+gain alignment. `Range delta` is candidate dynamic range minus reference dynamic
+range, using P90-P10.
+
+| P10 delta | P50 delta | P90 delta | Range delta | Max abs percentile delta |
+| ---: | ---: | ---: | ---: | ---: |
+| {metrics.dynamics.p10_delta_db:.2f} | {metrics.dynamics.p50_delta_db:.2f} | {metrics.dynamics.p90_delta_db:.2f} | {metrics.dynamics.dynamic_range_delta_db:.2f} | {metrics.dynamics.max_abs_percentile_delta_db:.2f} |
+
+## Level Response
+
+Active windows are grouped by reference loudness. Gain deltas are candidate
+minus reference after global alignment; slope is loud minus quiet gain delta.
+
+| Active windows | Quiet gain delta | Mid gain delta | Loud gain delta | Slope delta | Max abs delta |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| {metrics.level_response.active_windows} | {metrics.level_response.quiet_gain_delta_db:.2f} | {metrics.level_response.mid_gain_delta_db:.2f} | {metrics.level_response.loud_gain_delta_db:.2f} | {metrics.level_response.slope_delta_db:.2f} | {metrics.level_response.max_abs_delta_db:.2f} |
+
+## Global Timing And Nonlinear Diagnostics
+
+These diagnostics are computed without authored segment markers. They are
+triage signals; segment-level stimulus diagnostics remain stronger when present.
+
+| Family | Primary | Secondary | Count / support |
+| --- | ---: | ---: | ---: |
+| Phase/group delay | {metrics.phase.mean_abs_group_delay_delta_ms:.3f} ms mean abs | {metrics.phase.max_abs_group_delay_delta_ms:.3f} ms max abs | {metrics.phase.mean_coherence:.2f} coherence |
+| Decay/sustain | {metrics.decay.slope_delta_db_per_s:.2f} dB/s slope delta | {metrics.decay.late_level_delta_db:.2f} dB late delta | {metrics.decay.decay_windows} windows |
+| Modulation/instability | {metrics.modulation.modulation_depth_delta_db:.2f} dB depth delta | {metrics.modulation.envelope_lf_residual_db:.2f} dB residual | n/a |
+| Harmonic fingerprint | {metrics.global_harmonics.thd_delta_db:.2f} dB THD delta | {metrics.global_harmonics.max_abs_delta_db:.2f} dB max H delta | {metrics.global_harmonics.stable_windows} windows |
+| Intermod/chord smear | {metrics.global_imd.product_energy_delta_db:.2f} dB product delta | {metrics.global_imd.residual_product_dbfs:.2f} dBFS residual | {metrics.global_imd.chord_smear_delta_db:.2f} dB smear |
+| Aliasing triage | {metrics.global_aliasing.near_nyquist_delta_db:.2f} dB near-Nyquist delta | {metrics.global_aliasing.residual_near_nyquist_dbfs:.2f} dBFS residual | n/a |
+| Nonlinear transfer | {metrics.nonlinear_transfer.curvature_delta:.3f} curvature delta | {metrics.nonlinear_transfer.asymmetry_delta:.2f} dB asymmetry | {metrics.nonlinear_transfer.sample_pairs} pairs |
+
+## Inactive Noise Floor
+
+Inactive windows are detected from quiet reference short-term RMS windows. This
+section is meaningful only when inactive windows are present.
+
+| Inactive windows | Candidate P50 | Candidate P90 | Reference P50 | Reference P90 | P50 delta | P90 delta |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| {metrics.noise_floor.inactive_windows} | {metrics.noise_floor.candidate_p50_dbfs:.2f} | {metrics.noise_floor.candidate_p90_dbfs:.2f} | {metrics.noise_floor.reference_p50_dbfs:.2f} | {metrics.noise_floor.reference_p90_dbfs:.2f} | {metrics.noise_floor.p50_delta_db:.2f} | {metrics.noise_floor.p90_delta_db:.2f} |
+
+## Transient Sharpness
+
+Transient windows are detected from reference envelope onsets. Deltas are
+candidate minus reference after latency and gain alignment.
+
+| Transients | Peak delta | Crest delta | High-band ratio delta | Max abs delta |
+| ---: | ---: | ---: | ---: | ---: |
+| {metrics.transients.transient_count} | {metrics.transients.peak_delta_db:.2f} | {metrics.transients.crest_delta_db:.2f} | {metrics.transients.high_band_ratio_delta_db:.2f} | {metrics.transients.max_abs_delta_db:.2f} |
+
 {_render_segments(metrics.segments)}
 
 ## Engineering Notes
