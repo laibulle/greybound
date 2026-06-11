@@ -42,16 +42,60 @@ The pedal receives and emits voltage plus impedance:
 
 ## Current DSP Approximation
 
-The first implementation is a scalar approximation:
+The current implementation is a scalar greybox approximation:
 
 - high-pass input coupling,
 - low-passed clean path,
 - soft-clipped drive path,
 - gain-controlled clean/drive blend,
 - treble high-pass presence path,
+- modest post-tone transient lift,
 - output low-pass smoothing and low source impedance.
 
 This is not yet a component-exact op-amp/diode solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
+
+## 2026-06-11 Klon NAM Pedal-Only Iteration
+
+The current greybox Minotaur voicing was adjusted against the Klon gain-5 NAM render in
+`lab/reports/klon-minotaur/klon-gain5.wav` using a pedal-only diagnostic rig derived from
+`lab/reports/klon-minotaur/sweep-gain5/generated-rigs/15-gain-0p420__treble-0p700__output-0p420.json5`.
+The maintained integration rig remains `rigs/grey-nox.json5`; a direct sweep against it was discarded for this pedal reference because that compares pedal-plus-amp against a pedal-only NAM target.
+
+Change:
+
+- reduced the treble/high branch contribution,
+- added more mid fill after the clean/drive blend,
+- increased the small transient lift from `0.04` to `0.055`.
+
+Evidence:
+
+- Baseline artifact: `lab/reports/klon-minotaur/minotaur-pedal-only.wav`.
+- Candidate artifact: `lab/reports/klon-minotaur/minotaur-voicing-final.wav`.
+- Evaluation report: `lab/reports/klon-minotaur/minotaur-voicing-final.eval.md`.
+- Composite sweep-style metric improved from `0.4044` to `0.3993`.
+- Null residual improved from `-7.75 dB` to `-8.20 dB`.
+- Envelope error improved from `-12.78 dB` to `-13.30 dB`.
+- Spectral-balance max drift improved from `5.95 dB` to `5.51 dB`, mostly in the air band.
+- Transient max drift improved from `2.01 dB` to `1.76 dB`.
+- Dynamics range drift improved from `-0.91 dB` to `-0.76 dB`.
+- Level-response max drift improved from `1.03 dB` to `0.94 dB`.
+- Weighted log-spectral distance regressed from `15.09 dB` to `15.90 dB`; unweighted log-spectral distance regressed from `16.24 dB` to `17.34 dB`.
+- `clipper` profile verdict remains `warning`.
+
+Runtime health was checked with:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/greybound-overdrive-nox30-monitor.wav --render-seconds 10 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+The monitor log had 40 samples, zero xruns, zero near-clips, zero hard clips,
+and a maximum output peak of `-3.9 dBFS`.
+
+Conclusion: keep this candidate as a small composite improvement for the Klon
+pedal-only anchor, not as proof of realism. The spectral-distance regression
+means the next useful experiment should target the tone branch or clipping
+spectral shape directly, ideally with dedicated sine/transfer stimuli in
+addition to the musical DI.
 
 ## Validation Gates
 

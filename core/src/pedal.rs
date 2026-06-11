@@ -675,7 +675,7 @@ impl Minotaur {
             .process(self.treble_mid_highpass.process(sum_node));
         let tone_gain = 0.78 + treble * 0.44;
         let analytic_voiced =
-            low * (0.92 - treble * 0.38) + high * (0.18 + treble * 1.15) + mid * 0.18;
+            low * (0.88 - treble * 0.36) + high * (0.17 + treble * 1.00) + mid * 0.28;
         let voiced = if let Some(neural) = &mut self.tone_neural {
             neural.process(buffered, gain, treble, output, analytic_voiced)
         } else {
@@ -686,7 +686,7 @@ impl Minotaur {
         let slow_envelope = self.transient_slow_envelope.process(envelope_input);
         let transient_lift =
             ((fast_envelope - slow_envelope).max(0.0) / (slow_envelope + 1.0e-5)).clamp(0.0, 1.0);
-        let dynamic_gain = 1.0 + transient_lift * 0.04;
+        let dynamic_gain = 1.0 + transient_lift * 0.055;
         let level = (0.22 + output * 1.95) * 0.04;
         let final_output = self
             .output_lowpass

@@ -28,6 +28,11 @@ class SweepScore:
     null: float
     envelope: float
     gain: float
+    balance: float
+    dynamics: float
+    transient: float
+    timing: float
+    nonlinear: float
 
 
 def run_amp_control_sweep(
@@ -212,7 +217,7 @@ def replace_amp_control_value(rig_text: str, control: str, value: float) -> str:
     control_pattern = re.compile(rf"(^\s*{re.escape(control)}\s*:\s*)([-+]?\d+(?:\.\d+)?)(\s*,)", re.MULTILINE)
     rig_text, control_count = control_pattern.subn(rf"\g<1>{value:.6f}\3", rig_text, count=1)
     if control_count != 1:
-        raise ValueError(f"could not find a unique `{control}` control in rig")
+        raise ValueError(f"could not find amp.controls.{control}")
     return rig_text
 
 
@@ -260,21 +265,25 @@ def write_sweep_report(
         f"- Values: `{format_values(best.values)}`",
         f"- Composite match score: `{sweep_score(best.metrics).total:.3f}`",
         f"- Log-spectral distance: `{best.metrics.log_spectral_distance_db:.2f} dB`",
+        f"- Spectral balance max delta: `{best.metrics.spectral_balance.max_abs_delta_db:.2f} dB`",
+        f"- Dynamics range delta: `{best.metrics.dynamics.dynamic_range_delta_db:.2f} dB`",
+        f"- Transient max delta: `{best.metrics.transients.max_abs_delta_db:.2f} dB`",
         f"- Null residual relative: `{best.metrics.null_relative_db:.2f} dB`",
         f"- Gain correction: `{best.metrics.gain_db:.2f} dB`",
         f"- WAV: `{best.output_wav}`",
         "",
         "## Top Candidates",
         "",
-        "| Rank | Values | Score | Null rel dB | Log-spectral dB | Envelope dB |",
-        "| ---: | --- | ---: | ---: | ---: | ---: |",
+        "| Rank | Values | Score | Null rel dB | Weighted LSD | Balance | Dyn range | Transient |",
+        "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for rank, point in enumerate(ranked[: min(5, len(ranked))], start=1):
         metrics = point.metrics
         score = sweep_score(metrics)
         lines.append(
             f"| {rank} | {format_values(point.values)} | {score.total:.3f} | {metrics.null_relative_db:.2f} | "
-            f"{metrics.log_spectral_distance_db:.2f} | {metrics.envelope_error_db:.2f} |"
+            f"{metrics.weighted_log_spectral_distance_db:.2f} | {metrics.spectral_balance.max_abs_delta_db:.2f} | "
+            f"{metrics.dynamics.dynamic_range_delta_db:.2f} | {metrics.transients.max_abs_delta_db:.2f} |"
         )
     lines.extend(
         [
@@ -283,17 +292,22 @@ def write_sweep_report(
             "",
             "The composite score is a normalized diagnostic score where lower is better:",
             "",
-            "- `45%` log-spectral distance, capped at `20 dB`.",
-            "- `30%` null residual, where `-12 dB` or lower is considered good for this coarse anchor.",
-            "- `20%` envelope error, where `-12 dB` or lower is considered good.",
+            "- `25%` weighted/log spectral distance.",
+            "- `18%` null residual, where `-12 dB` or lower is considered good for this coarse anchor.",
+            "- `12%` envelope error, where `-12 dB` or lower is considered good.",
             "- `5%` absolute gain correction, capped at `6 dB`.",
+            "- `12%` gain-normalized spectral balance drift.",
+            "- `10%` dynamics and level-response drift.",
+            "- `6%` transient sharpness drift.",
+            "- `5%` phase/group-delay and decay/sustain drift.",
+            "- `7%` harmonic, aliasing, and nonlinear-transfer drift.",
             "",
             "It is intentionally not an objective tone score. It prevents a purely spectral match from hiding weak dynamics, while preserving all raw metrics for listening-led decisions.",
             "",
         "## Sweep Table",
         "",
-        "| Values | Score | Gain corr dB | Null rel dB | Log-spectral dB | Envelope dB | Candidate RMS | Candidate peak | WAV |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Values | Score | Gain corr dB | Null rel dB | Weighted LSD | Balance | Dyn max | Transient | Alias residual | Candidate RMS | Candidate peak | WAV |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
     for point in points:
@@ -301,7 +315,9 @@ def write_sweep_report(
         score = sweep_score(metrics)
         lines.append(
             f"| {format_values(point.values)} | {score.total:.3f} | {metrics.gain_db:.2f} | {metrics.null_relative_db:.2f} | "
-            f"{metrics.log_spectral_distance_db:.2f} | {metrics.envelope_error_db:.2f} | "
+            f"{metrics.weighted_log_spectral_distance_db:.2f} | {metrics.spectral_balance.max_abs_delta_db:.2f} | "
+            f"{metrics.dynamics.max_abs_percentile_delta_db:.2f} | {metrics.transients.max_abs_delta_db:.2f} | "
+            f"{metrics.global_aliasing.residual_near_nyquist_dbfs:.2f} | "
             f"{metrics.candidate.rms_dbfs:.2f} | {metrics.candidate.peak_dbfs:.2f} | `{point.output_wav}` |"
         )
     lines.extend(
@@ -344,7 +360,7 @@ def write_sweep_metadata(
         },
         "inputs": {
             "base_rig": str(rig),
-            "controls": [f"amp.controls.{control}" for control in controls],
+            "controls": [f"rig.controls.{control}" for control in controls],
             "sweeps": sweeps,
             "input_wav": str(input_wav),
             "reference_wav": str(reference_wav),
@@ -366,7 +382,18 @@ def write_sweep_metadata(
                 "score_components": asdict(sweep_score(point.metrics)),
                 "null_relative_db": point.metrics.null_relative_db,
                 "log_spectral_distance_db": point.metrics.log_spectral_distance_db,
+                "weighted_log_spectral_distance_db": point.metrics.weighted_log_spectral_distance_db,
                 "envelope_error_db": point.metrics.envelope_error_db,
+                "spectral_balance_max_abs_delta_db": point.metrics.spectral_balance.max_abs_delta_db,
+                "dynamics_max_abs_percentile_delta_db": point.metrics.dynamics.max_abs_percentile_delta_db,
+                "dynamics_range_delta_db": point.metrics.dynamics.dynamic_range_delta_db,
+                "level_response_max_abs_delta_db": point.metrics.level_response.max_abs_delta_db,
+                "transient_max_abs_delta_db": point.metrics.transients.max_abs_delta_db,
+                "phase_mean_abs_group_delay_delta_ms": point.metrics.phase.mean_abs_group_delay_delta_ms,
+                "decay_max_abs_delta": point.metrics.decay.max_abs_delta,
+                "global_harmonic_max_abs_delta_db": point.metrics.global_harmonics.max_abs_delta_db,
+                "global_aliasing_residual_near_nyquist_dbfs": point.metrics.global_aliasing.residual_near_nyquist_dbfs,
+                "nonlinear_transfer_max_abs_shape_delta": point.metrics.nonlinear_transfer.max_abs_shape_delta,
                 "candidate_rms_dbfs": point.metrics.candidate.rms_dbfs,
                 "candidate_peak_dbfs": point.metrics.candidate.peak_dbfs,
             }
@@ -381,12 +408,57 @@ def format_values(values: dict[str, float]) -> str:
 
 
 def sweep_score(metrics: ComparisonMetrics) -> SweepScore:
-    spectral = clamp01(metrics.log_spectral_distance_db / 20.0)
+    spectral = clamp01((0.65 * metrics.weighted_log_spectral_distance_db + 0.35 * metrics.log_spectral_distance_db) / 20.0)
     null = clamp01((metrics.null_relative_db + 12.0) / 12.0)
     envelope = clamp01((metrics.envelope_error_db + 12.0) / 12.0)
     gain = clamp01(abs(metrics.gain_db) / 6.0)
-    total = 0.45 * spectral + 0.30 * null + 0.20 * envelope + 0.05 * gain
-    return SweepScore(total=total, spectral=spectral, null=null, envelope=envelope, gain=gain)
+    balance = clamp01(metrics.spectral_balance.max_abs_delta_db / 12.0)
+    dynamics = clamp01(
+        max(
+            metrics.dynamics.max_abs_percentile_delta_db,
+            abs(metrics.dynamics.dynamic_range_delta_db),
+            metrics.level_response.max_abs_delta_db,
+        )
+        / 6.0
+    )
+    transient = clamp01(metrics.transients.max_abs_delta_db / 6.0)
+    timing = clamp01(
+        max(
+            metrics.phase.mean_abs_group_delay_delta_ms / 2.5,
+            metrics.decay.max_abs_delta / 120.0,
+            max(metrics.modulation.envelope_lf_residual_db + 50.0, 0.0) / 30.0,
+        )
+    )
+    nonlinear = clamp01(
+        max(
+            metrics.global_harmonics.max_abs_delta_db / 12.0,
+            max(metrics.global_aliasing.residual_near_nyquist_dbfs + 85.0, 0.0) / 20.0,
+            metrics.nonlinear_transfer.max_abs_shape_delta / 1.5,
+        )
+    )
+    total = (
+        0.25 * spectral
+        + 0.18 * null
+        + 0.12 * envelope
+        + 0.05 * gain
+        + 0.12 * balance
+        + 0.10 * dynamics
+        + 0.06 * transient
+        + 0.05 * timing
+        + 0.07 * nonlinear
+    )
+    return SweepScore(
+        total=total,
+        spectral=spectral,
+        null=null,
+        envelope=envelope,
+        gain=gain,
+        balance=balance,
+        dynamics=dynamics,
+        transient=transient,
+        timing=timing,
+        nonlinear=nonlinear,
+    )
 
 
 def clamp01(value: float) -> float:
