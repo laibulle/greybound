@@ -131,7 +131,10 @@ export const rigPresets: RigPreset[] = [
     amp: { volume: 0.58, bass: 0.56, treble: 0.58, cut: 0.44, drive: 0.24, presence: 0.34, sag: 0.46 },
   }),
   preset("grey-nox", {
-    pedals: [pedal("minotaur", "pre", { gain: 0.42, treble: 0.70, output: 0.42 })],
+    pedals: [
+      pedal("minotaur", "pre", { gain: 0.42, treble: 0.70, output: 0.42 }),
+      pedal("springfield", "fx", { dwell: 0.48, tone: 0.58, mix: 0.26 }),
+    ],
     amp: { volume: 0.58, bass: 0.54, treble: 0.59, cut: 0.43, drive: 0.20, presence: 0.35, sag: 0.45 },
   }),
 ];
