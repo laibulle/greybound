@@ -59,7 +59,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
     match spec.skin {
         KnobSkin::AsatoBlack => draw_asato_cap(frame, center, radius, value),
         KnobSkin::HeaderDial => draw_header_dial(frame, center, radius, value),
-        KnobSkin::Teal => draw_teal_cap(frame, center, radius, value),
+        KnobSkin::Teal => draw_pedal_teal_cap(frame, center, radius, value),
     }
 
     if !spec.label.is_empty() {
@@ -212,42 +212,96 @@ fn draw_asato_cap(frame: &mut Frame, center: Point, radius: f32, value: f32) {
     );
 }
 
-fn draw_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32) {
-    frame.fill(
-        &Path::circle(center, radius),
-        Color::from_rgb(0.31, 0.50, 0.51),
+fn draw_pedal_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32) {
+    draw_text(
+        frame,
+        "min",
+        Point::new(center.x - radius * 1.42, center.y + radius * 1.02),
+        10.0,
+        Color::from_rgba(0.09, 0.08, 0.08, 0.72),
+        Horizontal::Center,
     );
-    for tooth in 0..28 {
-        let angle = tooth as f32 / 28.0 * std::f32::consts::TAU;
-        let a = Point::new(
-            center.x + angle.cos() * (radius - 2.0),
-            center.y + angle.sin() * (radius - 2.0),
-        );
-        let b = Point::new(
-            center.x + angle.cos() * radius,
-            center.y + angle.sin() * radius,
-        );
-        frame.stroke(
-            &Path::line(a, b),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.03, 0.08, 0.08, 0.36))
-                .with_width(2.0),
-        );
-    }
+    draw_text(
+        frame,
+        "max",
+        Point::new(center.x + radius * 1.42, center.y + radius * 1.02),
+        10.0,
+        Color::from_rgba(0.09, 0.08, 0.08, 0.72),
+        Horizontal::Center,
+    );
+
     frame.fill(
         &Path::circle(
-            Point::new(center.x - radius * 0.22, center.y - radius * 0.22),
-            radius * 0.42,
+            Point::new(center.x + radius * 0.16, center.y + radius * 0.22),
+            radius * 1.02,
         ),
-        Color::from_rgba(0.86, 0.98, 0.94, 0.13),
+        Color::from_rgba(0.10, 0.09, 0.07, 0.24),
+    );
+    frame.fill(
+        &Path::circle(
+            Point::new(center.x, center.y + radius * 0.13),
+            radius * 0.98,
+        ),
+        Color::from_rgb(0.25, 0.42, 0.41),
+    );
+
+    for tooth in 0..34 {
+        let angle = tooth as f32 / 34.0 * std::f32::consts::TAU;
+        let start = Point::new(
+            center.x + angle.cos() * radius * 0.74,
+            center.y + radius * 0.10 + angle.sin() * radius * 0.74,
+        );
+        let end = Point::new(
+            center.x + angle.cos() * radius * 0.96,
+            center.y + radius * 0.10 + angle.sin() * radius * 0.96,
+        );
+        frame.stroke(
+            &Path::line(start, end),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.07, 0.17, 0.17, 0.46))
+                .with_width(3.0),
+        );
+    }
+
+    frame.fill(
+        &Path::circle(
+            Point::new(center.x, center.y - radius * 0.08),
+            radius * 0.82,
+        ),
+        Color::from_rgb(0.47, 0.67, 0.66),
+    );
+    frame.fill(
+        &Path::circle(
+            Point::new(center.x - radius * 0.22, center.y - radius * 0.30),
+            radius * 0.36,
+        ),
+        Color::from_rgba(0.90, 1.0, 0.96, 0.16),
+    );
+    frame.stroke(
+        &Path::circle(
+            Point::new(center.x, center.y - radius * 0.08),
+            radius * 0.82,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.84, 0.96, 0.92, 0.32))
+            .with_width(2.0),
+    );
+
+    draw_pointer(
+        frame,
+        Point::new(center.x + radius * 0.03, center.y - radius * 0.08),
+        radius * 0.76,
+        value,
+        Color::from_rgba(0.18, 0.24, 0.22, 0.20),
+        2.0,
     );
     draw_pointer(
         frame,
-        center,
-        radius,
+        Point::new(center.x + radius * 0.03, center.y - radius * 0.08),
+        radius * 0.76,
         value,
-        Color::from_rgb(0.92, 0.88, 0.80),
-        5.0,
+        Color::from_rgb(0.88, 0.86, 0.78),
+        6.0,
     );
 }
 
