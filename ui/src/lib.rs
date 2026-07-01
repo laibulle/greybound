@@ -2769,11 +2769,7 @@ fn draw_pedal(
             .with_width(if selected { 3.0 } else { 1.3 }),
     );
 
-    let inner = rounded_rect(
-        origin,
-        Size::new(size.width - 12.0, size.height - 18.0),
-        18.0,
-    );
+    let inner = rounded_rect(origin, Size::new(size.width, size.height - 18.0), 18.0);
     frame.fill(&inner, lighten(color, 0.10));
     frame.stroke(
         &inner,
