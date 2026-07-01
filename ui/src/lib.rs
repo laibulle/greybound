@@ -3039,23 +3039,137 @@ fn draw_footswitch(frame: &mut Frame, center: Point) {
 }
 
 fn draw_side_jack(frame: &mut Frame, origin: Point, left: bool) {
-    let body = rounded_rect(origin, Size::new(23.0, 52.0), 5.0);
-    frame.fill(&body, Color::from_rgb(0.43, 0.28, 0.12));
+    let sign = if left { -1.0 } else { 1.0 };
+    let edge_x = if left {
+        origin.x + 20.0
+    } else {
+        origin.x + 3.0
+    };
+    let center_y = origin.y + 26.0;
+    let outward = |distance: f32| edge_x + sign * distance;
+
+    let contact_shadow = if left {
+        Point::new(edge_x - 4.0, center_y - 33.0)
+    } else {
+        Point::new(edge_x - 10.0, center_y - 33.0)
+    };
+    frame.fill(
+        &rounded_rect(contact_shadow, Size::new(14.0, 66.0), 5.0),
+        Color::from_rgba(0.04, 0.025, 0.015, 0.30),
+    );
+
+    draw_jack_segment(
+        frame,
+        outward(0.0),
+        center_y,
+        sign,
+        16.0,
+        62.0,
+        Color::from_rgb(0.63, 0.45, 0.22),
+        Color::from_rgb(0.96, 0.78, 0.44),
+    );
+    draw_jack_segment(
+        frame,
+        outward(11.0),
+        center_y,
+        sign,
+        19.0,
+        52.0,
+        Color::from_rgb(0.82, 0.61, 0.31),
+        Color::from_rgb(1.0, 0.84, 0.53),
+    );
+    draw_jack_segment(
+        frame,
+        outward(25.0),
+        center_y,
+        sign,
+        24.0,
+        42.0,
+        Color::from_rgb(0.70, 0.49, 0.24),
+        Color::from_rgb(0.98, 0.76, 0.42),
+    );
+    draw_jack_segment(
+        frame,
+        outward(42.0),
+        center_y,
+        sign,
+        10.0,
+        34.0,
+        Color::from_rgb(0.88, 0.67, 0.35),
+        Color::from_rgb(1.0, 0.84, 0.50),
+    );
+
+    let top_highlight = Path::line(
+        Point::new(outward(6.0), center_y - 23.0),
+        Point::new(outward(45.0), center_y - 17.0),
+    );
+    frame.stroke(
+        &top_highlight,
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.93, 0.70, 0.76))
+            .with_width(2.0),
+    );
+    let lower_shadow = Path::line(
+        Point::new(outward(7.0), center_y + 21.0),
+        Point::new(outward(42.0), center_y + 17.0),
+    );
+    frame.stroke(
+        &lower_shadow,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.20, 0.11, 0.045, 0.42))
+            .with_width(2.5),
+    );
+}
+
+fn draw_jack_segment(
+    frame: &mut Frame,
+    anchor_x: f32,
+    center_y: f32,
+    sign: f32,
+    width: f32,
+    height: f32,
+    base: Color,
+    highlight: Color,
+) {
+    let x = if sign < 0.0 {
+        anchor_x - width
+    } else {
+        anchor_x
+    };
+    let origin = Point::new(x, center_y - height * 0.5);
+    let body = rounded_rect(origin, Size::new(width, height), 4.0);
+    frame.fill(&body, base);
     frame.stroke(
         &body,
         Stroke::default()
-            .with_color(Color::from_rgb(0.88, 0.72, 0.42))
-            .with_width(2.0),
+            .with_color(Color::from_rgba(0.23, 0.12, 0.04, 0.46))
+            .with_width(1.2),
     );
-    let sign = if left { -1.0 } else { 1.0 };
+
     frame.stroke(
         &Path::line(
-            Point::new(origin.x + 12.0, origin.y + 8.0),
-            Point::new(origin.x + 12.0 + sign * 12.0, origin.y + 44.0),
+            Point::new(x + width * 0.28, center_y - height * 0.42),
+            Point::new(x + width * 0.28, center_y + height * 0.38),
         ),
         Stroke::default()
-            .with_color(Color::from_rgba(1.0, 0.85, 0.55, 0.52))
-            .with_width(2.0),
+            .with_color(Color::from_rgba(1.0, 0.90, 0.66, 0.34))
+            .with_width(1.6),
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(x + width * 0.62, center_y - height * 0.36),
+            Point::new(x + width * 0.62, center_y + height * 0.34),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.18, 0.09, 0.035, 0.32))
+            .with_width(1.4),
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(x + width * 0.08, center_y - height * 0.32),
+            Point::new(x + width * 0.92, center_y - height * 0.30),
+        ),
+        Stroke::default().with_color(highlight).with_width(1.4),
     );
 }
 
