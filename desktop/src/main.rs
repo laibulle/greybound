@@ -346,18 +346,18 @@ impl AudioRuntime {
     }
 
     fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> f32 {
-        let input = self.input.pop().unwrap_or(0.0);
+        let input = self.input.pop().unwrap_or(0.0) * controls.input_gain();
         controls.load_device_controls_into(&mut self.device_controls);
-        let output = self.speaker.process(
-            self.chain.process(
-                input,
-                SignalChainControls {
-                    amp: controls.load_amp_controls(),
-                    devices: &self.device_controls,
-                },
-            ),
-            controls.cab_enabled(),
+        let chain_output = self.chain.process(
+            input,
+            SignalChainControls {
+                amp: controls.load_amp_controls(),
+                devices: &self.device_controls,
+            },
         );
+        let cab_mix = controls.cab_mix();
+        let wet = self.speaker.process(chain_output, cab_mix > 0.0);
+        let output = (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain();
         meters.record_output(output);
         output
     }
@@ -365,6 +365,8 @@ impl AudioRuntime {
 
 #[derive(Clone)]
 struct SharedRuntimeControls {
+    input_gain: Arc<AtomicU32>,
+    output_gain: Arc<AtomicU32>,
     amp_volume: Arc<AtomicU32>,
     amp_bass: Arc<AtomicU32>,
     amp_treble: Arc<AtomicU32>,
@@ -379,11 +381,14 @@ struct SharedRuntimeControls {
     springfield_tone: Arc<AtomicU32>,
     springfield_mix: Arc<AtomicU32>,
     cab_enabled: Arc<AtomicBool>,
+    cab_mix: Arc<AtomicU32>,
 }
 
 impl SharedRuntimeControls {
     fn new(ui: &GreyboundUi) -> Self {
         let controls = Self {
+            input_gain: atomic_f32(1.0),
+            output_gain: atomic_f32(1.0),
             amp_volume: atomic_f32(0.0),
             amp_bass: atomic_f32(0.0),
             amp_treble: atomic_f32(0.0),
@@ -398,12 +403,21 @@ impl SharedRuntimeControls {
             springfield_tone: atomic_f32(0.0),
             springfield_mix: atomic_f32(0.0),
             cab_enabled: Arc::new(AtomicBool::new(true)),
+            cab_mix: atomic_f32(1.0),
         };
         controls.store_from_ui(ui);
         controls
     }
 
     fn store_from_ui(&self, ui: &GreyboundUi) {
+        store_f32(
+            &self.input_gain,
+            greybound_ui::normalized_gain(ui.input_gain, -24.0, 24.0),
+        );
+        store_f32(
+            &self.output_gain,
+            greybound_ui::normalized_gain(ui.output_gain, -24.0, 6.0),
+        );
         store_f32(&self.amp_volume, ui.amp.gain);
         store_f32(&self.amp_bass, ui.amp.bass);
         store_f32(&self.amp_treble, ui.amp.treble);
@@ -411,6 +425,7 @@ impl SharedRuntimeControls {
         store_f32(&self.amp_sag, ui.amp.master);
         self.cab_enabled
             .store(!ui.cab.bypassed && ui.cab.master > 0.0, Ordering::Relaxed);
+        store_f32(&self.cab_mix, ui.cab.master.clamp(0.0, 1.0));
 
         if let Some(device) = ui
             .devices
@@ -450,6 +465,22 @@ impl SharedRuntimeControls {
         }
     }
 
+    fn input_gain(&self) -> f32 {
+        load_f32(&self.input_gain)
+    }
+
+    fn output_gain(&self) -> f32 {
+        load_f32(&self.output_gain)
+    }
+
+    fn cab_mix(&self) -> f32 {
+        if self.cab_enabled.load(Ordering::Relaxed) {
+            load_f32(&self.cab_mix).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
     fn load_device_controls_into(&self, target: &mut Vec<DeviceSlotControls>) {
         target.clear();
         target.push(DeviceSlotControls {
@@ -468,10 +499,6 @@ impl SharedRuntimeControls {
                 mix: load_f32(&self.springfield_mix),
             }),
         });
-    }
-
-    fn cab_enabled(&self) -> bool {
-        self.cab_enabled.load(Ordering::Relaxed)
     }
 }
 

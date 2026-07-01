@@ -338,6 +338,10 @@ pub enum Message {
         control: ControlKind,
         value: f32,
     },
+    SetGlobalControl {
+        control: GlobalControl,
+        value: f32,
+    },
     GainChanged(f32),
     BassChanged(f32),
     TrebleChanged(f32),
@@ -352,6 +356,14 @@ pub enum ControlKind {
     Treble,
     Cut,
     Master,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlobalControl {
+    Input,
+    IrMix,
+    SpringMix,
+    Output,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -496,6 +508,8 @@ pub struct GreyboundUi {
     pub devices: Vec<DeviceState>,
     pub amp: DeviceState,
     pub cab: DeviceState,
+    pub input_gain: f32,
+    pub output_gain: f32,
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
     pub selected_index: usize,
@@ -567,6 +581,8 @@ impl Default for GreyboundUi {
             devices: vec![DeviceState::minotaur(), DeviceState::springfield()],
             amp: DeviceState::nox30(),
             cab: DeviceState::cab_ir(),
+            input_gain: 0.50,
+            output_gain: 0.58,
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
             selected_index: 0,
@@ -652,6 +668,9 @@ impl GreyboundUi {
                     self.view_mode = ViewMode::Pedals;
                 }
             }
+            Message::SetGlobalControl { control, value } => {
+                self.set_global_control(control, value);
+            }
             Message::GainChanged(value) => {
                 self.active_device_mut().gain = value;
             }
@@ -676,12 +695,33 @@ impl GreyboundUi {
 
         let top = container(
             row![
-                self.metered_global_knob("INPUT", 0.50, "0.0 dB", self.meters.input),
-                self.global_knob("CABLE", 0.47, "470 pF"),
-                self.global_knob("IR MIX", 1.0, "100%"),
+                self.metered_global_knob(
+                    "INPUT",
+                    GlobalControl::Input,
+                    self.input_gain,
+                    normalized_db_readout(self.input_gain, -24.0, 24.0),
+                    self.meters.input
+                ),
+                self.global_knob(
+                    "IR MIX",
+                    GlobalControl::IrMix,
+                    self.cab.master,
+                    percent_readout(self.cab.master)
+                ),
                 self.preset_strip(selected),
-                self.global_knob("SPRING", self.springfield_mix(), "mix"),
-                self.metered_global_knob("OUTPUT", 0.58, "-3.9 dB", self.meters.output),
+                self.global_knob(
+                    "SPRING",
+                    GlobalControl::SpringMix,
+                    self.springfield_mix(),
+                    percent_readout(self.springfield_mix())
+                ),
+                self.metered_global_knob(
+                    "OUTPUT",
+                    GlobalControl::Output,
+                    self.output_gain,
+                    normalized_db_readout(self.output_gain, -24.0, 6.0),
+                    self.meters.output
+                ),
             ]
             .spacing(self.s(20.0))
             .align_items(Alignment::Center),
@@ -1032,8 +1072,9 @@ impl GreyboundUi {
     fn global_knob(
         &self,
         label: &'static str,
+        control: GlobalControl,
         value: f32,
-        readout: &'static str,
+        readout: String,
     ) -> Element<'_, Message> {
         container(
             column![
@@ -1041,9 +1082,13 @@ impl GreyboundUi {
                     .size(self.font(14.0))
                     .horizontal_alignment(Horizontal::Center)
                     .width(Length::Fixed(self.s(104.0))),
-                Canvas::new(KnobArt { value, label: "" })
-                    .width(Length::Fixed(self.s(92.0)))
-                    .height(Length::Fixed(self.s(92.0))),
+                Canvas::new(GlobalKnobArt {
+                    control,
+                    value,
+                    label: ""
+                })
+                .width(Length::Fixed(self.s(92.0)))
+                .height(Length::Fixed(self.s(92.0))),
                 text(readout)
                     .size(self.font(14.0))
                     .horizontal_alignment(Horizontal::Center)
@@ -1058,15 +1103,16 @@ impl GreyboundUi {
     fn metered_global_knob(
         &self,
         label: &'static str,
+        control: GlobalControl,
         value: f32,
-        readout: &'static str,
+        readout: String,
         meter_level: f32,
     ) -> Element<'_, Message> {
         row![
             Canvas::new(MeterArt { level: meter_level })
                 .width(Length::Fixed(self.s(18.0)))
                 .height(Length::Fixed(self.s(132.0))),
-            self.global_knob(label, value, readout),
+            self.global_knob(label, control, value, readout),
         ]
         .spacing(self.s(12.0))
         .align_items(Alignment::Center)
@@ -1079,6 +1125,24 @@ impl GreyboundUi {
             .find(|device| device.model == DeviceModel::Springfield)
             .map(|device| device.master)
             .unwrap_or(0.0)
+    }
+
+    fn set_global_control(&mut self, control: GlobalControl, value: f32) {
+        let value = value.clamp(0.0, 1.0);
+        match control {
+            GlobalControl::Input => self.input_gain = value,
+            GlobalControl::IrMix => self.cab.master = value,
+            GlobalControl::SpringMix => {
+                if let Some(device) = self
+                    .devices
+                    .iter_mut()
+                    .find(|device| device.model == DeviceModel::Springfield)
+                {
+                    device.master = value;
+                }
+            }
+            GlobalControl::Output => self.output_gain = value,
+        }
     }
 
     fn active_device(&self) -> &DeviceState {
@@ -1114,6 +1178,22 @@ fn uniform_scale(width: f32, height: f32) -> f32 {
 
 fn parse_prefixed_u32(value: &str) -> Option<u32> {
     value.split_whitespace().next()?.parse().ok()
+}
+
+fn percent_readout(value: f32) -> String {
+    format!("{:.0}%", value.clamp(0.0, 1.0) * 100.0)
+}
+
+fn normalized_db(value: f32, min_db: f32, max_db: f32) -> f32 {
+    min_db + value.clamp(0.0, 1.0) * (max_db - min_db)
+}
+
+pub fn normalized_gain(value: f32, min_db: f32, max_db: f32) -> f32 {
+    10.0_f32.powf(normalized_db(value, min_db, max_db) / 20.0)
+}
+
+fn normalized_db_readout(value: f32, min_db: f32, max_db: f32) -> String {
+    format!("{:.1} dB", normalized_db(value, min_db, max_db))
 }
 
 #[derive(Debug, Clone)]
@@ -1589,13 +1669,63 @@ fn distance(a: Point, b: Point) -> f32 {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct KnobArt {
+struct GlobalKnobArt {
+    control: GlobalControl,
     value: f32,
     label: &'static str,
 }
 
-impl canvas::Program<Message> for KnobArt {
-    type State = ();
+impl canvas::Program<Message> for GlobalKnobArt {
+    type State = DragState;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> (canvas::event::Status, Option<Message>) {
+        match event {
+            canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                state.gesture = Some(DragGesture {
+                    index: None,
+                    control: ControlKind::Master,
+                    start_position: position,
+                    start_value: self.value,
+                });
+                (
+                    canvas::event::Status::Captured,
+                    Some(Message::SetGlobalControl {
+                        control: self.control,
+                        value: self.value,
+                    }),
+                )
+            }
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let Some(gesture) = state.gesture else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                (
+                    canvas::event::Status::Captured,
+                    Some(Message::SetGlobalControl {
+                        control: self.control,
+                        value: dragged_value(gesture, position),
+                    }),
+                )
+            }
+            canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                state.gesture = None;
+                (canvas::event::Status::Captured, None)
+            }
+            _ => (canvas::event::Status::Ignored, None),
+        }
+    }
 
     fn draw(
         &self,
@@ -1618,6 +1748,15 @@ impl canvas::Program<Message> for KnobArt {
             },
         );
         vec![frame.into_geometry()]
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Self::State,
+        _bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> mouse::Interaction {
+        mouse::Interaction::Pointer
     }
 }
 
