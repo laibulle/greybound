@@ -2309,11 +2309,17 @@ fn draw_circuit_view_icon(frame: &mut Frame, center: Point, color: Color) {
     for pin in 0..4 {
         let y = center.y - 8.0 + pin as f32 * 5.3;
         frame.stroke(
-            &Path::line(Point::new(center.x - 21.0, y), Point::new(center.x - 15.0, y)),
+            &Path::line(
+                Point::new(center.x - 21.0, y),
+                Point::new(center.x - 15.0, y),
+            ),
             Stroke::default().with_color(color).with_width(2.0),
         );
         frame.stroke(
-            &Path::line(Point::new(center.x + 15.0, y), Point::new(center.x + 21.0, y)),
+            &Path::line(
+                Point::new(center.x + 15.0, y),
+                Point::new(center.x + 21.0, y),
+            ),
             Stroke::default().with_color(color).with_width(2.0),
         );
     }
@@ -2929,6 +2935,7 @@ fn draw_pedal(
     device: &DeviceState,
     color: Color,
     _selected: bool,
+    circuit_view: bool,
 ) {
     let shadow = rounded_rect(
         Point::new(origin.x + 12.0, origin.y + 20.0),
@@ -2966,6 +2973,11 @@ fn draw_pedal(
         Point::new(origin.x + size.width - 5.0, origin.y + size.height * 0.53),
         false,
     );
+
+    if circuit_view {
+        draw_pedal_circuit(frame, origin, size, device);
+        return;
+    }
 
     let knob_y = origin.y + size.height * 0.155;
     match device.model {
@@ -3181,6 +3193,339 @@ fn draw_status_led(frame: &mut Frame, center: Point, radius: f32, active: bool) 
             ))
             .with_width(1.8),
     );
+}
+
+fn draw_pedal_circuit(frame: &mut Frame, origin: Point, size: Size, device: &DeviceState) {
+    let board_origin = Point::new(origin.x + 24.0, origin.y + 46.0);
+    let board_size = Size::new(size.width - 48.0, size.height - 86.0);
+    let board = rounded_rect(board_origin, board_size, 12.0);
+    frame.fill(&board, Color::from_rgb(0.08, 0.24, 0.18));
+    frame.stroke(
+        &board,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.88, 0.70, 0.36, 0.62))
+            .with_width(2.4),
+    );
+
+    for row in 0..10 {
+        let y = board_origin.y + 22.0 + row as f32 * (board_size.height - 44.0) / 9.0;
+        frame.stroke(
+            &Path::line(
+                Point::new(board_origin.x + 16.0, y),
+                Point::new(board_origin.x + board_size.width - 16.0, y),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.84, 0.64, 0.30, 0.08))
+                .with_width(1.0),
+        );
+    }
+
+    match device.model {
+        DeviceModel::Minotaur => draw_minotaur_circuit(frame, board_origin, board_size),
+        DeviceModel::Springfield => draw_springfield_circuit(frame, board_origin, board_size),
+        _ => draw_generic_circuit(frame, board_origin, board_size),
+    }
+
+    draw_text(
+        frame,
+        match device.model {
+            DeviceModel::Minotaur => "BUFFER  CLIP  TONE  OUT",
+            DeviceModel::Springfield => "DWELL  TANK  IR  MIX",
+            _ => "GREYBOUND CIRCUIT",
+        },
+        Point::new(
+            board_origin.x + board_size.width * 0.5,
+            board_origin.y + board_size.height - 18.0,
+        ),
+        10.0,
+        Color::from_rgba(0.90, 0.78, 0.48, 0.82),
+        Horizontal::Center,
+    );
+}
+
+fn draw_minotaur_circuit(frame: &mut Frame, origin: Point, size: Size) {
+    let nodes = [
+        Point::new(origin.x + size.width * 0.18, origin.y + size.height * 0.18),
+        Point::new(origin.x + size.width * 0.42, origin.y + size.height * 0.30),
+        Point::new(origin.x + size.width * 0.58, origin.y + size.height * 0.50),
+        Point::new(origin.x + size.width * 0.78, origin.y + size.height * 0.36),
+    ];
+    draw_trace(frame, &nodes, 4.0);
+
+    draw_chip(
+        frame,
+        Point::new(origin.x + size.width * 0.28, origin.y + size.height * 0.34),
+        "IC",
+    );
+    draw_resistor(
+        frame,
+        Point::new(origin.x + size.width * 0.48, origin.y + size.height * 0.26),
+        0.18,
+    );
+    draw_resistor(
+        frame,
+        Point::new(origin.x + size.width * 0.68, origin.y + size.height * 0.58),
+        -0.16,
+    );
+    draw_diode_pair(
+        frame,
+        Point::new(origin.x + size.width * 0.52, origin.y + size.height * 0.46),
+    );
+    draw_capacitor(
+        frame,
+        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.66),
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.12),
+        "GAIN",
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.16),
+        "TREB",
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.72, origin.y + size.height * 0.74),
+        "OUT",
+    );
+}
+
+fn draw_springfield_circuit(frame: &mut Frame, origin: Point, size: Size) {
+    let send = [
+        Point::new(origin.x + size.width * 0.14, origin.y + size.height * 0.24),
+        Point::new(origin.x + size.width * 0.38, origin.y + size.height * 0.24),
+        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.42),
+        Point::new(origin.x + size.width * 0.76, origin.y + size.height * 0.42),
+    ];
+    draw_trace(frame, &send, 4.0);
+    draw_chip(
+        frame,
+        Point::new(origin.x + size.width * 0.26, origin.y + size.height * 0.34),
+        "DRV",
+    );
+    draw_spring_tank(
+        frame,
+        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.48),
+        size.width * 0.46,
+    );
+    draw_chip(
+        frame,
+        Point::new(origin.x + size.width * 0.72, origin.y + size.height * 0.28),
+        "IR",
+    );
+    draw_capacitor(
+        frame,
+        Point::new(origin.x + size.width * 0.27, origin.y + size.height * 0.66),
+    );
+    draw_resistor(
+        frame,
+        Point::new(origin.x + size.width * 0.70, origin.y + size.height * 0.62),
+        0.10,
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.12),
+        "DWL",
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.14),
+        "TONE",
+    );
+    draw_pot_node(
+        frame,
+        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.76),
+        "MIX",
+    );
+}
+
+fn draw_generic_circuit(frame: &mut Frame, origin: Point, size: Size) {
+    let points = [
+        Point::new(origin.x + size.width * 0.20, origin.y + size.height * 0.35),
+        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.35),
+        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.52),
+    ];
+    draw_trace(frame, &points, 4.0);
+    draw_chip(
+        frame,
+        Point::new(origin.x + size.width * 0.48, origin.y + size.height * 0.44),
+        "DSP",
+    );
+}
+
+fn draw_trace(frame: &mut Frame, points: &[Point], width: f32) {
+    for pair in points.windows(2) {
+        frame.stroke(
+            &Path::line(pair[0], pair[1]),
+            Stroke::default()
+                .with_color(Color::from_rgb(0.80, 0.52, 0.22))
+                .with_width(width),
+        );
+    }
+    for point in points {
+        frame.fill(
+            &Path::circle(*point, width + 2.0),
+            Color::from_rgb(0.86, 0.64, 0.34),
+        );
+        frame.fill(
+            &Path::circle(*point, width * 0.45),
+            Color::from_rgb(0.11, 0.27, 0.20),
+        );
+    }
+}
+
+fn draw_chip(frame: &mut Frame, center: Point, label: &'static str) {
+    let body = rounded_rect(
+        Point::new(center.x - 24.0, center.y - 17.0),
+        Size::new(48.0, 34.0),
+        3.0,
+    );
+    frame.fill(&body, Color::from_rgb(0.035, 0.04, 0.045));
+    frame.stroke(
+        &body,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.92, 0.84, 0.62, 0.32))
+            .with_width(1.2),
+    );
+    for pin in 0..4 {
+        let y = center.y - 11.0 + pin as f32 * 7.2;
+        frame.stroke(
+            &Path::line(
+                Point::new(center.x - 30.0, y),
+                Point::new(center.x - 24.0, y),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgb(0.78, 0.67, 0.48))
+                .with_width(2.0),
+        );
+        frame.stroke(
+            &Path::line(
+                Point::new(center.x + 24.0, y),
+                Point::new(center.x + 30.0, y),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgb(0.78, 0.67, 0.48))
+                .with_width(2.0),
+        );
+    }
+    draw_text(
+        frame,
+        label,
+        center,
+        10.0,
+        Color::from_rgba(0.92, 0.88, 0.72, 0.82),
+        Horizontal::Center,
+    );
+}
+
+fn draw_resistor(frame: &mut Frame, center: Point, tilt: f32) {
+    let body = rounded_rect(
+        Point::new(center.x - 20.0, center.y - 7.0),
+        Size::new(40.0, 14.0),
+        7.0,
+    );
+    frame.fill(&body, Color::from_rgb(0.74, 0.61, 0.42));
+    for offset in [-10.0, 0.0, 10.0] {
+        frame.stroke(
+            &Path::line(
+                Point::new(center.x + offset + tilt * 10.0, center.y - 6.0),
+                Point::new(center.x + offset - tilt * 10.0, center.y + 6.0),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.20, 0.10, 0.06, 0.55))
+                .with_width(2.0),
+        );
+    }
+}
+
+fn draw_capacitor(frame: &mut Frame, center: Point) {
+    frame.fill(
+        &Path::circle(center, 12.0),
+        Color::from_rgb(0.18, 0.30, 0.36),
+    );
+    frame.stroke(
+        &Path::circle(center, 12.0),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.82, 0.94, 0.96, 0.36))
+            .with_width(1.5),
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x - 5.0, center.y),
+            Point::new(center.x + 5.0, center.y),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.92, 1.0, 1.0, 0.60))
+            .with_width(1.6),
+    );
+}
+
+fn draw_diode_pair(frame: &mut Frame, center: Point) {
+    for offset in [-10.0, 10.0] {
+        let diode = Path::new(|path| {
+            path.move_to(Point::new(center.x + offset - 7.0, center.y + 6.0));
+            path.line_to(Point::new(center.x + offset, center.y - 6.0));
+            path.line_to(Point::new(center.x + offset + 7.0, center.y + 6.0));
+            path.close();
+        });
+        frame.fill(&diode, Color::from_rgb(0.18, 0.58, 0.58));
+        frame.stroke(
+            &Path::line(
+                Point::new(center.x + offset - 8.0, center.y + 8.0),
+                Point::new(center.x + offset + 8.0, center.y + 8.0),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgb(0.82, 0.70, 0.44))
+                .with_width(2.0),
+        );
+    }
+}
+
+fn draw_pot_node(frame: &mut Frame, center: Point, label: &'static str) {
+    frame.fill(
+        &Path::circle(center, 10.0),
+        Color::from_rgb(0.80, 0.58, 0.28),
+    );
+    frame.stroke(
+        &Path::circle(center, 10.0),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.88, 0.54, 0.62))
+            .with_width(1.5),
+    );
+    draw_text(
+        frame,
+        label,
+        Point::new(center.x, center.y + 22.0),
+        9.0,
+        Color::from_rgba(0.88, 0.76, 0.48, 0.86),
+        Horizontal::Center,
+    );
+}
+
+fn draw_spring_tank(frame: &mut Frame, center: Point, width: f32) {
+    let tank = rounded_rect(
+        Point::new(center.x - width * 0.5, center.y - 22.0),
+        Size::new(width, 44.0),
+        8.0,
+    );
+    frame.fill(&tank, Color::from_rgba(0.10, 0.12, 0.11, 0.62));
+    frame.stroke(
+        &tank,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.85, 0.70, 0.42, 0.50))
+            .with_width(1.6),
+    );
+    let left = center.x - width * 0.40;
+    for i in 0..24 {
+        let x = left + i as f32 * width * 0.80 / 23.0;
+        let y = center.y + (i as f32 * 0.9).sin() * 9.0;
+        frame.fill(
+            &Path::circle(Point::new(x, y), 2.0),
+            Color::from_rgb(0.78, 0.67, 0.48),
+        );
+    }
 }
 
 fn draw_component_knob(

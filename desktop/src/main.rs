@@ -25,6 +25,9 @@ use std::time::Duration;
 const RMS_SCALE: f64 = 1_000_000_000.0;
 const ASPECT_RATIO: f32 = DESIGN_WIDTH / DESIGN_HEIGHT;
 const RESIZE_TOLERANCE_PX: u32 = 2;
+const TUNER_REFRESH_MS: u64 = 33;
+const DEFAULT_UI_REFRESH_MS: u64 = 66;
+const CIRCUIT_UI_REFRESH_MS: u64 = 100;
 
 fn main() -> iced::Result {
     Desktop::run(Settings {
@@ -222,8 +225,21 @@ impl Application for Desktop {
                 }
                 _ => None,
             }),
-            iced::time::every(Duration::from_millis(33)).map(Message::MeterProbeTick),
+            iced::time::every(Duration::from_millis(self.ui_refresh_ms()))
+                .map(Message::MeterProbeTick),
         ])
+    }
+}
+
+impl Desktop {
+    fn ui_refresh_ms(&self) -> u64 {
+        if self.ui.tuner.open {
+            TUNER_REFRESH_MS
+        } else if self.ui.circuit_view {
+            CIRCUIT_UI_REFRESH_MS
+        } else {
+            DEFAULT_UI_REFRESH_MS
+        }
     }
 }
 
