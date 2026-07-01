@@ -1659,18 +1659,6 @@ fn draw_stage_background(frame: &mut Frame, size: Size) {
                 .with_width(7.0),
         );
     }
-
-    let haze = rounded_rect(
-        Point::new(20.0, 34.0),
-        Size::new(size.width - 40.0, size.height - 64.0),
-        28.0,
-    );
-    frame.stroke(
-        &haze,
-        Stroke::default()
-            .with_color(Color::from_rgba(0.97, 0.99, 1.0, 0.18))
-            .with_width(2.0),
-    );
 }
 
 fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {

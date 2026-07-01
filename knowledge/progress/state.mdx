@@ -65,6 +65,8 @@ description: Decisions and open questions that should steer upcoming implementat
   overlays, devices, fields, and controls.
 - The top global control bar is a structural band like the footer, so it should
   also use a square-edged container rather than the rounded ghost container.
+- The pedalboard stage should not draw a surrounding container/frame. Device
+  visuals sit directly on the main panel background.
 - On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
   the low-latency device heuristic. It scores compatible devices and prefers
   known pro/external audio interfaces such as Scarlett/Focusrite over integrated
