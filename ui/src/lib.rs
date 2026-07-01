@@ -107,7 +107,7 @@ impl container::StyleSheet for DarkContainer {
     fn appearance(&self, _style: &Self::Style) -> container::Appearance {
         container::Appearance {
             text_color: Some(Color::from_rgb(0.84, 0.84, 0.84)),
-            background: Some(Background::Color(Color::from_rgb(0.12, 0.12, 0.12))),
+            background: Some(Background::Color(Color::from_rgb(0.17, 0.17, 0.17))),
             border_radius: 24.0.into(),
             border_width: 1.0,
             border_color: Color::from_rgba(0.0, 0.0, 0.0, 0.65),
@@ -118,6 +118,60 @@ impl container::StyleSheet for DarkContainer {
 
 fn dark_container() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(DarkContainer))
+}
+
+struct ModalTitleBarContainer;
+
+impl container::StyleSheet for ModalTitleBarContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::WHITE),
+            background: Some(Background::Color(Color::from_rgb(0.095, 0.095, 0.095))),
+            border_radius: 24.0.into(),
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn modal_title_bar_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(ModalTitleBarContainer))
+}
+
+struct ModalBodyContainer;
+
+impl container::StyleSheet for ModalBodyContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::from_rgb(0.86, 0.86, 0.86)),
+            background: None,
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn modal_body_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(ModalBodyContainer))
+}
+
+struct ModalRuleContainer;
+
+impl container::StyleSheet for ModalRuleContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            background: Some(Background::Color(Color::from_rgb(0.02, 0.02, 0.02))),
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn modal_rule_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(ModalRuleContainer))
 }
 
 struct DarkFieldContainer;
@@ -745,62 +799,94 @@ impl GreyboundUi {
         .padding([self.s(12.0), self.s(14.0)])
         .width(Length::Fixed(self.s(185.0)));
 
-        let card = container(
-            column![
-                row![
-                    text("Audio Settings")
-                        .size(self.font(28.0))
-                        .style(Color::WHITE),
-                    button(text("X").size(self.font(18.0)))
-                        .on_press(Message::CloseAudioSettings)
-                        .style(iced::theme::Button::custom(ChromeButton))
-                        .padding([self.s(8.0), self.s(13.0)])
-                ]
-                .spacing(self.s(20.0))
-                .align_items(Alignment::Center),
-                row![
-                    self.settings_field(
-                        "Audio Device Type",
-                        text("CoreAudio")
-                            .size(self.font(18.0))
-                            .style(Color::WHITE)
-                            .into()
-                    ),
-                    self.settings_field(
-                        "Status",
-                        text(settings.status.as_str())
-                            .size(self.font(15.0))
-                            .style(Color::WHITE)
-                            .into()
-                    ),
-                ]
-                .spacing(self.s(44.0)),
-                row![
-                    self.settings_field("Audio Input Device", input.into()),
-                    self.settings_field("Audio Output Device", output.into()),
-                ]
-                .spacing(self.s(44.0)),
-                row![
-                    self.settings_box("Audio Input Channels", "1"),
-                    self.settings_box("Audio Output Channels", "1 + 2"),
-                    self.settings_field_width("Sample Rate", sample_rate.into(), 185.0),
-                    self.settings_field_width("Audio Buffer Size", period_size.into(), 185.0),
-                ]
-                .spacing(self.s(28.0)),
+        let content = column![
+            row![
+                self.settings_field(
+                    "Audio Device Type",
+                    text("CoreAudio")
+                        .size(self.font(18.0))
+                        .style(Color::WHITE)
+                        .into()
+                ),
+                self.settings_field(
+                    "Status",
+                    text(settings.status.as_str())
+                        .size(self.font(15.0))
+                        .style(Color::WHITE)
+                        .into()
+                ),
             ]
-            .spacing(self.s(30.0)),
-        )
-        .width(Length::Fixed(self.s(880.0)))
-        .padding([self.s(34.0), self.s(36.0)])
-        .style(dark_container());
+            .spacing(self.s(44.0)),
+            self.settings_separator(),
+            row![
+                self.settings_select_field("Audio Input Device", input.into(), 390.0),
+                self.settings_select_field("Audio Output Device", output.into(), 390.0),
+            ]
+            .spacing(self.s(44.0)),
+            row![
+                self.settings_box("Audio Input Channels", "1"),
+                self.settings_box("Audio Output Channels", "1 + 2"),
+                self.settings_select_field("Sample Rate", sample_rate.into(), 185.0),
+                self.settings_select_field("Audio Buffer Size", period_size.into(), 185.0),
+            ]
+            .spacing(self.s(28.0)),
+        ]
+        .spacing(self.s(28.0));
 
-        container(card)
+        let modal = self.modal_frame("Audio Settings", content.into());
+
+        container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
             .height(Length::Fixed(self.s(666.0)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
             .into()
+    }
+
+    fn modal_frame<'a>(
+        &self,
+        title: &'static str,
+        content: Element<'a, Message>,
+    ) -> Element<'a, Message> {
+        let close = button(text("X").size(self.font(26.0)).style(Color::WHITE))
+            .on_press(Message::CloseAudioSettings)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: false,
+            }))
+            .padding([self.s(2.0), self.s(8.0)]);
+
+        container(
+            column![
+                container(
+                    row![
+                        text(title).size(self.font(24.0)).style(Color::WHITE),
+                        container(close)
+                            .width(Length::Fill)
+                            .align_x(Horizontal::Right),
+                    ]
+                    .align_items(Alignment::Center)
+                )
+                .height(Length::Fixed(self.s(58.0)))
+                .width(Length::Fill)
+                .padding([0.0, self.s(36.0)])
+                .style(modal_title_bar_container()),
+                container("")
+                    .height(Length::Fixed(self.s(1.0)))
+                    .width(Length::Fill)
+                    .style(modal_rule_container()),
+                container(content)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding([self.s(34.0), self.s(36.0)])
+                    .style(modal_body_container()),
+            ]
+            .spacing(0),
+        )
+        .width(Length::Fixed(self.s(980.0)))
+        .height(Length::Fixed(self.s(590.0)))
+        .style(dark_container())
+        .into()
     }
 
     fn settings_field<'a>(
@@ -828,6 +914,31 @@ impl GreyboundUi {
             .spacing(self.s(8.0)),
         )
         .into()
+    }
+
+    fn settings_select_field<'a>(
+        &self,
+        label: &'static str,
+        control: Element<'a, Message>,
+        width: f32,
+    ) -> Element<'a, Message> {
+        container(
+            column![
+                text(label).size(self.font(16.0)).style(Color::WHITE),
+                control,
+            ]
+            .spacing(self.s(8.0)),
+        )
+        .width(Length::Fixed(self.s(width)))
+        .into()
+    }
+
+    fn settings_separator(&self) -> Element<'_, Message> {
+        container("")
+            .height(Length::Fixed(self.s(1.0)))
+            .width(Length::Fill)
+            .style(modal_rule_container())
+            .into()
     }
 
     fn settings_box(&self, label: &'static str, value: &str) -> Element<'_, Message> {

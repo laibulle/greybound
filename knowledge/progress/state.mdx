@@ -52,6 +52,12 @@ description: Decisions and open questions that should steer upcoming implementat
   output, sample rate, or buffer size restarts the live audio engine with the
   selected runtime configuration; unsupported low-latency buffers surface as
   runtime status errors rather than being silently coerced.
+- Audio Settings is rendered inside a reusable dark modal component with a
+  dedicated title bar, body area, separator line, and top-right close button.
+  Future modal panels should reuse that component instead of hand-building
+  standalone cards.
+- Modal details should stay plugin-like: compact title bars, rounded outer
+  corners owned by the modal shell, and no nested borders around select fields.
 - On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
   the low-latency device heuristic. It scores compatible devices and prefers
   known pro/external audio interfaces such as Scarlett/Focusrite over integrated
