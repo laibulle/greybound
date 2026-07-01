@@ -692,7 +692,6 @@ impl GreyboundUi {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let selected = self.active_device();
         let scale = self.scale;
 
         let mode_tabs = container(
@@ -724,7 +723,7 @@ impl GreyboundUi {
                         self.cab.master,
                         percent_readout(self.cab.master)
                     ),
-                    self.preset_strip(selected),
+                    container("").width(Length::Fill),
                     self.global_knob(
                         "SPRING",
                         GlobalControl::SpringMix,
@@ -747,7 +746,7 @@ impl GreyboundUi {
         )
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
         .height(Length::Fixed(self.s(190.0)))
-        .padding([self.s(22.0), self.s(34.0)])
+        .padding([self.s(12.0), self.s(34.0)])
         .style(control_bar_container());
 
         let main_view: Element<'_, Message> = if self.audio_settings.open {
@@ -818,35 +817,6 @@ impl GreyboundUi {
             .center_x()
             .center_y()
             .into()
-    }
-
-    fn preset_strip(&self, selected: &DeviceState) -> Element<'_, Message> {
-        container(
-            row![
-                button(text("<").size(self.font(18.0)))
-                    .style(iced::theme::Button::custom(ChromeButton))
-                    .padding([self.s(8.0), self.s(12.0)]),
-                container(
-                    text(format!(
-                        "{} / {}",
-                        selected.model.title(),
-                        selected.model.subtitle()
-                    ))
-                    .size(self.font(18.0))
-                    .horizontal_alignment(Horizontal::Left)
-                )
-                .padding([self.s(14.0), self.s(20.0)])
-                .width(Length::Fixed(self.s(430.0)))
-                .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.72))),
-                button(text(">").size(self.font(18.0)))
-                    .style(iced::theme::Button::custom(ChromeButton))
-                    .padding([self.s(8.0), self.s(12.0)]),
-            ]
-            .spacing(self.s(10.0))
-            .align_items(Alignment::Center),
-        )
-        .width(Length::Fill)
-        .into()
     }
 
     fn view_button(&self, view_mode: ViewMode) -> Element<'_, Message> {
@@ -1085,7 +1055,7 @@ impl GreyboundUi {
                 readout,
             })
             .width(Length::Fixed(self.s(128.0)))
-            .height(Length::Fixed(self.s(148.0))),
+            .height(Length::Fixed(self.s(122.0))),
         )
         .into()
     }
@@ -1132,14 +1102,6 @@ impl GreyboundUi {
                 }
             }
             GlobalControl::Output => self.output_gain = value,
-        }
-    }
-
-    fn active_device(&self) -> &DeviceState {
-        match self.view_mode {
-            ViewMode::Pedals => &self.devices[self.selected_index],
-            ViewMode::Amp => &self.amp,
-            ViewMode::Cab => &self.cab,
         }
     }
 
@@ -1736,12 +1698,12 @@ impl canvas::Program<Message> for GlobalKnobArt {
         let mut frame = Frame::new(renderer, bounds.size());
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
-        let radius = 31.0;
-        let center = Point::new(logical_size.width * 0.5, 72.0);
+        let radius = 27.0;
+        let center = Point::new(logical_size.width * 0.5, 60.0);
         draw_text(
             &mut frame,
             self.label,
-            Point::new(logical_size.width * 0.5, 18.0),
+            Point::new(logical_size.width * 0.5, 13.0),
             14.0,
             INK,
             Horizontal::Center,
@@ -1758,7 +1720,7 @@ impl canvas::Program<Message> for GlobalKnobArt {
         draw_text(
             &mut frame,
             &self.readout,
-            Point::new(logical_size.width * 0.5, 136.0),
+            Point::new(logical_size.width * 0.5, 116.0),
             14.0,
             INK,
             Horizontal::Center,
