@@ -18,7 +18,7 @@ pub const DESIGN_WIDTH: f32 = 1600.0;
 pub const DESIGN_HEIGHT: f32 = 900.0;
 const PEDAL_STANDARD_WIDTH: f32 = 300.0;
 const PEDAL_STANDARD_HEIGHT: f32 = 565.0;
-const PEDAL_KNOB_RADIUS: f32 = 37.0;
+const PEDAL_KNOB_RADIUS: f32 = 33.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -2063,29 +2063,29 @@ fn pedal_knob_centers(
         DeviceModel::Minotaur => vec![
             (
                 ControlKind::Gain,
-                Point::new(origin.x + size.width * 0.30, knob_y),
+                Point::new(origin.x + size.width * 0.25, knob_y),
             ),
             (
                 ControlKind::Treble,
-                Point::new(origin.x + size.width * 0.70, knob_y),
+                Point::new(origin.x + size.width * 0.75, knob_y),
             ),
             (
                 ControlKind::Master,
-                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.19),
             ),
         ],
         DeviceModel::Springfield => vec![
             (
                 ControlKind::Gain,
-                Point::new(origin.x + size.width * 0.30, knob_y),
+                Point::new(origin.x + size.width * 0.25, knob_y),
             ),
             (
                 ControlKind::Treble,
-                Point::new(origin.x + size.width * 0.70, knob_y),
+                Point::new(origin.x + size.width * 0.75, knob_y),
             ),
             (
                 ControlKind::Master,
-                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.19),
             ),
         ],
         _ => Vec::new(),
@@ -2798,7 +2798,7 @@ fn draw_pedal(
         DeviceModel::Minotaur => {
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.30, knob_y),
+                Point::new(origin.x + size.width * 0.25, knob_y),
                 PEDAL_KNOB_RADIUS,
                 "Gain",
                 device.gain,
@@ -2806,7 +2806,7 @@ fn draw_pedal(
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.70, knob_y),
+                Point::new(origin.x + size.width * 0.75, knob_y),
                 PEDAL_KNOB_RADIUS,
                 "Treble",
                 device.treble,
@@ -2814,7 +2814,7 @@ fn draw_pedal(
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.19),
                 PEDAL_KNOB_RADIUS,
                 "Output",
                 device.master,
@@ -2858,7 +2858,7 @@ fn draw_pedal(
         DeviceModel::Springfield => {
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.30, knob_y),
+                Point::new(origin.x + size.width * 0.25, knob_y),
                 PEDAL_KNOB_RADIUS,
                 "Dwell",
                 device.gain,
@@ -2866,7 +2866,7 @@ fn draw_pedal(
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.70, knob_y),
+                Point::new(origin.x + size.width * 0.75, knob_y),
                 PEDAL_KNOB_RADIUS,
                 "Tone",
                 device.treble,
@@ -2874,7 +2874,7 @@ fn draw_pedal(
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.19),
                 PEDAL_KNOB_RADIUS,
                 "Mix",
                 device.master,

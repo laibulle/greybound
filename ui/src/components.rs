@@ -66,7 +66,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
         draw_text(
             frame,
             spec.label,
-            Point::new(center.x, center.y + radius + 30.0),
+            Point::new(center.x, center.y + radius + 26.0),
             14.0,
             Color::from_rgb(0.09, 0.08, 0.08),
             Horizontal::Center,
@@ -87,17 +87,18 @@ pub fn draw_vertical_meter(frame: &mut Frame, top: Point, height: f32, level: f3
 
 fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
     let is_header = matches!(skin, KnobSkin::HeaderDial);
+    let is_pedal = matches!(skin, KnobSkin::AsatoBlack | KnobSkin::Teal);
 
     for tick in 0..29 {
         let is_major = tick % 4 == 0;
         let t = tick as f32 / 28.0;
         let angle = knob_angle(t);
-        let inner_offset = if is_header && !is_major {
-            radius + 12.0
+        let inner_offset = radius + 8.0;
+        let outer_offset = if (is_header || is_pedal) && !is_major {
+            radius + 13.0
         } else {
-            radius + 8.0
+            radius + 17.0
         };
-        let outer_offset = radius + 17.0;
         let alpha = if is_header && !is_major { 0.44 } else { 0.58 };
         let width = if is_major { 1.8 } else { 1.0 };
         let inner = Point::new(
@@ -238,16 +239,16 @@ fn draw_pedal_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32
     draw_text(
         frame,
         "min",
-        Point::new(center.x - radius * 1.42, center.y + radius * 1.02),
-        10.0,
+        Point::new(center.x - radius * 1.58, center.y + radius * 1.08),
+        9.0,
         Color::from_rgba(0.09, 0.08, 0.08, 0.72),
         Horizontal::Center,
     );
     draw_text(
         frame,
         "max",
-        Point::new(center.x + radius * 1.42, center.y + radius * 1.02),
-        10.0,
+        Point::new(center.x + radius * 1.58, center.y + radius * 1.08),
+        9.0,
         Color::from_rgba(0.09, 0.08, 0.08, 0.72),
         Horizontal::Center,
     );
