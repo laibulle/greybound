@@ -32,6 +32,7 @@ fn main() -> iced::Result {
             min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
             ..iced::window::Settings::default()
         },
+        antialiasing: true,
         exit_on_close_request: false,
         ..Settings::default()
     })
