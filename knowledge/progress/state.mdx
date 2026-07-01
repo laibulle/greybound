@@ -58,6 +58,8 @@ description: Decisions and open questions that should steer upcoming implementat
   standalone cards.
 - Modal details should stay plugin-like: compact title bars, rounded outer
   corners owned by the modal shell, and no nested borders around select fields.
+- The desktop footer is a full-width bar, not a floating pill. It should use a
+  square-edged footer container rather than the generic rounded ghost container.
 - On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
   the low-latency device heuristic. It scores compatible devices and prefers
   known pro/external audio interfaces such as Scarlett/Focusrite over integrated

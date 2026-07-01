@@ -78,6 +78,27 @@ impl button::StyleSheet for FooterButton {
     }
 }
 
+struct FooterContainer;
+
+impl container::StyleSheet for FooterContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::from_rgb(0.80, 0.82, 0.88)),
+            background: Some(Background::Color(Color::from_rgb(0.02, 0.025, 0.03))),
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn footer_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(FooterContainer))
+}
+
 struct GhostContainer(Color);
 
 impl container::StyleSheet for GhostContainer {
@@ -683,7 +704,7 @@ impl GreyboundUi {
         .padding([self.s(10.0), self.s(18.0)])
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
         .height(Length::Fixed(self.s(44.0)))
-        .style(ghost_container(Color::from_rgb(0.02, 0.025, 0.03)));
+        .style(footer_container());
 
         let panel = container(column![top, main_view, bottom].spacing(0))
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
