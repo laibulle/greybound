@@ -637,24 +637,24 @@ impl MetronomeGenerator {
 
         let phase_increment = std::f32::consts::TAU * self.frequency / self.sample_rate;
         self.phase = (self.phase + phase_increment) % std::f32::consts::TAU;
-        let transient = self.phase.sin().signum() * 0.55 + self.phase.sin() * 0.45;
-        let sample = transient * self.envelope * controls.metronome_volume() * 0.24;
-        let decay = (-1.0 / (self.sample_rate * 0.004)).exp();
+        let transient = self.phase.sin().signum() * 0.35 + self.phase.sin() * 0.65;
+        let sample = transient * self.envelope * controls.metronome_volume() * 0.20;
+        let decay = (-1.0 / (self.sample_rate * 0.005)).exp();
         self.envelope *= decay;
 
         let pan = controls.metronome_pan();
         let left_gain = (pan * std::f32::consts::FRAC_PI_2).cos();
         let right_gain = (pan * std::f32::consts::FRAC_PI_2).sin();
         (
-            (sample * left_gain).clamp(-0.24, 0.24),
-            (sample * right_gain).clamp(-0.24, 0.24),
+            (sample * left_gain).clamp(-0.22, 0.22),
+            (sample * right_gain).clamp(-0.22, 0.22),
         )
     }
 
     fn trigger(&mut self, beats_per_bar: u32) {
         let accent = self.beat_index == 0;
         self.frequency = if accent { 1_700.0 } else { 1_100.0 };
-        self.envelope = 1.0;
+        self.envelope = if accent { 1.0 } else { 0.78 };
         self.phase = 0.0;
         self.beat_index = (self.beat_index + 1) % beats_per_bar.max(1);
     }
