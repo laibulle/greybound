@@ -730,7 +730,7 @@ impl GreyboundUi {
                         self.springfield_mix(),
                         percent_readout(self.springfield_mix())
                     ),
-                    self.metered_global_knob(
+                    self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
                         self.output_gain,
@@ -1073,6 +1073,25 @@ impl GreyboundUi {
                 .width(Length::Fixed(self.s(18.0)))
                 .height(Length::Fixed(self.s(132.0))),
             self.global_knob(label, control, value, readout),
+        ]
+        .spacing(self.s(12.0))
+        .align_items(Alignment::Center)
+        .into()
+    }
+
+    fn output_metered_global_knob(
+        &self,
+        label: &'static str,
+        control: GlobalControl,
+        value: f32,
+        readout: String,
+        meter_level: f32,
+    ) -> Element<'_, Message> {
+        row![
+            self.global_knob(label, control, value, readout),
+            Canvas::new(MeterArt { level: meter_level })
+                .width(Length::Fixed(self.s(18.0)))
+                .height(Length::Fixed(self.s(132.0))),
         ]
         .spacing(self.s(12.0))
         .align_items(Alignment::Center)
