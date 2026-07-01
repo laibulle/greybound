@@ -2747,7 +2747,7 @@ fn draw_pedal(
     size: Size,
     device: &DeviceState,
     color: Color,
-    selected: bool,
+    _selected: bool,
 ) {
     let shadow = rounded_rect(
         Point::new(origin.x + 12.0, origin.y + 20.0),
@@ -2761,12 +2761,8 @@ fn draw_pedal(
     frame.stroke(
         &body,
         Stroke::default()
-            .with_color(if selected {
-                Color::from_rgb(0.98, 0.96, 0.78)
-            } else {
-                Color::from_rgba(0.28, 0.22, 0.15, 0.32)
-            })
-            .with_width(if selected { 3.0 } else { 1.3 }),
+            .with_color(Color::from_rgba(0.28, 0.22, 0.15, 0.32))
+            .with_width(1.3),
     );
 
     let inner = rounded_rect(origin, Size::new(size.width, size.height - 18.0), 18.0);
