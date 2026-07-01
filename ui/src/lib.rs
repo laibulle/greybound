@@ -3,7 +3,7 @@ pub mod components;
 use components::{KnobSkin, KnobSpec};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
-use iced::widget::{button, column, container, pick_list, row, slider, text};
+use iced::widget::{button, column, container, pick_list, row, text};
 use iced::{mouse, Alignment, Background, Color, Element, Length, Point, Rectangle, Size, Vector};
 use std::rc::Rc;
 
@@ -44,6 +44,35 @@ impl button::StyleSheet for ChromeButton {
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
             background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.32))),
+            ..self.active(style)
+        }
+    }
+}
+
+struct FooterButton {
+    selected: bool,
+}
+
+impl button::StyleSheet for FooterButton {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, _style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: self
+                .selected
+                .then_some(Background::Color(Color::from_rgba(0.42, 0.47, 0.58, 0.80))),
+            border_radius: 9.0.into(),
+            border_width: if self.selected { 1.0 } else { 0.0 },
+            border_color: Color::from_rgba(0.72, 0.76, 0.86, 0.40),
+            shadow_offset: Vector::new(0.0, 0.0),
+            text_color: Color::from_rgb(0.88, 0.90, 0.95),
+            ..button::Appearance::default()
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: Some(Background::Color(Color::from_rgba(0.42, 0.47, 0.58, 0.34))),
             ..self.active(style)
         }
     }
@@ -555,26 +584,24 @@ impl GreyboundUi {
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(560.0)))
+                .height(Length::Fixed(self.s(666.0)))
                 .into(),
                 ViewMode::Amp => Canvas::new(AmpArt {
                     amp: self.amp.clone(),
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(560.0)))
+                .height(Length::Fixed(self.s(666.0)))
                 .into(),
                 ViewMode::Cab => Canvas::new(CabArt {
                     cab: self.cab.clone(),
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(560.0)))
+                .height(Length::Fixed(self.s(666.0)))
                 .into(),
             }
         };
-
-        let controls = self.selected_controls(selected);
 
         let bottom_text = Color::from_rgb(0.80, 0.82, 0.88);
         let bottom = container(
@@ -586,8 +613,10 @@ impl GreyboundUi {
                 text("METRONOME").size(self.font(14.0)).style(bottom_text),
                 button(text("SETTINGS").size(self.font(14.0)).style(Color::WHITE))
                     .on_press(Message::ToggleAudioSettings)
-                    .style(iced::theme::Button::custom(ChromeButton))
-                    .padding([self.s(6.0), self.s(12.0)]),
+                    .style(iced::theme::Button::custom(FooterButton {
+                        selected: self.audio_settings.open
+                    }))
+                    .padding([self.s(4.0), self.s(10.0)]),
                 text("DEVELOPED BY GREYBOUND")
                     .size(self.font(14.0))
                     .style(bottom_text)
@@ -602,7 +631,7 @@ impl GreyboundUi {
         .height(Length::Fixed(self.s(44.0)))
         .style(ghost_container(Color::from_rgb(0.02, 0.025, 0.03)));
 
-        let panel = container(column![top, main_view, controls, bottom].spacing(0))
+        let panel = container(column![top, main_view, bottom].spacing(0))
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
             .height(Length::Fixed(self.s(DESIGN_HEIGHT)))
             .style(ghost_container(PANEL));
@@ -767,7 +796,7 @@ impl GreyboundUi {
 
         container(card)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(560.0)))
+            .height(Length::Fixed(self.s(666.0)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
@@ -817,71 +846,6 @@ impl GreyboundUi {
             ]
             .spacing(self.s(8.0)),
         )
-        .into()
-    }
-
-    fn selected_controls(&self, selected: &DeviceState) -> Element<'_, Message> {
-        let bypass_label = if selected.bypassed {
-            "BYPASSED"
-        } else {
-            "ACTIVE"
-        };
-
-        let mut controls = row![button(text(bypass_label).size(self.font(13.0)))
-            .on_press(Message::ToggleBypass(!selected.bypassed))
-            .style(iced::theme::Button::custom(ChromeButton))
-            .padding([self.s(10.0), self.s(16.0)]),]
-        .spacing(self.s(16.0))
-        .align_items(Alignment::Center);
-
-        controls = match selected.model {
-            DeviceModel::Minotaur => controls
-                .push(self.control("GAIN", selected.gain, Message::GainChanged))
-                .push(self.control("TREBLE", selected.treble, Message::TrebleChanged))
-                .push(self.control("OUTPUT", selected.master, Message::MasterChanged)),
-            DeviceModel::Nox30 => controls
-                .push(self.control("VOLUME", selected.gain, Message::GainChanged))
-                .push(self.control("BASS", selected.bass, Message::BassChanged))
-                .push(self.control("TREBLE", selected.treble, Message::TrebleChanged))
-                .push(self.control("CUT", selected.cut, Message::CutChanged))
-                .push(self.control("SAG", selected.master, Message::MasterChanged)),
-            DeviceModel::Springfield => controls
-                .push(self.control("DWELL", selected.gain, Message::GainChanged))
-                .push(self.control("TONE", selected.treble, Message::TrebleChanged))
-                .push(self.control("MIX", selected.master, Message::MasterChanged)),
-            DeviceModel::CabIr => controls.push(
-                container(
-                    text("IR: lab/references/tone3000-irs/celestion.wav").size(self.font(13.0)),
-                )
-                .padding([self.s(10.0), self.s(14.0)])
-                .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24))),
-            ),
-        };
-
-        container(controls)
-            .padding([self.s(12.0), self.s(28.0)])
-            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(106.0)))
-            .style(ghost_container(Color::from_rgba(0.62, 0.69, 0.84, 0.62)))
-            .into()
-    }
-
-    fn control(
-        &self,
-        label: &'static str,
-        value: f32,
-        on_change: fn(f32) -> Message,
-    ) -> Element<'_, Message> {
-        container(
-            column![
-                text(format!("{label}  {:02}", (value * 99.0).round() as i32))
-                    .size(self.font(12.0)),
-                slider(0.0..=1.0, value, on_change).width(Length::Fixed(self.s(116.0))),
-            ]
-            .spacing(self.s(4.0)),
-        )
-        .padding([self.s(8.0), self.s(10.0)])
-        .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24)))
         .into()
     }
 
@@ -1111,7 +1075,6 @@ impl canvas::Program<Message> for BoardArt {
             );
         }
 
-        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 
@@ -1208,7 +1171,6 @@ impl canvas::Program<Message> for AmpArt {
         let logical_size = unscale_size(bounds.size(), self.scale);
         draw_stage_background(&mut frame, logical_size);
         draw_amp_head(&mut frame, logical_size, &self.amp);
-        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 }
@@ -1281,7 +1243,6 @@ impl canvas::Program<Message> for CabArt {
             Color::from_rgba(0.05, 0.04, 0.035, 0.72),
             Horizontal::Center,
         );
-        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 }
@@ -2095,37 +2056,6 @@ fn draw_side_jack(frame: &mut Frame, origin: Point, left: bool) {
             .with_color(Color::from_rgba(1.0, 0.85, 0.55, 0.52))
             .with_width(2.0),
     );
-}
-
-fn draw_chain_legend(frame: &mut Frame, size: Size) {
-    let y = size.height - 54.0;
-    let center = size.width * 0.5;
-    frame.stroke(
-        &Path::line(
-            Point::new(center - 72.0, y + 26.0),
-            Point::new(center + 72.0, y + 26.0),
-        ),
-        Stroke::default()
-            .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.72))
-            .with_width(4.0),
-    );
-    for i in 0..3 {
-        let x = center - 62.0 + i as f32 * 62.0;
-        frame.stroke(
-            &rounded_rect(Point::new(x, y), Size::new(48.0, 42.0), 4.0),
-            Stroke::default()
-                .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.90))
-                .with_width(3.0),
-        );
-        frame.fill(
-            &Path::circle(Point::new(x + 15.0, y + 25.0), 10.0),
-            Color::from_rgba(1.0, 1.0, 1.0, 0.72),
-        );
-        frame.fill(
-            &Path::circle(Point::new(x + 34.0, y + 25.0), 10.0),
-            Color::from_rgba(1.0, 1.0, 1.0, 0.72),
-        );
-    }
 }
 
 fn draw_text(
