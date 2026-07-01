@@ -93,8 +93,12 @@ fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
         let is_major = tick % 4 == 0;
         let t = tick as f32 / 28.0;
         let angle = knob_angle(t);
-        let inner_offset = radius + 8.0;
-        let outer_offset = if (is_header || is_pedal) && !is_major {
+        let inner_offset = if is_pedal { radius + 6.0 } else { radius + 8.0 };
+        let outer_offset = if is_pedal && !is_major {
+            radius + 10.0
+        } else if is_pedal {
+            radius + 14.0
+        } else if is_header && !is_major {
             radius + 13.0
         } else {
             radius + 17.0
