@@ -1,5 +1,6 @@
 [workspace]
 members = ["core", "cli", "ui", "wasm", "desktop", "audio-lab-mcp"]
+resolver = "2"
 
 [profile.release]
 lto = "thin"

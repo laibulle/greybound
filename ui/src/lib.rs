@@ -2989,28 +2989,97 @@ fn draw_pedal(
     let plate_size = Size::new(size.width - 40.0, size.height * 0.31);
     draw_texture_plate(frame, plate_origin, plate_size, device.name.as_str());
 
-    let led = Path::circle(
+    draw_status_led(
+        frame,
         Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.69),
-        10.5,
-    );
-    frame.fill(
-        &led,
-        if device.bypassed {
-            Color::from_rgb(0.09, 0.25, 0.25)
-        } else {
-            Color::from_rgb(0.0, 0.75, 0.78)
-        },
-    );
-    frame.stroke(
-        &led,
-        Stroke::default()
-            .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.48))
-            .with_width(2.0),
+        11.0,
+        !device.bypassed,
     );
 
     draw_footswitch(
         frame,
         Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.82),
+    );
+}
+
+fn draw_status_led(frame: &mut Frame, center: Point, radius: f32, active: bool) {
+    frame.fill(
+        &Path::circle(Point::new(center.x + 1.8, center.y + 2.4), radius + 4.0),
+        Color::from_rgba(0.02, 0.03, 0.03, 0.42),
+    );
+
+    frame.fill(
+        &Path::circle(center, radius + 3.2),
+        Color::from_rgb(0.74, 0.77, 0.70),
+    );
+    frame.stroke(
+        &Path::circle(center, radius + 3.2),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.98, 0.88, 0.55))
+            .with_width(1.8),
+    );
+
+    if active {
+        frame.fill(
+            &Path::circle(center, radius + 7.0),
+            Color::from_rgba(0.0, 0.92, 0.95, 0.16),
+        );
+        frame.fill(
+            &Path::circle(center, radius + 3.8),
+            Color::from_rgba(0.0, 0.94, 0.95, 0.22),
+        );
+    }
+
+    let lens = if active {
+        Color::from_rgb(0.00, 0.78, 0.80)
+    } else {
+        Color::from_rgb(0.08, 0.27, 0.27)
+    };
+    frame.fill(&Path::circle(center, radius), lens);
+
+    if active {
+        for (idx, alpha) in [0.42, 0.28, 0.18].into_iter().enumerate() {
+            frame.stroke(
+                &Path::circle(center, radius - 2.2 - idx as f32 * 2.2),
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.82, 1.0, 0.98, alpha))
+                    .with_width(1.2),
+            );
+        }
+        frame.fill(
+            &Path::circle(
+                Point::new(center.x - radius * 0.25, center.y - radius * 0.30),
+                4.0,
+            ),
+            Color::from_rgba(0.96, 1.0, 1.0, 0.72),
+        );
+        frame.fill(
+            &Path::circle(
+                Point::new(center.x + radius * 0.22, center.y - radius * 0.10),
+                2.2,
+            ),
+            Color::from_rgba(0.92, 1.0, 1.0, 0.45),
+        );
+    } else {
+        frame.fill(
+            &Path::circle(
+                Point::new(center.x - radius * 0.20, center.y - radius * 0.25),
+                3.5,
+            ),
+            Color::from_rgba(0.62, 0.84, 0.82, 0.16),
+        );
+    }
+
+    frame.stroke(
+        &Path::circle(center, radius),
+        Stroke::default()
+            .with_color(Color::from_rgba(
+                0.92,
+                1.0,
+                0.96,
+                if active { 0.72 } else { 0.24 },
+            ))
+            .with_width(1.8),
     );
 }
 
