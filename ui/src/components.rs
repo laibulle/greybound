@@ -88,16 +88,21 @@ pub fn draw_vertical_meter(frame: &mut Frame, top: Point, height: f32, level: f3
 fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
     let is_header = matches!(skin, KnobSkin::HeaderDial);
     let is_pedal = matches!(skin, KnobSkin::AsatoBlack | KnobSkin::Teal);
+    let tick_center = if is_pedal {
+        Point::new(center.x, center.y + radius * 0.08)
+    } else {
+        center
+    };
 
     for tick in 0..29 {
         let is_major = tick % 4 == 0;
         let t = tick as f32 / 28.0;
         let angle = knob_angle(t);
-        let inner_offset = if is_pedal { radius + 6.0 } else { radius + 8.0 };
+        let inner_offset = if is_pedal { radius + 3.0 } else { radius + 8.0 };
         let outer_offset = if is_pedal && !is_major {
-            radius + 10.0
+            radius + 7.0
         } else if is_pedal {
-            radius + 14.0
+            radius + 11.0
         } else if is_header && !is_major {
             radius + 13.0
         } else {
@@ -106,12 +111,12 @@ fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
         let alpha = if is_header && !is_major { 0.44 } else { 0.58 };
         let width = if is_major { 1.8 } else { 1.0 };
         let inner = Point::new(
-            center.x + angle.cos() * inner_offset,
-            center.y + angle.sin() * inner_offset,
+            tick_center.x + angle.cos() * inner_offset,
+            tick_center.y + angle.sin() * inner_offset,
         );
         let outer = Point::new(
-            center.x + angle.cos() * outer_offset,
-            center.y + angle.sin() * outer_offset,
+            tick_center.x + angle.cos() * outer_offset,
+            tick_center.y + angle.sin() * outer_offset,
         );
         frame.stroke(
             &Path::line(inner, outer),
