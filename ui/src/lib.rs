@@ -3048,25 +3048,62 @@ fn draw_footswitch(frame: &mut Frame, center: Point) {
 }
 
 fn draw_pedal_surface_reflections(frame: &mut Frame, origin: Point, size: Size) {
-    let corner_glow = rounded_rect(
-        Point::new(origin.x + 18.0, origin.y + 16.0),
-        Size::new(size.width * 0.30, 18.0),
-        9.0,
-    );
-    frame.fill(&corner_glow, Color::from_rgba(1.0, 0.98, 0.86, 0.13));
-
-    let sweep = Path::new(|path| {
-        path.move_to(Point::new(origin.x + 26.0, origin.y + 52.0));
+    let corner_light = Path::new(|path| {
+        path.move_to(Point::new(origin.x + 2.0, origin.y + 42.0));
+        path.line_to(Point::new(origin.x + 2.0, origin.y + 26.0));
         path.quadratic_curve_to(
-            Point::new(origin.x + size.width * 0.18, origin.y + 30.0),
-            Point::new(origin.x + size.width * 0.38, origin.y + 40.0),
+            Point::new(origin.x + 2.0, origin.y + 2.0),
+            Point::new(origin.x + 26.0, origin.y + 2.0),
+        );
+        path.line_to(Point::new(origin.x + size.width * 0.44, origin.y + 2.0));
+    });
+    frame.stroke(
+        &corner_light,
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.98, 0.90, 0.18))
+            .with_width(6.0),
+    );
+
+    let corner_core = Path::new(|path| {
+        path.move_to(Point::new(origin.x + 3.0, origin.y + 32.0));
+        path.quadratic_curve_to(
+            Point::new(origin.x + 3.0, origin.y + 3.0),
+            Point::new(origin.x + 32.0, origin.y + 3.0),
         );
     });
     frame.stroke(
-        &sweep,
+        &corner_core,
         Stroke::default()
-            .with_color(Color::from_rgba(1.0, 0.96, 0.82, 0.11))
-            .with_width(5.0),
+            .with_color(Color::from_rgba(1.0, 1.0, 0.96, 0.20))
+            .with_width(2.0),
+    );
+
+    let right_shadow = Path::new(|path| {
+        path.move_to(Point::new(origin.x + size.width - 1.0, origin.y + 34.0));
+        path.line_to(Point::new(
+            origin.x + size.width - 1.0,
+            origin.y + size.height - 34.0,
+        ));
+    });
+    frame.stroke(
+        &right_shadow,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.08, 0.07, 0.06, 0.08))
+            .with_width(7.0),
+    );
+
+    let lower_shadow = Path::new(|path| {
+        path.move_to(Point::new(origin.x + 28.0, origin.y + size.height - 1.0));
+        path.line_to(Point::new(
+            origin.x + size.width - 28.0,
+            origin.y + size.height - 1.0,
+        ));
+    });
+    frame.stroke(
+        &lower_shadow,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.08, 0.07, 0.06, 0.06))
+            .with_width(6.0),
     );
 }
 
