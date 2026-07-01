@@ -98,48 +98,109 @@ fn draw_shadow(frame: &mut Frame, center: Point, radius: f32) {
 }
 
 fn draw_asato_cap(frame: &mut Frame, center: Point, radius: f32, value: f32) {
-    frame.fill(
-        &Path::circle(center, radius),
-        Color::from_rgb(0.13, 0.09, 0.09),
-    );
+    let rim_outer = Path::circle(Point::new(center.x + 1.5, center.y + 2.5), radius + 5.0);
+    frame.fill(&rim_outer, Color::from_rgb(0.10, 0.08, 0.085));
     frame.stroke(
-        &Path::circle(center, radius),
+        &rim_outer,
         Stroke::default()
-            .with_color(Color::from_rgba(0.92, 0.76, 0.72, 0.42))
+            .with_color(Color::from_rgba(0.95, 0.78, 0.74, 0.36))
             .with_width(2.0),
     );
 
-    for groove in 0..10 {
-        let r = radius - groove as f32 * 2.1;
+    let rim_inner = Path::circle(Point::new(center.x - 1.0, center.y - 1.0), radius + 1.0);
+    frame.stroke(
+        &rim_inner,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.02, 0.015, 0.018, 0.78))
+            .with_width(5.0),
+    );
+
+    let cap_shadow = scalloped_knob_path(Point::new(center.x + 2.5, center.y + 3.5), radius * 0.91);
+    frame.fill(&cap_shadow, Color::from_rgba(0.02, 0.014, 0.016, 0.58));
+
+    let cap = scalloped_knob_path(center, radius * 0.90);
+    frame.fill(&cap, Color::from_rgb(0.12, 0.075, 0.075));
+    frame.stroke(
+        &cap,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.72, 0.40, 0.40, 0.54))
+            .with_width(2.0),
+    );
+
+    let inner_cap = scalloped_knob_path(Point::new(center.x - 1.5, center.y - 1.5), radius * 0.76);
+    frame.fill(&inner_cap, Color::from_rgba(0.22, 0.15, 0.15, 0.20));
+
+    for groove in 0..7 {
+        let r = radius * (0.32 + groove as f32 * 0.07);
         frame.stroke(
-            &Path::circle(center, r),
+            &scalloped_knob_path(center, r),
             Stroke::default()
-                .with_color(Color::from_rgba(0.46, 0.34, 0.34, 0.10))
+                .with_color(Color::from_rgba(0.55, 0.40, 0.38, 0.08))
                 .with_width(1.0),
         );
     }
 
-    for lobe in 0..10 {
-        let angle = lobe as f32 / 10.0 * std::f32::consts::TAU;
-        let p = Point::new(
-            center.x + angle.cos() * radius * 0.78,
-            center.y + angle.sin() * radius * 0.78,
-        );
-        frame.fill(
-            &Path::circle(p, radius * 0.18),
-            Color::from_rgba(0.28, 0.20, 0.20, 0.44),
+    for grain in 0..18 {
+        let y = center.y - radius * 0.48 + grain as f32 * radius * 0.052;
+        let x0 = center.x - radius * 0.42 + (grain as f32 * 1.7).sin() * 4.0;
+        let x1 = center.x + radius * 0.38 + (grain as f32 * 2.1).cos() * 5.0;
+        frame.stroke(
+            &Path::line(Point::new(x0, y), Point::new(x1, y + 2.0)),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.50, 0.35, 0.32, 0.055))
+                .with_width(1.0),
         );
     }
 
-    let glint = Path::circle(
-        Point::new(center.x - radius * 0.28, center.y - radius * 0.30),
-        radius * 0.40,
+    frame.stroke(
+        &arc_path(
+            center,
+            radius * 0.95,
+            128.0_f32.to_radians(),
+            212.0_f32.to_radians(),
+            24,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.58, 0.92, 0.96, 0.58))
+            .with_width(4.0),
     );
-    frame.fill(&glint, Color::from_rgba(1.0, 0.80, 0.78, 0.10));
+    frame.stroke(
+        &arc_path(
+            center,
+            radius * 0.83,
+            130.0_f32.to_radians(),
+            185.0_f32.to_radians(),
+            18,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.84, 0.80, 0.42))
+            .with_width(2.0),
+    );
+    frame.stroke(
+        &arc_path(
+            center,
+            radius * 0.90,
+            300.0_f32.to_radians(),
+            380.0_f32.to_radians(),
+            22,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.02, 0.015, 0.018, 0.46))
+            .with_width(4.0),
+    );
+
+    draw_pointer(
+        frame,
+        Point::new(center.x + 1.2, center.y + 1.4),
+        radius * 0.90,
+        value,
+        Color::from_rgba(0.12, 0.07, 0.04, 0.46),
+        1.5,
+    );
     draw_pointer(
         frame,
         center,
-        radius,
+        radius * 0.92,
         value,
         Color::from_rgb(0.93, 0.70, 0.34),
         4.0,
@@ -208,6 +269,45 @@ fn draw_pointer(
         &pointer,
         Stroke::default().with_color(color).with_width(width),
     );
+}
+
+fn scalloped_knob_path(center: Point, radius: f32) -> Path {
+    Path::new(|path| {
+        let steps = 96;
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let angle = t * std::f32::consts::TAU;
+            let scallop = 1.0 + 0.070 * (angle * 10.0).sin() + 0.018 * (angle * 20.0 + 0.8).sin();
+            let r = radius * scallop;
+            let point = Point::new(center.x + angle.cos() * r, center.y + angle.sin() * r);
+
+            if step == 0 {
+                path.move_to(point);
+            } else {
+                path.line_to(point);
+            }
+        }
+        path.close();
+    })
+}
+
+fn arc_path(center: Point, radius: f32, start: f32, end: f32, steps: usize) -> Path {
+    Path::new(|path| {
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let angle = start + (end - start) * t;
+            let point = Point::new(
+                center.x + angle.cos() * radius,
+                center.y + angle.sin() * radius,
+            );
+
+            if step == 0 {
+                path.move_to(point);
+            } else {
+                path.line_to(point);
+            }
+        }
+    })
 }
 
 fn draw_text(
