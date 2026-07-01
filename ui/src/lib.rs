@@ -129,7 +129,7 @@ impl container::StyleSheet for ModalTitleBarContainer {
         container::Appearance {
             text_color: Some(Color::WHITE),
             background: Some(Background::Color(Color::from_rgb(0.095, 0.095, 0.095))),
-            border_radius: 24.0.into(),
+            border_radius: [24.0, 24.0, 0.0, 0.0].into(),
             ..container::Appearance::default()
         }
     }
