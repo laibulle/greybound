@@ -983,7 +983,11 @@ impl GreyboundUi {
         ]
         .spacing(self.s(28.0));
 
-        let modal = self.modal_frame("Audio Settings", Message::CloseAudioSettings, content.into());
+        let modal = self.modal_frame(
+            "Audio Settings",
+            Message::CloseAudioSettings,
+            content.into(),
+        );
 
         container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -1042,13 +1046,13 @@ impl GreyboundUi {
                     text("BPM").size(self.font(14.0)).style(secondary),
                     row![
                         column![
-                            button(text("▲").size(self.font(18.0)).style(Color::WHITE))
+                            button(text("+").size(self.font(18.0)).style(Color::WHITE))
                                 .on_press(Message::MetronomeBpmStep(1.0))
                                 .style(iced::theme::Button::custom(FooterButton {
                                     selected: false
                                 }))
                                 .padding([self.s(0.0), self.s(8.0)]),
-                            button(text("▼").size(self.font(18.0)).style(Color::WHITE))
+                            button(text("-").size(self.font(18.0)).style(Color::WHITE))
                                 .on_press(Message::MetronomeBpmStep(-1.0))
                                 .style(iced::theme::Button::custom(FooterButton {
                                     selected: false
@@ -1378,6 +1382,25 @@ pub fn normalized_gain(value: f32, min_db: f32, max_db: f32) -> f32 {
 
 fn normalized_db_readout(value: f32, min_db: f32, max_db: f32) -> String {
     format!("{:.1} dB", normalized_db(value, min_db, max_db))
+}
+
+fn metronome_volume_readout(value: f32) -> String {
+    if value <= 0.0 {
+        "-inf dB".to_string()
+    } else {
+        format!("{:.1} dB", 20.0 * value.clamp(0.000_001, 1.0).log10())
+    }
+}
+
+fn metronome_pan_readout(value: f32) -> String {
+    let value = value.clamp(0.0, 1.0);
+    if (value - 0.5).abs() < 0.04 {
+        "C".to_string()
+    } else if value < 0.5 {
+        format!("L {:.0}", (0.5 - value) * 200.0)
+    } else {
+        format!("R {:.0}", (value - 0.5) * 200.0)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1846,6 +1869,13 @@ fn control_message(control: ControlKind, value: f32) -> Message {
     }
 }
 
+fn metronome_control_message(control: MetronomeControl, value: f32) -> Message {
+    match control {
+        MetronomeControl::Volume => Message::MetronomeVolumeChanged(value),
+        MetronomeControl::Pan => Message::MetronomePanChanged(value),
+    }
+}
+
 fn distance(a: Point, b: Point) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
@@ -1955,6 +1985,120 @@ impl canvas::Program<Message> for GlobalKnobArt {
             Point::new(logical_size.width * 0.5, 116.0),
             14.0,
             INK,
+            Horizontal::Center,
+        );
+        vec![frame.into_geometry()]
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &Self::State,
+        _bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> mouse::Interaction {
+        mouse::Interaction::Pointer
+    }
+}
+
+struct MetronomeKnobArt {
+    control: MetronomeControl,
+    value: f32,
+    scale: f32,
+    label: &'static str,
+    readout: String,
+}
+
+impl canvas::Program<Message> for MetronomeKnobArt {
+    type State = DragState;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> (canvas::event::Status, Option<Message>) {
+        match event {
+            canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|position| unscale_point(position, self.scale))
+                else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                state.gesture = Some(DragGesture {
+                    index: None,
+                    control: ControlKind::Master,
+                    start_position: position,
+                    start_value: self.value,
+                });
+                (
+                    canvas::event::Status::Captured,
+                    Some(metronome_control_message(self.control, self.value)),
+                )
+            }
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let Some(gesture) = state.gesture else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                let Some(position) = cursor
+                    .position_from(bounds.position())
+                    .map(|position| unscale_point(position, self.scale))
+                else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                (
+                    canvas::event::Status::Captured,
+                    Some(metronome_control_message(
+                        self.control,
+                        dragged_value(gesture, position),
+                    )),
+                )
+            }
+            canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                state.gesture = None;
+                (canvas::event::Status::Captured, None)
+            }
+            _ => (canvas::event::Status::Ignored, None),
+        }
+    }
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let radius = 35.0;
+        let center = Point::new(logical_size.width * 0.5, 70.0);
+        draw_text(
+            &mut frame,
+            self.label,
+            Point::new(logical_size.width * 0.5, 13.0),
+            14.0,
+            Color::from_rgb(0.72, 0.72, 0.72),
+            Horizontal::Center,
+        );
+        components::draw_knob(
+            &mut frame,
+            center,
+            radius,
+            KnobSpec {
+                skin: KnobSkin::HeaderDial,
+                ..KnobSpec::normalized("", self.value)
+            },
+        );
+        draw_text(
+            &mut frame,
+            &self.readout,
+            Point::new(logical_size.width * 0.5, 142.0),
+            16.0,
+            Color::WHITE,
             Horizontal::Center,
         );
         vec![frame.into_geometry()]

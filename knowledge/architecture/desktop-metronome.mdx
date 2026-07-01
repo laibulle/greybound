@@ -197,6 +197,34 @@ Future automated validation can add a render path or MCP tool that produces a
 short metronome-only WAV and checks tick spacing against expected sample
 intervals.
 
+## 2026-07-01 V1 Implementation
+
+The first implementation ships the live desktop path only:
+
+- Footer `METRONOME` opens a dark modal using the shared modal shell.
+- Footer BPM reflects the current metronome BPM.
+- The modal exposes functional play/stop, BPM up/down, volume, and pan
+  controls.
+- Time signature, rhythm, sound, and tap are visual placeholders in V1.
+- `SharedRuntimeControls` mirrors enabled, BPM, volume, pan, 4/4 signature, and
+  quarter-note rhythm into atomics.
+- `AudioRuntime` owns a private `MetronomeGenerator` and mixes synthesized click
+  samples after guitar DSP, cab blend, and output gain.
+- The output callback now writes explicit L/R samples so metronome pan is visible
+  in the existing stereo output VU meters.
+
+Validation commands:
+
+```bash
+cargo fmt --check
+cargo check -p greybound-ui
+cargo check -p greybound-desktop
+cargo build --release -p greybound-desktop
+```
+
+All commands passed on 2026-07-01. Live auditory validation still needs to be
+done in the release desktop app with the user's selected CoreAudio device.
+
 ## Open Questions
 
 - Should the metronome be audible in offline renders, or desktop-only?
@@ -206,4 +234,3 @@ intervals.
 - Should click level be excluded from output VU meters, or should meters show
   final physical output including metronome? Current recommendation is final
   physical output.
-

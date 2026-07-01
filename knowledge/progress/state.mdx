@@ -99,6 +99,10 @@ description: Decisions and open questions that should steer upcoming implementat
   mixed into the live output after the guitar DSP chain. It does not belong in
   rig files or signal-chain topology. The V1 spec lives in
   `knowledge/architecture/desktop-metronome.mdx`.
+- Desktop metronome V1 is implemented in the live app. The footer opens a shared
+  modal with play/stop, BPM step, volume, and pan controls. The CPAL output
+  callback owns a sample-clock metronome generator and mixes its stereo click
+  after guitar DSP/output gain, so pan appears on the stereo output VU meters.
 
 ## Open Questions
 

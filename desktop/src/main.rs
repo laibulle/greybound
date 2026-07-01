@@ -298,18 +298,14 @@ impl LiveAudioEngine {
             &output_config,
             move |data: &mut [f32], _| {
                 for frame in data.chunks_exact_mut(output_channels) {
-                    let output = runtime.process(&output_controls, &output_meters);
+                    let (left, right) = runtime.process(&output_controls, &output_meters);
                     frame.fill(0.0);
-                    frame[0] = output;
-                    let right = if output_channels > 1 {
-                        output
-                    } else {
-                        frame[0]
-                    };
+                    frame[0] = left;
+                    let metered_right = if output_channels > 1 { right } else { frame[0] };
                     if output_channels > 1 {
-                        frame[1] = output;
+                        frame[1] = right;
                     }
-                    output_meters.record_output(frame[0], right);
+                    output_meters.record_output(frame[0], metered_right);
                 }
             },
             move |error| eprintln!("Greybound output stream error on {output_name}: {error}"),
@@ -348,6 +344,7 @@ struct AudioRuntime {
     chain: SignalChain,
     speaker: SpeakerStage,
     device_controls: Vec<DeviceSlotControls>,
+    metronome: MetronomeGenerator,
 }
 
 impl AudioRuntime {
@@ -365,10 +362,11 @@ impl AudioRuntime {
             chain: SignalChain::new(sample_rate, config),
             speaker: SpeakerStage::from_embedded_ir(sample_rate as u32)?,
             device_controls: Vec::with_capacity(2),
+            metronome: MetronomeGenerator::new(sample_rate),
         })
     }
 
-    fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> f32 {
+    fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> (f32, f32) {
         let input = self.input.pop().unwrap_or(0.0) * controls.input_gain();
         meters.record_input(input);
         controls.load_device_controls_into(&mut self.device_controls);
@@ -381,7 +379,12 @@ impl AudioRuntime {
         );
         let cab_mix = controls.cab_mix();
         let wet = self.speaker.process(chain_output, cab_mix > 0.0);
-        (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain()
+        let guitar = (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain();
+        let (click_left, click_right) = self.metronome.process(controls);
+        (
+            (guitar + click_left).clamp(-1.0, 1.0),
+            (guitar + click_right).clamp(-1.0, 1.0),
+        )
     }
 }
 
@@ -404,6 +407,12 @@ struct SharedRuntimeControls {
     springfield_mix: Arc<AtomicU32>,
     cab_enabled: Arc<AtomicBool>,
     cab_mix: Arc<AtomicU32>,
+    metronome_enabled: Arc<AtomicBool>,
+    metronome_bpm: Arc<AtomicU32>,
+    metronome_volume: Arc<AtomicU32>,
+    metronome_pan: Arc<AtomicU32>,
+    metronome_beats_per_bar: Arc<AtomicU32>,
+    metronome_rhythm_division: Arc<AtomicU32>,
 }
 
 impl SharedRuntimeControls {
@@ -426,6 +435,12 @@ impl SharedRuntimeControls {
             springfield_mix: atomic_f32(0.0),
             cab_enabled: Arc::new(AtomicBool::new(true)),
             cab_mix: atomic_f32(1.0),
+            metronome_enabled: Arc::new(AtomicBool::new(false)),
+            metronome_bpm: atomic_f32(120.0),
+            metronome_volume: atomic_f32(0.70),
+            metronome_pan: atomic_f32(0.50),
+            metronome_beats_per_bar: Arc::new(AtomicU32::new(4)),
+            metronome_rhythm_division: Arc::new(AtomicU32::new(1)),
         };
         controls.store_from_ui(ui);
         controls
@@ -448,6 +463,13 @@ impl SharedRuntimeControls {
         self.cab_enabled
             .store(!ui.cab.bypassed && ui.cab.master > 0.0, Ordering::Relaxed);
         store_f32(&self.cab_mix, ui.cab.master.clamp(0.0, 1.0));
+        self.metronome_enabled
+            .store(ui.metronome.enabled, Ordering::Relaxed);
+        store_f32(&self.metronome_bpm, ui.metronome.bpm.clamp(30.0, 260.0));
+        store_f32(&self.metronome_volume, ui.metronome.volume.clamp(0.0, 1.0));
+        store_f32(&self.metronome_pan, ui.metronome.pan.clamp(0.0, 1.0));
+        self.metronome_beats_per_bar.store(4, Ordering::Relaxed);
+        self.metronome_rhythm_division.store(1, Ordering::Relaxed);
 
         if let Some(device) = ui
             .devices
@@ -521,6 +543,109 @@ impl SharedRuntimeControls {
                 mix: load_f32(&self.springfield_mix),
             }),
         });
+    }
+
+    fn metronome_enabled(&self) -> bool {
+        self.metronome_enabled.load(Ordering::Relaxed)
+    }
+
+    fn metronome_bpm(&self) -> f32 {
+        load_f32(&self.metronome_bpm).clamp(30.0, 260.0)
+    }
+
+    fn metronome_volume(&self) -> f32 {
+        load_f32(&self.metronome_volume).clamp(0.0, 1.0)
+    }
+
+    fn metronome_pan(&self) -> f32 {
+        load_f32(&self.metronome_pan).clamp(0.0, 1.0)
+    }
+
+    fn metronome_beats_per_bar(&self) -> u32 {
+        self.metronome_beats_per_bar
+            .load(Ordering::Relaxed)
+            .clamp(1, 16)
+    }
+
+    fn metronome_rhythm_division(&self) -> u32 {
+        self.metronome_rhythm_division
+            .load(Ordering::Relaxed)
+            .clamp(1, 16)
+    }
+}
+
+struct MetronomeGenerator {
+    sample_rate: f32,
+    samples_until_tick: f32,
+    envelope: f32,
+    phase: f32,
+    frequency: f32,
+    beat_index: u32,
+    was_enabled: bool,
+}
+
+impl MetronomeGenerator {
+    fn new(sample_rate: f32) -> Self {
+        Self {
+            sample_rate,
+            samples_until_tick: 0.0,
+            envelope: 0.0,
+            phase: 0.0,
+            frequency: 1_700.0,
+            beat_index: 0,
+            was_enabled: false,
+        }
+    }
+
+    fn process(&mut self, controls: &SharedRuntimeControls) -> (f32, f32) {
+        let enabled = controls.metronome_enabled();
+        if !enabled {
+            self.was_enabled = false;
+            self.samples_until_tick = 0.0;
+            self.envelope = 0.0;
+            self.phase = 0.0;
+            self.beat_index = 0;
+            return (0.0, 0.0);
+        }
+
+        if !self.was_enabled || self.samples_until_tick <= 0.0 {
+            self.trigger(controls.metronome_beats_per_bar());
+            self.samples_until_tick += self.samples_per_tick(controls);
+        }
+        self.was_enabled = true;
+        self.samples_until_tick -= 1.0;
+
+        if self.envelope <= 0.000_1 {
+            return (0.0, 0.0);
+        }
+
+        let phase_increment = std::f32::consts::TAU * self.frequency / self.sample_rate;
+        self.phase = (self.phase + phase_increment) % std::f32::consts::TAU;
+        let sample = self.phase.sin() * self.envelope * controls.metronome_volume() * 0.35;
+        let decay = (-1.0 / (self.sample_rate * 0.012)).exp();
+        self.envelope *= decay;
+
+        let pan = controls.metronome_pan();
+        let left_gain = (pan * std::f32::consts::FRAC_PI_2).cos();
+        let right_gain = (pan * std::f32::consts::FRAC_PI_2).sin();
+        (
+            (sample * left_gain).clamp(-0.35, 0.35),
+            (sample * right_gain).clamp(-0.35, 0.35),
+        )
+    }
+
+    fn trigger(&mut self, beats_per_bar: u32) {
+        let accent = self.beat_index == 0;
+        self.frequency = if accent { 1_700.0 } else { 1_100.0 };
+        self.envelope = 1.0;
+        self.phase = 0.0;
+        self.beat_index = (self.beat_index + 1) % beats_per_bar.max(1);
+    }
+
+    fn samples_per_tick(&self, controls: &SharedRuntimeControls) -> f32 {
+        let beats_per_second = controls.metronome_bpm() / 60.0;
+        let ticks_per_beat = controls.metronome_rhythm_division() as f32;
+        (self.sample_rate / (beats_per_second * ticks_per_beat)).max(1.0)
     }
 }
 
