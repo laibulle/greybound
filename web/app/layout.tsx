@@ -5,6 +5,9 @@ import "./global.css";
 export const metadata: Metadata = {
   title: "Greybound Web",
   description: "Web control surface for the Greybound standalone rig monitor",
+  icons: {
+    icon: "/greybound-robine-mark.svg",
+  },
 };
 
 export default function RootLayout({

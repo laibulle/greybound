@@ -2771,6 +2771,7 @@ fn draw_pedal(
 
     let inner = rounded_rect(origin, Size::new(size.width, size.height - 18.0), 18.0);
     frame.fill(&inner, lighten(color, 0.10));
+    draw_pedal_surface_reflections(frame, origin, Size::new(size.width, size.height - 18.0));
     frame.stroke(
         &inner,
         Stroke::default()
@@ -3043,6 +3044,29 @@ fn draw_footswitch(frame: &mut Frame, center: Point) {
         Stroke::default()
             .with_color(Color::from_rgb(0.92, 0.86, 0.70))
             .with_width(2.0),
+    );
+}
+
+fn draw_pedal_surface_reflections(frame: &mut Frame, origin: Point, size: Size) {
+    let corner_glow = rounded_rect(
+        Point::new(origin.x + 18.0, origin.y + 16.0),
+        Size::new(size.width * 0.30, 18.0),
+        9.0,
+    );
+    frame.fill(&corner_glow, Color::from_rgba(1.0, 0.98, 0.86, 0.13));
+
+    let sweep = Path::new(|path| {
+        path.move_to(Point::new(origin.x + 26.0, origin.y + 52.0));
+        path.quadratic_curve_to(
+            Point::new(origin.x + size.width * 0.18, origin.y + 30.0),
+            Point::new(origin.x + size.width * 0.38, origin.y + 40.0),
+        );
+    });
+    frame.stroke(
+        &sweep,
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.96, 0.82, 0.11))
+            .with_width(5.0),
     );
 }
 

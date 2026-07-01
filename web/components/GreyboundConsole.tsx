@@ -237,9 +237,17 @@ export function GreyboundConsole() {
   return (
     <main className="shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Greybound standalone</p>
-          <h1>Monitor web</h1>
+        <div className="brandLockup">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="brandMark"
+            src="/greybound-robine-mark.svg"
+          />
+          <div>
+            <p className="eyebrow">Greybound standalone</p>
+            <h1>Monitor web</h1>
+          </div>
         </div>
         <div className="engineState">
           <span className="stateDot" />
