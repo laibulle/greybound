@@ -117,6 +117,12 @@ description: Decisions and open questions that should steer upcoming implementat
   A dedicated worker consumes a duplicated input-side ring buffer and publishes
   normalized-autocorrelation pitch readings through atomics; mute gates only the
   final desktop output bus.
+- Circuit visualization now has a runtime semantic source of truth in
+  `core/src/circuit_descriptor.rs`. Minotaur and Springfield expose
+  descriptor graphs with stages, edges, control bindings, implementation
+  references, and confidence labels. These descriptors are model-level circuit
+  explanations, not PCB artwork or full SPICE netlists, and the desktop circuit
+  view should consume them before the next visual rendering pass.
 
 ## Open Questions
 

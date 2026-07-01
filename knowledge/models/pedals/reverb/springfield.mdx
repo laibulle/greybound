@@ -7,6 +7,15 @@ Springfield is Greybound's first reverb model. It targets the musical behavior o
 
 The first implementation is a stable graybox model, not a component-exact spring tank simulation. It is intended to be useful in the rig now while leaving room for a later tank/transducer model.
 
+## Circuit Descriptor
+
+The runtime exposes `core/src/circuit_descriptor.rs::SPRINGFIELD_CIRCUIT` as the
+semantic description of the current model. It should be rendered as a
+graybox/IR hybrid: buffered input, dwell driver, embedded spring IR tank, splash
+diffusion, recovery tone, wet/dry mixer, and output boundary. It should not be
+presented as a complete hardware spring-tank schematic until a measured or
+SPICE-backed tank/transducer reference exists.
+
 ## Baseline Assumptions
 
 - Buffered input with about 1 MOhm input impedance.

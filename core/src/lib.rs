@@ -1,6 +1,7 @@
 pub mod amp;
 pub mod chain;
 pub mod circuit;
+pub mod circuit_descriptor;
 pub mod ir;
 pub mod neural_cell;
 pub mod pedal;
@@ -14,6 +15,12 @@ pub use chain::{
     amp_model_descriptor, AmpModelDescriptor, ControlDescriptor, ControlKind, DeviceConfig,
     DeviceControls, DeviceModelDescriptor, DeviceSlotConfig, DeviceSlotControls,
     DeviceVisualDescriptor, SignalChain, SignalChainConfig, SignalChainControls,
+};
+pub use circuit_descriptor::{
+    device_circuit_descriptor, CircuitConfidence, CircuitControlBinding, CircuitDescriptor,
+    CircuitDescriptorKind, CircuitEdgeDescriptor, CircuitGroupDescriptor, CircuitLayout,
+    CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind, CIRCUIT_DESCRIPTOR_SCHEMA,
+    MINOTAUR_CIRCUIT, SPRINGFIELD_CIRCUIT,
 };
 pub use pedal::{
     configure_minotaur_clip_neural, configure_minotaur_tone_neural, Brigade, BrigadeControls,

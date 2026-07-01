@@ -5,6 +5,34 @@ description: JSON5 graph format for model documentation diagrams, renderer input
 
 Circuit diagrams are documentation artifacts. They are not the runtime source of truth and they are not required to be complete SPICE netlists.
 
+## Runtime Circuit Descriptors
+
+The Rust runtime now exposes lightweight semantic circuit descriptors in
+`core/src/circuit_descriptor.rs`.
+
+These descriptors are not PCB artwork and they are not full SPICE netlists. They
+are the model-level source of truth for interactive tools that need to understand
+what the current Greybound model actually contains:
+
+- stage nodes such as input load, coupling, gain stage, clipping cell, spring IR,
+  recovery tone, mixer, and output driver,
+- control bindings from UI controls to meaningful model stages,
+- semantic edges between stages,
+- confidence labels that distinguish known electrical boundaries from tuned
+  graybox, inferred, algorithmic, or external-reference blocks.
+
+Current descriptors:
+
+- `minotaur`: buffered clean/drive split, drive gain, soft clipping, treble
+  presence, output level, and impedance boundaries.
+- `springfield`: buffered input, dwell driver, embedded spring IR tank, splash
+  diffusion, recovery tone, wet/dry mix, and impedance boundaries.
+
+The desktop circuit view should consume these descriptors before attempting
+another visual pass. If a visual element cannot be derived from this semantic
+data, it should be labelled as decorative or omitted rather than presented as a
+real circuit feature.
+
 The diagram format is a JSON5 graph. It is intentionally richer than SPICE because each node can describe:
 
 - the circuit concept or physical part,

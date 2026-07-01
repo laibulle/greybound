@@ -11,6 +11,11 @@ Diagram data lives in `knowledge/models/pedals/overdrive/diagrams/minotaur.diagr
 
 This JSON5 graph is a documentation and renderer artifact. It maps the buffered input, clean/drive blend, clipping, treble, and output stages to the current Rust emulation and includes partial SPICE export fields for explicit electrical boundaries.
 
+The runtime also exposes the same model-level intent through
+`core/src/circuit_descriptor.rs::MINOTAUR_CIRCUIT`. UI tools should prefer that
+descriptor when they need live model semantics such as control bindings, stage
+confidence, and implementation references.
+
 <CircuitDiagram model="minotaur" />
 
 ## Baseline Assumptions
