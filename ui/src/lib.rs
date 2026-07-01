@@ -807,14 +807,6 @@ impl GreyboundUi {
         container(
             column![
                 row![
-                    text("GREYBOUND").size(self.font(18.0)),
-                    text("GREY-NOX").size(self.font(13.0)),
-                    text("GREYBOX ONLY").size(self.font(13.0)),
-                    text("RIG: grey-nox").size(self.font(13.0)),
-                ]
-                .spacing(self.s(22.0))
-                .align_items(Alignment::Center),
-                row![
                     self.view_button(ViewMode::Pedals),
                     self.view_button(ViewMode::Amp),
                     self.view_button(ViewMode::Cab),
@@ -844,7 +836,7 @@ impl GreyboundUi {
                 .spacing(self.s(10.0))
                 .align_items(Alignment::Center),
             ]
-            .spacing(self.s(12.0))
+            .spacing(self.s(14.0))
             .align_items(Alignment::Center),
         )
         .width(Length::Fill)
