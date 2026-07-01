@@ -1974,7 +1974,7 @@ struct BoardLayout {
 
 fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     let count = device_count.max(1) as f32;
-    let gap = 44.0;
+    let gap = 74.0;
     let available_width = size.width - 86.0 - gap * (count - 1.0);
     let pedal_w = (available_width / count)
         .min(PEDAL_STANDARD_WIDTH)
