@@ -117,6 +117,11 @@ WEB_VERCEL_DEPLOY_ARGS ?= $(VERCEL_DEPLOY_ARGS)
 DOCS_VERCEL_DEPLOY_ARGS ?= $(VERCEL_DEPLOY_ARGS)
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-desktop
+DESKTOP_APP_NAME ?= Greybound
+DESKTOP_BUNDLE_ID ?= dev.greybound.desktop
+DESKTOP_APP_DIR ?= target/release/bundle/macos/$(DESKTOP_APP_NAME).app
+DESKTOP_APP_ICON ?= desktop/assets/husky-app-icon.icns
+DESKTOP_CODESIGN_IDENTITY ?= -
 
 IR_FLAG = $(if $(filter 0 false no off,$(IR)),,$(if $(filter 1 true yes on,$(IR)),--ir "$(IR_WAV)",--ir "$(IR)"))
 MONITOR_FLAG = $(if $(filter 1 true yes on,$(MONITOR)),--monitor,)
@@ -181,6 +186,53 @@ desktop-release:
 
 run-desktop: desktop-release
 	$(DESKTOP)
+
+desktop-package:
+	cargo build -p greybound-desktop --release
+	rm -rf "$(DESKTOP_APP_DIR)"
+	mkdir -p "$(DESKTOP_APP_DIR)/Contents/MacOS" "$(DESKTOP_APP_DIR)/Contents/Resources"
+	cp "$(DESKTOP)" "$(DESKTOP_APP_DIR)/Contents/MacOS/greybound-desktop"
+	cp "$(DESKTOP_APP_ICON)" "$(DESKTOP_APP_DIR)/Contents/Resources/husky-app-icon.icns"
+	@{ \
+		printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
+		printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
+		printf '%s\n' '<plist version="1.0">'; \
+		printf '%s\n' '<dict>'; \
+		printf '%s\n' '  <key>CFBundleDevelopmentRegion</key>'; \
+		printf '%s\n' '  <string>en</string>'; \
+		printf '%s\n' '  <key>CFBundleDisplayName</key>'; \
+		printf '%s\n' '  <string>$(DESKTOP_APP_NAME)</string>'; \
+		printf '%s\n' '  <key>CFBundleExecutable</key>'; \
+		printf '%s\n' '  <string>greybound-desktop</string>'; \
+		printf '%s\n' '  <key>CFBundleIconFile</key>'; \
+		printf '%s\n' '  <string>husky-app-icon</string>'; \
+		printf '%s\n' '  <key>CFBundleIdentifier</key>'; \
+		printf '%s\n' '  <string>$(DESKTOP_BUNDLE_ID)</string>'; \
+		printf '%s\n' '  <key>CFBundleInfoDictionaryVersion</key>'; \
+		printf '%s\n' '  <string>6.0</string>'; \
+		printf '%s\n' '  <key>CFBundleName</key>'; \
+		printf '%s\n' '  <string>$(DESKTOP_APP_NAME)</string>'; \
+		printf '%s\n' '  <key>CFBundlePackageType</key>'; \
+		printf '%s\n' '  <string>APPL</string>'; \
+		printf '%s\n' '  <key>CFBundleShortVersionString</key>'; \
+		printf '%s\n' '  <string>0.1.0</string>'; \
+		printf '%s\n' '  <key>CFBundleVersion</key>'; \
+		printf '%s\n' '  <string>0.1.0</string>'; \
+		printf '%s\n' '  <key>LSMinimumSystemVersion</key>'; \
+		printf '%s\n' '  <string>11.0</string>'; \
+		printf '%s\n' '  <key>NSHighResolutionCapable</key>'; \
+		printf '%s\n' '  <true/>'; \
+		printf '%s\n' '  <key>NSMicrophoneUsageDescription</key>'; \
+		printf '%s\n' '  <string>Greybound needs microphone access for live guitar input.</string>'; \
+		printf '%s\n' '</dict>'; \
+		printf '%s\n' '</plist>'; \
+	} > "$(DESKTOP_APP_DIR)/Contents/Info.plist"
+	printf 'APPL????' > "$(DESKTOP_APP_DIR)/Contents/PkgInfo"
+	codesign --force --deep --sign "$(DESKTOP_CODESIGN_IDENTITY)" "$(DESKTOP_APP_DIR)"
+	@echo "Packaged $(DESKTOP_APP_DIR)"
+
+desktop-package-open: desktop-package
+	open "$(DESKTOP_APP_DIR)"
 
 lab-download-tone3000-inputs:
 	uv --project lab run greybound-lab download-tone3000-inputs \
@@ -466,4 +518,4 @@ docs-deploy: docs-vercel-build
 
 vercel-deploy: web-deploy docs-deploy
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode wasm-build web-build docs-build site-build web-vercel-build docs-vercel-build vercel-build web-deploy docs-deploy vercel-deploy
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-render-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode wasm-build web-build docs-build site-build web-vercel-build docs-vercel-build vercel-build web-deploy docs-deploy vercel-deploy

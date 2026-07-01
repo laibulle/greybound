@@ -313,6 +313,7 @@ fn dark_pick_list() -> iced::theme::PickList {
 pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
+    ToggleCircuitView,
     ToggleTuner,
     CloseTuner,
     ToggleTunerLive,
@@ -532,6 +533,7 @@ pub struct GreyboundUi {
     pub tuner: TunerState,
     pub selected_index: usize,
     pub view_mode: ViewMode,
+    pub circuit_view: bool,
     pub scale: f32,
 }
 
@@ -659,6 +661,7 @@ impl Default for GreyboundUi {
             tuner: TunerState::default(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
+            circuit_view: false,
             scale: 1.0,
         }
     }
@@ -675,6 +678,10 @@ impl GreyboundUi {
             }
             Message::SelectView(view_mode) => {
                 self.view_mode = view_mode;
+            }
+            Message::ToggleCircuitView => {
+                self.circuit_view = !self.circuit_view;
+                self.view_mode = ViewMode::Pedals;
             }
             Message::ToggleTuner => {
                 self.tuner.open = !self.tuner.open;
@@ -847,6 +854,7 @@ impl GreyboundUi {
                 self.view_button(ViewMode::Pedals),
                 self.view_button(ViewMode::Amp),
                 self.view_button(ViewMode::Cab),
+                self.circuit_view_button(),
             ]
             .spacing(self.s(10.0))
             .align_items(Alignment::Center),
@@ -903,6 +911,7 @@ impl GreyboundUi {
                 ViewMode::Pedals => Canvas::new(BoardArt {
                     devices: self.devices.clone(),
                     selected_index: self.selected_index,
+                    circuit_view: self.circuit_view,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -989,6 +998,21 @@ impl GreyboundUi {
             .height(Length::Fixed(self.s(48.0))),
         )
         .on_press(Message::SelectView(view_mode))
+        .style(iced::theme::Button::custom(TopIconButton))
+        .padding(0)
+        .into()
+    }
+
+    fn circuit_view_button(&self) -> Element<'_, Message> {
+        button(
+            Canvas::new(CircuitIconArt {
+                selected: self.view_mode == ViewMode::Pedals && self.circuit_view,
+                scale: self.scale,
+            })
+            .width(Length::Fixed(self.s(54.0)))
+            .height(Length::Fixed(self.s(48.0))),
+        )
+        .on_press(Message::ToggleCircuitView)
         .style(iced::theme::Button::custom(TopIconButton))
         .padding(0)
         .into()
@@ -1634,6 +1658,7 @@ fn note_name(frequency_hz: f32, reference_hz: f32) -> String {
 struct BoardArt {
     devices: Vec<DeviceState>,
     selected_index: usize,
+    circuit_view: bool,
     scale: f32,
 }
 
@@ -1669,37 +1694,39 @@ impl canvas::Program<Message> for BoardArt {
                     return (canvas::event::Status::Ignored, None);
                 };
 
-                if let Some((index, control)) = hit_test_pedal_knob(
-                    &self.devices,
-                    unscale_size(bounds.size(), self.scale),
-                    position,
-                ) {
-                    let start_value = self.devices[index].control_value(control);
-                    state.gesture = Some(DragGesture {
-                        index: Some(index),
-                        control,
-                        start_position: position,
-                        start_value,
-                    });
-                    return (
-                        canvas::event::Status::Captured,
-                        Some(Message::SetDeviceControl {
-                            index,
+                if !self.circuit_view {
+                    if let Some((index, control)) = hit_test_pedal_knob(
+                        &self.devices,
+                        unscale_size(bounds.size(), self.scale),
+                        position,
+                    ) {
+                        let start_value = self.devices[index].control_value(control);
+                        state.gesture = Some(DragGesture {
+                            index: Some(index),
                             control,
-                            value: start_value,
-                        }),
-                    );
-                }
+                            start_position: position,
+                            start_value,
+                        });
+                        return (
+                            canvas::event::Status::Captured,
+                            Some(Message::SetDeviceControl {
+                                index,
+                                control,
+                                value: start_value,
+                            }),
+                        );
+                    }
 
-                if let Some(index) = hit_test_pedal_footswitch(
-                    self.devices.len(),
-                    unscale_size(bounds.size(), self.scale),
-                    position,
-                ) {
-                    return (
-                        canvas::event::Status::Captured,
-                        Some(Message::ToggleDeviceBypass(index)),
-                    );
+                    if let Some(index) = hit_test_pedal_footswitch(
+                        self.devices.len(),
+                        unscale_size(bounds.size(), self.scale),
+                        position,
+                    ) {
+                        return (
+                            canvas::event::Status::Captured,
+                            Some(Message::ToggleDeviceBypass(index)),
+                        );
+                    }
                 }
 
                 if let Some(index) = hit_test_pedal(
@@ -1777,6 +1804,7 @@ impl canvas::Program<Message> for BoardArt {
                 device,
                 palette,
                 index == self.selected_index,
+                self.circuit_view,
             );
         }
 
@@ -2231,6 +2259,78 @@ fn draw_cab_view_icon(frame: &mut Frame, center: Point, color: Color) {
     frame.stroke(
         &Path::circle(center, 5.6),
         Stroke::default().with_color(color).with_width(2.8),
+    );
+}
+
+#[derive(Debug, Clone)]
+struct CircuitIconArt {
+    selected: bool,
+    scale: f32,
+}
+
+impl canvas::Program<Message> for CircuitIconArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let center = Point::new(logical_size.width * 0.5, 20.0);
+        let ink = Color::from_rgba(0.09, 0.12, 0.24, if self.selected { 1.0 } else { 0.84 });
+
+        draw_circuit_view_icon(&mut frame, center, ink);
+
+        if self.selected {
+            frame.fill(
+                &Path::circle(Point::new(logical_size.width * 0.5, 42.0), 2.8),
+                ink,
+            );
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+
+fn draw_circuit_view_icon(frame: &mut Frame, center: Point, color: Color) {
+    let chip = rounded_rect(
+        Point::new(center.x - 15.0, center.y - 12.0),
+        Size::new(30.0, 24.0),
+        3.0,
+    );
+    frame.stroke(&chip, Stroke::default().with_color(color).with_width(2.6));
+
+    for pin in 0..4 {
+        let y = center.y - 8.0 + pin as f32 * 5.3;
+        frame.stroke(
+            &Path::line(Point::new(center.x - 21.0, y), Point::new(center.x - 15.0, y)),
+            Stroke::default().with_color(color).with_width(2.0),
+        );
+        frame.stroke(
+            &Path::line(Point::new(center.x + 15.0, y), Point::new(center.x + 21.0, y)),
+            Stroke::default().with_color(color).with_width(2.0),
+        );
+    }
+
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x - 4.0, center.y + 12.0),
+            Point::new(center.x - 4.0, center.y + 20.0),
+        ),
+        Stroke::default().with_color(color).with_width(2.0),
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x + 7.0, center.y - 12.0),
+            Point::new(center.x + 7.0, center.y - 20.0),
+        ),
+        Stroke::default().with_color(color).with_width(2.0),
     );
 }
 
