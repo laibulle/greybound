@@ -207,6 +207,9 @@ The first implementation ships a live desktop tuner path:
 - The modal renders a `-50..+50` cents rail, a large moving marker, a note/cents
   or note/Hz readout, `Cents`/`Hz` mode buttons, `Live`/`Hold`, output mute,
   and a `440.0` reference stepper.
+- The tuning interaction uses a fixed white target circle at the center and a
+  smaller colored ball that moves left/right with cents error. The ball is red
+  when out of tune and green when it enters the target zone.
 - The CPAL input callback duplicates raw input channel 1 into a bounded tuner
   ring buffer. It does not run pitch detection in the audio callback.
 - A dedicated `TunerAnalysisWorker` consumes the tuner buffer, applies the

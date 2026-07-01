@@ -2419,24 +2419,48 @@ impl canvas::Program<Message> for TunerArt {
         );
 
         let confidence = self.confidence.clamp(0.0, 1.0);
-        let marker_x = center_x + (self.cents.clamp(-50.0, 50.0) / 50.0) * ((right - left) * 0.5);
-        let marker = Path::circle(Point::new(marker_x, center_y), 54.0);
-        frame.fill(&marker, Color::from_rgb(0.075, 0.075, 0.075));
+        let visible = confidence > 0.05;
+        let cents = if visible {
+            self.cents.clamp(-50.0, 50.0)
+        } else {
+            0.0
+        };
+        let ball_x = center_x + (cents / 50.0) * ((right - left) * 0.5);
+        let in_tune = cents.abs() <= 3.0 && confidence > 0.55;
+        let target = Path::circle(Point::new(center_x, center_y), 54.0);
+        frame.fill(&target, Color::from_rgb(0.075, 0.075, 0.075));
         frame.stroke(
-            &marker,
+            &target,
             Stroke::default()
                 .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.45 + 0.55 * confidence))
                 .with_width(4.0),
         );
 
-        let in_tune = self.cents.abs() <= 3.0 && confidence > 0.55;
-        if in_tune {
-            frame.stroke(
-                &Path::circle(Point::new(marker_x, center_y), 64.0),
-                Stroke::default()
-                    .with_color(Color::from_rgba(0.45, 0.95, 0.72, 0.45))
-                    .with_width(3.0),
-            );
+        if visible {
+            let ball_color = if in_tune {
+                Color::from_rgb(0.22, 0.95, 0.36)
+            } else {
+                Color::from_rgb(1.0, 0.16, 0.16)
+            };
+            let ball = Path::circle(Point::new(ball_x, center_y), 34.0);
+            frame.fill(&ball, ball_color);
+
+            if !in_tune {
+                let direction = if cents < 0.0 { ">" } else { "<" };
+                let arrow_x = if cents < 0.0 {
+                    (ball_x + 84.0).min(center_x - 70.0)
+                } else {
+                    (ball_x - 84.0).max(center_x + 70.0)
+                };
+                draw_text(
+                    &mut frame,
+                    direction,
+                    Point::new(arrow_x, 54.0),
+                    32.0,
+                    ball_color,
+                    Horizontal::Center,
+                );
+            }
         }
 
         draw_text(
