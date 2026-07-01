@@ -1,0 +1,209 @@
+---
+title: Desktop Metronome
+description: Specification for the Greybound desktop metronome UI and realtime audio behavior.
+---
+
+The desktop metronome is a runtime playback utility, not part of the musical
+rig. It should be configured from the desktop UI and mixed into the live output
+after the guitar DSP chain. It must not be stored in `rigs/*.json5`.
+
+## Goals
+
+- Provide a Neural-style modal opened from the footer `METRONOME` button.
+- Generate an audible click in the live desktop output.
+- Keep timing sample-accurate inside the CPAL output callback.
+- Keep UI controls lock-free for the audio thread by writing to atomics.
+- Support the current dual-mono stereo output path and future true-stereo
+  output.
+- Keep the first pass small enough to verify quickly in release builds.
+
+## Non-Goals
+
+- Do not add the metronome to the signal chain or rig topology.
+- Do not route metronome clicks through pedals, amp, spring, or cabinet IR.
+- Do not rely on UI timers for click timing.
+- Do not load external click samples in the first implementation.
+- Do not add MIDI clock, host sync, count-in, or recording transport in V1.
+
+## Runtime Boundary
+
+The metronome belongs in `greybound-desktop`, next to the live audio engine.
+The output callback should process guitar as it does today, then add metronome
+samples to the output frame after output gain and cab processing.
+
+Recommended callback order:
+
+1. Pop input sample.
+2. Apply `INPUT` gain.
+3. Process Minotaur, Nox30, Springfield, and cab mix.
+4. Apply `OUTPUT` gain.
+5. Generate metronome L/R samples for the current output frame.
+6. Add metronome to output channels.
+7. Record output VU meters from the final L/R samples.
+
+This means the metronome is audible regardless of guitar input, but it is not
+affected by amp or pedal tone.
+
+## Realtime State
+
+UI state should be copied into a shared realtime control struct using atomics.
+The audio callback reads these with `Relaxed` ordering, matching the existing
+live-control pattern.
+
+Suggested shared fields:
+
+- `enabled: AtomicBool`
+- `bpm_bits: AtomicU32` storing `f32::to_bits`
+- `volume_bits: AtomicU32` storing normalized `0.0..1.0`
+- `pan_bits: AtomicU32` storing normalized `0.0..1.0`, where `0.5` is center
+- `beats_per_bar: AtomicU32`, default `4`
+- `rhythm_division: AtomicU32`, default `1` for quarter notes
+- `sound_id: AtomicU32`, default `0` for synthetic blip
+
+Audio-owned state remains private to the metronome generator:
+
+- `sample_rate`
+- `samples_until_tick`
+- `samples_per_tick`
+- `beat_index`
+- click envelope phase
+- click oscillator phase
+
+When BPM or signature changes, recompute `samples_per_tick` inside the audio
+thread. Avoid allocating or locking in this path.
+
+## Timing
+
+The generator should schedule ticks from sample counts, not wall-clock time:
+
+```text
+beats_per_second = bpm / 60
+ticks_per_beat = rhythm_division
+samples_per_tick = sample_rate / (beats_per_second * ticks_per_beat)
+```
+
+V1 can quantize to integer sample periods. A future pass can carry a fractional
+sample accumulator if drift becomes measurable at unusual BPM values.
+
+The first tick after pressing play should happen immediately or within one
+audio frame, then continue from the sample clock. Pressing stop should reset the
+beat index and envelope state.
+
+## Sound
+
+V1 should synthesize the click instead of loading assets:
+
+- Accent tick: short sine or band-limited blip around `1.7 kHz`.
+- Regular tick: short sine or band-limited blip around `1.1 kHz`.
+- Envelope: fast attack, exponential decay around `30..50 ms`.
+- Output should be hard-clamped or softly saturated to avoid accidental clip
+  spikes when mixed with guitar.
+
+The click should be generated as stereo L/R with equal-power pan:
+
+```text
+pan 0.0 = left
+pan 0.5 = center
+pan 1.0 = right
+left_gain = cos(pan * PI / 2)
+right_gain = sin(pan * PI / 2)
+```
+
+Use the metronome volume after pan. UI display should present volume as dB,
+but shared audio state can use a normalized value mapped to gain.
+
+## UI V1
+
+Footer behavior:
+
+- `METRONOME` opens the modal.
+- The `120.0 BPM` footer label should reflect current BPM.
+- A later pass can add a footer play indicator; V1 can keep play state only in
+  the modal.
+
+Modal behavior:
+
+- Reuse the existing dark modal frame component.
+- Title: `Metronome`.
+- Close button in the top-right.
+- Controls:
+  - `VOLUME` knob, display in dB.
+  - `PAN` knob, display `L`, `C`, or `R` style values.
+  - `BPM` large numeric value.
+  - BPM up/down step buttons.
+  - `TAP` button.
+  - `PLAY/STOP` button.
+  - `TIME SIGNATURE` select, V1 default `4/4`.
+  - `RHYTHM` select, V1 default `1/4`.
+  - `SOUND` select, V1 default `Blip`.
+
+V1 may implement only functional controls first:
+
+- modal open/close,
+- play/stop,
+- BPM up/down,
+- volume,
+- pan.
+
+Time signature, rhythm, sound, and tap tempo can render as UI controls with
+limited functionality if that keeps the layout close to the target.
+
+## Data Model
+
+Suggested UI state:
+
+```rust
+pub struct MetronomeState {
+    pub open: bool,
+    pub enabled: bool,
+    pub bpm: f32,
+    pub volume: f32,
+    pub pan: f32,
+    pub beats_per_bar: u32,
+    pub rhythm_division: u32,
+    pub sound: MetronomeSound,
+}
+```
+
+Suggested messages:
+
+- `ToggleMetronomePanel`
+- `CloseMetronomePanel`
+- `ToggleMetronomePlayback`
+- `MetronomeBpmChanged(f32)`
+- `MetronomeBpmStep(f32)`
+- `MetronomeVolumeChanged(f32)`
+- `MetronomePanChanged(f32)`
+- `MetronomeTap`
+- future: signature/rhythm/sound select messages
+
+## Validation
+
+For the first implementation:
+
+- Run `cargo fmt --check`.
+- Run `cargo check -p greybound-ui`.
+- Run `cargo check -p greybound-desktop`.
+- Run `cargo build --release -p greybound-desktop`.
+- Launch the release app and verify:
+  - closing the app stops audio,
+  - play/stop toggles click output,
+  - BPM changes affect tick rate,
+  - volume affects click level,
+  - pan affects L/R output meters,
+  - guitar output still passes through normally.
+
+Future automated validation can add a render path or MCP tool that produces a
+short metronome-only WAV and checks tick spacing against expected sample
+intervals.
+
+## Open Questions
+
+- Should the metronome be audible in offline renders, or desktop-only?
+- Should footer `TAP` and modal `TAP` share one tap-tempo estimator?
+- Should metronome pan be useful once the guitar path becomes true stereo, or
+  should it stay centered by default?
+- Should click level be excluded from output VU meters, or should meters show
+  final physical output including metronome? Current recommendation is final
+  physical output.
+

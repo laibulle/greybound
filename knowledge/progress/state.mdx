@@ -95,6 +95,10 @@ description: Decisions and open questions that should steer upcoming implementat
   the output VU is now represented as stereo L/R with separate meter
   accumulators so the UI matches the physical stereo output layout and can
   support future true-stereo processing.
+- The desktop metronome should be specified and implemented as a runtime utility
+  mixed into the live output after the guitar DSP chain. It does not belong in
+  rig files or signal-chain topology. The V1 spec lives in
+  `knowledge/architecture/desktop-metronome.mdx`.
 
 ## Open Questions
 
@@ -107,6 +111,8 @@ description: Decisions and open questions that should steer upcoming implementat
   variant?
 - Should the MCP sidecar get an in-UI health indicator and restart button, or
   stay invisible until a lab/debug panel is built?
+- Should the desktop metronome also be available in offline renders, or remain
+  desktop/live-only until a render use case is clear?
 
 ## Risks
 
