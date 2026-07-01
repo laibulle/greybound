@@ -84,7 +84,8 @@ The first implemented loop is complete-chain WAV analysis.
 4. Generate synthetic stimuli when the metric needs controlled input.
 5. Run SPICE fixtures for bounded circuit-cell references.
 6. Import NAM renders as integration references.
-7. Read the generated Markdown report to decide what to investigate next.
+7. Inspect the visual notebook when metric tables are not enough.
+8. Read the generated Markdown report to decide what to investigate next.
 
 This is deliberately before NAM integration or neural training. Without a
 stable comparison loop, training would produce numbers without engineering
@@ -103,6 +104,24 @@ The lab commands are exposed through `greybound-lab`.
 
 The neural-cell work starts with `spice-dataset`, then later adds PyTorch
 training and Greybound artifact export.
+
+## Visual WAV Dashboard
+
+Use the notebook dashboard when a render is musically plausible but the next
+modeling move is unclear:
+
+```sh
+uv --project lab run --with jupyter jupyter lab lab/notebooks/wav-comparison-dashboard.ipynb
+```
+
+The notebook calls `greybound_lab.notebook`, which reuses the same WAV loading,
+latency alignment, gain correction, segment parsing, and comparison metrics as
+`compare-wav`. The first version plots aligned waveform overlays, smoothed
+envelopes, post-alignment residual, Welch spectra, residual spectrograms,
+global spectral/dynamics bars, and segment-level band residuals. Treat these
+plots as investigation views, not as a promotion gate by themselves: final DSP
+changes still need fixed test conditions, monitor health, and metric deltas
+against the chosen comparison target.
 
 ## Render A Rig
 

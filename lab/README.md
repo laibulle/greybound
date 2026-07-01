@@ -25,6 +25,18 @@ uv --project lab run greybound-lab compare-wav \
   --report lab/reports/nox30-driven-vs-reference.md
 ```
 
+Open the visual comparison notebook with:
+
+```sh
+uv --project lab run --with jupyter jupyter lab lab/notebooks/wav-comparison-dashboard.ipynb
+```
+
+The notebook uses `greybound_lab.notebook` helpers, so its plots share the same
+latency alignment, gain correction, segment loading, and metric calculations as
+`compare-wav`. It is meant for investigating where a candidate is weak: waveform
+alignment, envelope drift, spectral tilt, residual spectrogram energy, and
+segment-level band residuals.
+
 From inside `lab/`, use `uv run ...` and drop the leading `lab/` path
 components.
 
