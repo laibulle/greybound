@@ -1504,7 +1504,7 @@ impl GreyboundUi {
                 readout,
             })
             .width(Length::Fixed(self.s(128.0)))
-            .height(Length::Fixed(self.s(122.0))),
+            .height(Length::Fixed(self.s(132.0))),
         )
         .into()
     }
@@ -2220,11 +2220,11 @@ impl canvas::Program<Message> for GlobalKnobArt {
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
         let radius = 27.0;
-        let center = Point::new(logical_size.width * 0.5, 60.0);
+        let center = Point::new(logical_size.width * 0.5, 68.0);
         draw_text(
             &mut frame,
             self.label,
-            Point::new(logical_size.width * 0.5, 13.0),
+            Point::new(logical_size.width * 0.5, 10.0),
             14.0,
             INK,
             Horizontal::Center,
@@ -2241,7 +2241,7 @@ impl canvas::Program<Message> for GlobalKnobArt {
         draw_text(
             &mut frame,
             &self.readout,
-            Point::new(logical_size.width * 0.5, 116.0),
+            Point::new(logical_size.width * 0.5, 126.0),
             14.0,
             INK,
             Horizontal::Center,
