@@ -27,18 +27,18 @@ pub enum DeviceKind {
     Cab,
 }
 
-struct ChromeButton;
+struct TopIconButton;
 
-impl button::StyleSheet for ChromeButton {
+impl button::StyleSheet for TopIconButton {
     type Style = iced::theme::Theme;
 
     fn active(&self, _style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(Background::Color(Color::from_rgba(0.90, 0.93, 1.0, 0.18))),
-            border_radius: 10.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgba(0.14, 0.18, 0.32, 0.22),
-            shadow_offset: Vector::new(0.0, 2.0),
+            background: None,
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            shadow_offset: Vector::new(0.0, 0.0),
             text_color: INK,
             ..button::Appearance::default()
         }
@@ -46,7 +46,8 @@ impl button::StyleSheet for ChromeButton {
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.32))),
+            background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.08))),
+            border_radius: 8.0.into(),
             ..self.active(style)
         }
     }
@@ -405,16 +406,6 @@ pub enum ViewMode {
     Pedals,
     Amp,
     Cab,
-}
-
-impl ViewMode {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Pedals => "PEDALS",
-            Self::Amp => "AMP",
-            Self::Cab => "CAB",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -898,7 +889,7 @@ impl GreyboundUi {
         )
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
         .height(Length::Fixed(self.s(190.0)))
-        .padding([self.s(12.0), self.s(34.0)])
+        .padding([self.s(4.0), self.s(34.0)])
         .style(control_bar_container());
 
         let main_view: Element<'_, Message> = if self.audio_settings.open {
@@ -988,17 +979,19 @@ impl GreyboundUi {
     }
 
     fn view_button(&self, view_mode: ViewMode) -> Element<'_, Message> {
-        let label = if self.view_mode == view_mode {
-            format!("* {}", view_mode.label())
-        } else {
-            view_mode.label().to_string()
-        };
-
-        button(text(label).size(self.font(12.0)))
-            .on_press(Message::SelectView(view_mode))
-            .style(iced::theme::Button::custom(ChromeButton))
-            .padding([self.s(8.0), self.s(12.0)])
-            .into()
+        button(
+            Canvas::new(ViewIconArt {
+                view_mode,
+                selected: self.view_mode == view_mode,
+                scale: self.scale,
+            })
+            .width(Length::Fixed(self.s(54.0)))
+            .height(Length::Fixed(self.s(48.0))),
+        )
+        .on_press(Message::SelectView(view_mode))
+        .style(iced::theme::Button::custom(TopIconButton))
+        .padding(0)
+        .into()
     }
 
     fn audio_settings_panel(&self) -> Element<'_, Message> {
@@ -2151,6 +2144,94 @@ fn distance(a: Point, b: Point) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     (dx * dx + dy * dy).sqrt()
+}
+
+#[derive(Debug, Clone)]
+struct ViewIconArt {
+    view_mode: ViewMode,
+    selected: bool,
+    scale: f32,
+}
+
+impl canvas::Program<Message> for ViewIconArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let center = Point::new(logical_size.width * 0.5, 20.0);
+        let ink = Color::from_rgba(0.09, 0.12, 0.24, if self.selected { 1.0 } else { 0.84 });
+
+        match self.view_mode {
+            ViewMode::Pedals => draw_pedal_view_icon(&mut frame, center, ink),
+            ViewMode::Amp => draw_amp_view_icon(&mut frame, center, ink),
+            ViewMode::Cab => draw_cab_view_icon(&mut frame, center, ink),
+        }
+
+        if self.selected {
+            frame.fill(
+                &Path::circle(Point::new(logical_size.width * 0.5, 42.0), 2.8),
+                ink,
+            );
+        }
+
+        vec![frame.into_geometry()]
+    }
+}
+
+fn draw_pedal_view_icon(frame: &mut Frame, center: Point, color: Color) {
+    let body = rounded_rect(
+        Point::new(center.x - 13.0, center.y - 19.0),
+        Size::new(26.0, 38.0),
+        3.0,
+    );
+    frame.stroke(&body, Stroke::default().with_color(color).with_width(2.8));
+
+    let wave = Path::new(|path| {
+        path.move_to(Point::new(center.x - 8.0, center.y));
+        path.line_to(Point::new(center.x - 4.5, center.y));
+        path.line_to(Point::new(center.x - 3.0, center.y - 8.0));
+        path.line_to(Point::new(center.x + 1.0, center.y + 8.0));
+        path.line_to(Point::new(center.x + 3.5, center.y - 3.0));
+        path.line_to(Point::new(center.x + 6.5, center.y));
+        path.line_to(Point::new(center.x + 9.0, center.y));
+    });
+    frame.stroke(&wave, Stroke::default().with_color(color).with_width(2.8));
+}
+
+fn draw_amp_view_icon(frame: &mut Frame, center: Point, color: Color) {
+    let body = rounded_rect(
+        Point::new(center.x - 22.0, center.y - 10.0),
+        Size::new(44.0, 20.0),
+        2.0,
+    );
+    frame.stroke(&body, Stroke::default().with_color(color).with_width(2.8));
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x - 18.0, center.y),
+            Point::new(center.x + 18.0, center.y),
+        ),
+        Stroke::default().with_color(color).with_width(2.8),
+    );
+}
+
+fn draw_cab_view_icon(frame: &mut Frame, center: Point, color: Color) {
+    frame.stroke(
+        &Path::circle(center, 18.0),
+        Stroke::default().with_color(color).with_width(2.8),
+    );
+    frame.stroke(
+        &Path::circle(center, 5.6),
+        Stroke::default().with_color(color).with_width(2.8),
+    );
 }
 
 #[derive(Debug, Clone)]
