@@ -3063,45 +3063,45 @@ fn draw_side_jack(frame: &mut Frame, origin: Point, left: bool) {
         outward(0.0),
         center_y,
         sign,
-        16.0,
+        12.0,
         62.0,
         Color::from_rgb(0.63, 0.45, 0.22),
         Color::from_rgb(0.96, 0.78, 0.44),
     );
     draw_jack_segment(
         frame,
-        outward(11.0),
+        outward(8.0),
         center_y,
         sign,
-        19.0,
-        52.0,
+        17.0,
+        46.0,
         Color::from_rgb(0.82, 0.61, 0.31),
         Color::from_rgb(1.0, 0.84, 0.53),
     );
     draw_jack_segment(
         frame,
-        outward(25.0),
+        outward(21.0),
         center_y,
         sign,
-        24.0,
-        42.0,
+        13.0,
+        34.0,
         Color::from_rgb(0.70, 0.49, 0.24),
         Color::from_rgb(0.98, 0.76, 0.42),
     );
     draw_jack_segment(
         frame,
-        outward(42.0),
+        outward(31.0),
         center_y,
         sign,
-        10.0,
-        34.0,
+        8.0,
+        30.0,
         Color::from_rgb(0.88, 0.67, 0.35),
         Color::from_rgb(1.0, 0.84, 0.50),
     );
 
     let top_highlight = Path::line(
         Point::new(outward(6.0), center_y - 23.0),
-        Point::new(outward(45.0), center_y - 17.0),
+        Point::new(outward(36.0), center_y - 16.0),
     );
     frame.stroke(
         &top_highlight,
@@ -3111,7 +3111,7 @@ fn draw_side_jack(frame: &mut Frame, origin: Point, left: bool) {
     );
     let lower_shadow = Path::line(
         Point::new(outward(7.0), center_y + 21.0),
-        Point::new(outward(42.0), center_y + 17.0),
+        Point::new(outward(34.0), center_y + 15.0),
     );
     frame.stroke(
         &lower_shadow,
