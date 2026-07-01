@@ -126,9 +126,12 @@ impl Application for Desktop {
             }
 
             if let Some(audio) = &self.audio {
-                let (input, output) = audio.meter_levels();
-                self.ui
-                    .update(Message::MeterLevelsChanged { input, output });
+                let (input, output_left, output_right) = audio.meter_levels();
+                self.ui.update(Message::MeterLevelsChanged {
+                    input,
+                    output_left,
+                    output_right,
+                });
             }
             return Command::none();
         }
@@ -298,9 +301,15 @@ impl LiveAudioEngine {
                     let output = runtime.process(&output_controls, &output_meters);
                     frame.fill(0.0);
                     frame[0] = output;
+                    let right = if output_channels > 1 {
+                        output
+                    } else {
+                        frame[0]
+                    };
                     if output_channels > 1 {
                         frame[1] = output;
                     }
+                    output_meters.record_output(frame[0], right);
                 }
             },
             move |error| eprintln!("Greybound output stream error on {output_name}: {error}"),
@@ -322,7 +331,7 @@ impl LiveAudioEngine {
         })
     }
 
-    fn meter_levels(&self) -> (f32, f32) {
+    fn meter_levels(&self) -> (f32, f32, f32) {
         self.meters.snapshot_levels()
     }
 
@@ -372,9 +381,7 @@ impl AudioRuntime {
         );
         let cab_mix = controls.cab_mix();
         let wet = self.speaker.process(chain_output, cab_mix > 0.0);
-        let output = (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain();
-        meters.record_output(output);
-        output
+        (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain()
     }
 }
 
@@ -521,8 +528,10 @@ impl SharedRuntimeControls {
 struct MeterStats {
     input_sum_squares: AtomicU64,
     input_count: AtomicU64,
-    output_sum_squares: AtomicU64,
-    output_count: AtomicU64,
+    output_left_sum_squares: AtomicU64,
+    output_right_sum_squares: AtomicU64,
+    output_left_count: AtomicU64,
+    output_right_count: AtomicU64,
 }
 
 impl MeterStats {
@@ -532,16 +541,22 @@ impl MeterStats {
         self.input_count.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn record_output(&self, sample: f32) {
-        self.output_sum_squares
-            .fetch_add(square(sample), Ordering::Relaxed);
-        self.output_count.fetch_add(1, Ordering::Relaxed);
+    fn record_output(&self, left: f32, right: f32) {
+        self.output_left_sum_squares
+            .fetch_add(square(left), Ordering::Relaxed);
+        self.output_right_sum_squares
+            .fetch_add(square(right), Ordering::Relaxed);
+        self.output_left_count.fetch_add(1, Ordering::Relaxed);
+        self.output_right_count.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn snapshot_levels(&self) -> (f32, f32) {
+    fn snapshot_levels(&self) -> (f32, f32, f32) {
         let input_level = meter_from_accumulators(&self.input_sum_squares, &self.input_count);
-        let output_level = meter_from_accumulators(&self.output_sum_squares, &self.output_count);
-        (input_level, output_level)
+        let output_left_level =
+            meter_from_accumulators(&self.output_left_sum_squares, &self.output_left_count);
+        let output_right_level =
+            meter_from_accumulators(&self.output_right_sum_squares, &self.output_right_count);
+        (input_level, output_left_level, output_right_level)
     }
 }
 

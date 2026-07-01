@@ -326,7 +326,8 @@ pub enum Message {
     MeterProbeTick(std::time::Instant),
     MeterLevelsChanged {
         input: f32,
-        output: f32,
+        output_left: f32,
+        output_right: f32,
     },
     ShutdownRequested,
     WindowResized {
@@ -564,14 +565,16 @@ impl Default for AudioSettingsState {
 #[derive(Debug, Clone, Copy)]
 pub struct MeterLevels {
     pub input: f32,
-    pub output: f32,
+    pub output_left: f32,
+    pub output_right: f32,
 }
 
 impl Default for MeterLevels {
     fn default() -> Self {
         Self {
             input: 0.0,
-            output: 0.0,
+            output_left: 0.0,
+            output_right: 0.0,
         }
     }
 }
@@ -648,9 +651,14 @@ impl GreyboundUi {
                 self.audio_settings.status = status;
             }
             Message::MeterProbeTick(_) => {}
-            Message::MeterLevelsChanged { input, output } => {
+            Message::MeterLevelsChanged {
+                input,
+                output_left,
+                output_right,
+            } => {
                 self.meters.input = input.clamp(0.0, 1.0);
-                self.meters.output = output.clamp(0.0, 1.0);
+                self.meters.output_left = output_left.clamp(0.0, 1.0);
+                self.meters.output_right = output_right.clamp(0.0, 1.0);
             }
             Message::ShutdownRequested => {}
             Message::WindowResized { width, height } => {
@@ -735,7 +743,8 @@ impl GreyboundUi {
                         GlobalControl::Output,
                         self.output_gain,
                         normalized_db_readout(self.output_gain, -24.0, 6.0),
-                        self.meters.output
+                        self.meters.output_left,
+                        self.meters.output_right
                     ),
                 ]
                 .spacing(self.s(20.0))
@@ -1085,13 +1094,21 @@ impl GreyboundUi {
         control: GlobalControl,
         value: f32,
         readout: String,
-        meter_level: f32,
+        left_level: f32,
+        right_level: f32,
     ) -> Element<'_, Message> {
         row![
             self.global_knob(label, control, value, readout),
-            Canvas::new(MeterArt { level: meter_level })
-                .width(Length::Fixed(self.s(18.0)))
-                .height(Length::Fixed(self.s(132.0))),
+            row![
+                Canvas::new(MeterArt { level: left_level })
+                    .width(Length::Fixed(self.s(18.0)))
+                    .height(Length::Fixed(self.s(132.0))),
+                Canvas::new(MeterArt { level: right_level })
+                    .width(Length::Fixed(self.s(18.0)))
+                    .height(Length::Fixed(self.s(132.0))),
+            ]
+            .spacing(self.s(4.0))
+            .align_items(Alignment::Center),
         ]
         .spacing(self.s(12.0))
         .align_items(Alignment::Center)

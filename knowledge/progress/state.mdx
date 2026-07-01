@@ -91,6 +91,10 @@ description: Decisions and open questions that should steer upcoming implementat
 - The desktop input VU meter now measures the post-`INPUT` gain signal entering
   the DSP chain, not the raw CoreAudio capture. Lowering the `INPUT` knob should
   lower both the actual chain drive and the displayed input level.
+- The desktop output path is currently dual-mono on output channels 1 and 2, but
+  the output VU is now represented as stereo L/R with separate meter
+  accumulators so the UI matches the physical stereo output layout and can
+  support future true-stereo processing.
 
 ## Open Questions
 
