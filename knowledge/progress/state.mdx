@@ -34,12 +34,16 @@ description: Decisions and open questions that should steer upcoming implementat
 - Desktop layout should behave like a plugin panel, not a responsive app: use a
   fixed `1600x900` design surface and apply one uniform scale factor based on
   the window size, preserving control positions and proportions.
-- Desktop input/output VU meters are now connected to UI state and driven by a
-  temporary desktop-side probe that renders a deterministic signal through the
-  Nox30 amp model at about 30 Hz. This proves the meter path and control
-  sensitivity without claiming live audio telemetry; the future audio backend
-  should replace the probe by publishing real input/output levels through the
-  same meter update message.
+- Desktop input/output VU meters are connected to live CPAL/CoreAudio telemetry
+  in the desktop app. The runtime opens selected input and output devices,
+  streams input channel 1 through the focused `grey-nox` chain
+  (Minotaur -> Nox30 -> Springfield -> embedded Celestion IR), writes mono to
+  output channels 1 and 2, and publishes RMS-derived meter levels back to the
+  UI at about 30 Hz.
+- The desktop Settings button now opens a functional Audio Settings panel with
+  discovered CoreAudio input/output devices, visible sample rate/buffer
+  settings, channel choices, and runtime status. Changing input or output
+  restarts the live audio engine with the selected device.
 
 ## Open Questions
 

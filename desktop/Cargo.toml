@@ -9,3 +9,6 @@ description = "Desktop frontend for Greybound using iced."
 iced = { version = "0.10", features = ["canvas", "tokio"] }
 greybound-ui = { path = "../ui" }
 greybound = { path = "../core" }
+anyhow = "1.0"
+cpal = "0.15"
+rtrb = "0.2"

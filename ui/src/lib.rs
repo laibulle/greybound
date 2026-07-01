@@ -3,7 +3,7 @@ pub mod components;
 use components::{KnobSkin, KnobSpec};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
-use iced::widget::{button, column, container, row, slider, text};
+use iced::widget::{button, column, container, pick_list, row, slider, text};
 use iced::{mouse, Alignment, Background, Color, Element, Length, Point, Rectangle, Size, Vector};
 
 const INK: Color = Color::from_rgb(0.09, 0.12, 0.24);
@@ -69,10 +69,43 @@ fn ghost_container(background: Color) -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(GhostContainer(background)))
 }
 
+struct DarkContainer;
+
+impl container::StyleSheet for DarkContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::from_rgb(0.84, 0.84, 0.84)),
+            background: Some(Background::Color(Color::from_rgb(0.12, 0.12, 0.12))),
+            border_radius: 24.0.into(),
+            border_width: 1.0,
+            border_color: Color::from_rgba(0.0, 0.0, 0.0, 0.65),
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn dark_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(DarkContainer))
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
+    ToggleAudioSettings,
+    CloseAudioSettings,
+    AudioInputSelected(String),
+    AudioOutputSelected(String),
+    AudioDevicesChanged {
+        inputs: Vec<String>,
+        outputs: Vec<String>,
+        selected_input: Option<String>,
+        selected_output: Option<String>,
+        status: String,
+    },
+    AudioStatusChanged(String),
     MeterProbeTick(std::time::Instant),
     MeterLevelsChanged {
         input: f32,
@@ -247,9 +280,37 @@ pub struct GreyboundUi {
     pub amp: DeviceState,
     pub cab: DeviceState,
     pub meters: MeterLevels,
+    pub audio_settings: AudioSettingsState,
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub scale: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct AudioSettingsState {
+    pub open: bool,
+    pub inputs: Vec<String>,
+    pub outputs: Vec<String>,
+    pub selected_input: Option<String>,
+    pub selected_output: Option<String>,
+    pub status: String,
+    pub sample_rate: u32,
+    pub period_size: u32,
+}
+
+impl Default for AudioSettingsState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            selected_input: None,
+            selected_output: None,
+            status: "Audio engine starting".to_string(),
+            sample_rate: 48_000,
+            period_size: 256,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -274,6 +335,7 @@ impl Default for GreyboundUi {
             amp: DeviceState::nox30(),
             cab: DeviceState::cab_ir(),
             meters: MeterLevels::default(),
+            audio_settings: AudioSettingsState::default(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             scale: 1.0,
@@ -292,6 +354,36 @@ impl GreyboundUi {
             }
             Message::SelectView(view_mode) => {
                 self.view_mode = view_mode;
+            }
+            Message::ToggleAudioSettings => {
+                self.audio_settings.open = !self.audio_settings.open;
+            }
+            Message::CloseAudioSettings => {
+                self.audio_settings.open = false;
+            }
+            Message::AudioInputSelected(device) => {
+                self.audio_settings.selected_input = Some(device);
+                self.audio_settings.status = "Restarting audio engine".to_string();
+            }
+            Message::AudioOutputSelected(device) => {
+                self.audio_settings.selected_output = Some(device);
+                self.audio_settings.status = "Restarting audio engine".to_string();
+            }
+            Message::AudioDevicesChanged {
+                inputs,
+                outputs,
+                selected_input,
+                selected_output,
+                status,
+            } => {
+                self.audio_settings.inputs = inputs;
+                self.audio_settings.outputs = outputs;
+                self.audio_settings.selected_input = selected_input;
+                self.audio_settings.selected_output = selected_output;
+                self.audio_settings.status = status;
+            }
+            Message::AudioStatusChanged(status) => {
+                self.audio_settings.status = status;
             }
             Message::MeterProbeTick(_) => {}
             Message::MeterLevelsChanged { input, output } => {
@@ -354,29 +446,33 @@ impl GreyboundUi {
         .padding([self.s(22.0), self.s(34.0)])
         .style(ghost_container(Color::from_rgba(0.78, 0.83, 0.95, 0.84)));
 
-        let main_view: Element<'_, Message> = match self.view_mode {
-            ViewMode::Pedals => Canvas::new(BoardArt {
-                devices: self.devices.clone(),
-                selected_index: self.selected_index,
-                scale,
-            })
-            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(560.0)))
-            .into(),
-            ViewMode::Amp => Canvas::new(AmpArt {
-                amp: self.amp.clone(),
-                scale,
-            })
-            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(560.0)))
-            .into(),
-            ViewMode::Cab => Canvas::new(CabArt {
-                cab: self.cab.clone(),
-                scale,
-            })
-            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(560.0)))
-            .into(),
+        let main_view: Element<'_, Message> = if self.audio_settings.open {
+            self.audio_settings_panel()
+        } else {
+            match self.view_mode {
+                ViewMode::Pedals => Canvas::new(BoardArt {
+                    devices: self.devices.clone(),
+                    selected_index: self.selected_index,
+                    scale,
+                })
+                .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+                .height(Length::Fixed(self.s(560.0)))
+                .into(),
+                ViewMode::Amp => Canvas::new(AmpArt {
+                    amp: self.amp.clone(),
+                    scale,
+                })
+                .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+                .height(Length::Fixed(self.s(560.0)))
+                .into(),
+                ViewMode::Cab => Canvas::new(CabArt {
+                    cab: self.cab.clone(),
+                    scale,
+                })
+                .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+                .height(Length::Fixed(self.s(560.0)))
+                .into(),
+            }
         };
 
         let controls = self.selected_controls(selected);
@@ -388,7 +484,10 @@ impl GreyboundUi {
                 text("TAP").size(self.font(14.0)),
                 text("120.0 BPM").size(self.font(14.0)),
                 text("METRONOME").size(self.font(14.0)),
-                text("SETTINGS").size(self.font(14.0)),
+                button(text("SETTINGS").size(self.font(14.0)))
+                    .on_press(Message::ToggleAudioSettings)
+                    .style(iced::theme::Button::custom(ChromeButton))
+                    .padding([self.s(6.0), self.s(12.0)]),
                 text("DEVELOPED BY GREYBOUND DSP")
                     .size(self.font(14.0))
                     .width(Length::Fill)
@@ -475,6 +574,107 @@ impl GreyboundUi {
             .style(iced::theme::Button::custom(ChromeButton))
             .padding([self.s(8.0), self.s(12.0)])
             .into()
+    }
+
+    fn audio_settings_panel(&self) -> Element<'_, Message> {
+        let settings = &self.audio_settings;
+        let input = pick_list(
+            settings.inputs.clone(),
+            settings.selected_input.clone(),
+            Message::AudioInputSelected,
+        )
+        .width(Length::Fixed(self.s(390.0)));
+        let output = pick_list(
+            settings.outputs.clone(),
+            settings.selected_output.clone(),
+            Message::AudioOutputSelected,
+        )
+        .width(Length::Fixed(self.s(390.0)));
+
+        let card = container(
+            column![
+                row![
+                    text("Audio Settings").size(self.font(28.0)),
+                    button(text("X").size(self.font(18.0)))
+                        .on_press(Message::CloseAudioSettings)
+                        .style(iced::theme::Button::custom(ChromeButton))
+                        .padding([self.s(8.0), self.s(13.0)])
+                ]
+                .spacing(self.s(20.0))
+                .align_items(Alignment::Center),
+                row![
+                    self.settings_field(
+                        "Audio Device Type",
+                        text("CoreAudio").size(self.font(18.0)).into()
+                    ),
+                    self.settings_field(
+                        "Status",
+                        text(settings.status.as_str()).size(self.font(15.0)).into()
+                    ),
+                ]
+                .spacing(self.s(44.0)),
+                row![
+                    self.settings_field("Audio Input Device", input.into()),
+                    self.settings_field("Audio Output Device", output.into()),
+                ]
+                .spacing(self.s(44.0)),
+                row![
+                    self.settings_box("Audio Input Channels", "1"),
+                    self.settings_box("Audio Output Channels", "1 + 2"),
+                    self.settings_box("Sample Rate", &format!("{} Hz", settings.sample_rate)),
+                    self.settings_box(
+                        "Audio Buffer Size",
+                        &format!("{} samples", settings.period_size)
+                    ),
+                ]
+                .spacing(self.s(28.0)),
+            ]
+            .spacing(self.s(30.0)),
+        )
+        .width(Length::Fixed(self.s(880.0)))
+        .padding([self.s(34.0), self.s(36.0)])
+        .style(dark_container());
+
+        container(card)
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(560.0)))
+            .center_x()
+            .center_y()
+            .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
+            .into()
+    }
+
+    fn settings_field<'a>(
+        &self,
+        label: &'static str,
+        control: Element<'a, Message>,
+    ) -> Element<'a, Message> {
+        container(
+            column![
+                text(label).size(self.font(16.0)),
+                container(control)
+                    .padding([self.s(12.0), self.s(14.0)])
+                    .width(Length::Fixed(self.s(410.0)))
+                    .style(ghost_container(Color::from_rgb(0.06, 0.06, 0.06))),
+            ]
+            .spacing(self.s(8.0)),
+        )
+        .into()
+    }
+
+    fn settings_box(&self, label: &'static str, value: &str) -> Element<'_, Message> {
+        container(
+            column![
+                text(label).size(self.font(15.0)),
+                container(text(value.to_string()).size(self.font(18.0)))
+                    .padding([self.s(14.0), self.s(16.0)])
+                    .width(Length::Fixed(self.s(185.0)))
+                    .height(Length::Fixed(self.s(58.0)))
+                    .style(ghost_container(Color::from_rgb(0.06, 0.06, 0.06))),
+            ]
+            .spacing(self.s(8.0)),
+        )
+        .into()
     }
 
     fn selected_controls(&self, selected: &DeviceState) -> Element<'_, Message> {
