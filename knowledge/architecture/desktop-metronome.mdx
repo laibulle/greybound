@@ -213,6 +213,15 @@ The first implementation ships the live desktop path only:
 - The output callback now writes explicit L/R samples so metronome pan is visible
   in the existing stereo output VU meters.
 
+Follow-up correction:
+
+- The live runtime now separates `process_guitar_mono`, metronome generation,
+  and final output protection. This makes the routing boundary explicit: the
+  metronome never enters `SignalChain`, `SpeakerStage`, Springfield, or output
+  gain.
+- The V1 click was shortened and reduced in level so final bus protection is
+  less likely to make it sound compressed by the guitar signal.
+
 Validation commands:
 
 ```bash

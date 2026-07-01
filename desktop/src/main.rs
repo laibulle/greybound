@@ -367,6 +367,16 @@ impl AudioRuntime {
     }
 
     fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> (f32, f32) {
+        let guitar = self.process_guitar_mono(controls, meters);
+        let metronome = self.metronome.process(controls);
+        mix_final_output(guitar, metronome)
+    }
+
+    fn process_guitar_mono(
+        &mut self,
+        controls: &SharedRuntimeControls,
+        meters: &MeterStats,
+    ) -> f32 {
         let input = self.input.pop().unwrap_or(0.0) * controls.input_gain();
         meters.record_input(input);
         controls.load_device_controls_into(&mut self.device_controls);
@@ -379,13 +389,19 @@ impl AudioRuntime {
         );
         let cab_mix = controls.cab_mix();
         let wet = self.speaker.process(chain_output, cab_mix > 0.0);
-        let guitar = (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain();
-        let (click_left, click_right) = self.metronome.process(controls);
-        (
-            (guitar + click_left).clamp(-1.0, 1.0),
-            (guitar + click_right).clamp(-1.0, 1.0),
-        )
+        (chain_output * (1.0 - cab_mix) + wet * cab_mix) * controls.output_gain()
     }
+}
+
+fn mix_final_output(guitar_mono: f32, metronome: (f32, f32)) -> (f32, f32) {
+    (
+        protect_dac(guitar_mono + metronome.0),
+        protect_dac(guitar_mono + metronome.1),
+    )
+}
+
+fn protect_dac(sample: f32) -> f32 {
+    sample.clamp(-0.98, 0.98)
 }
 
 #[derive(Clone)]
@@ -621,16 +637,17 @@ impl MetronomeGenerator {
 
         let phase_increment = std::f32::consts::TAU * self.frequency / self.sample_rate;
         self.phase = (self.phase + phase_increment) % std::f32::consts::TAU;
-        let sample = self.phase.sin() * self.envelope * controls.metronome_volume() * 0.35;
-        let decay = (-1.0 / (self.sample_rate * 0.012)).exp();
+        let transient = self.phase.sin().signum() * 0.55 + self.phase.sin() * 0.45;
+        let sample = transient * self.envelope * controls.metronome_volume() * 0.24;
+        let decay = (-1.0 / (self.sample_rate * 0.004)).exp();
         self.envelope *= decay;
 
         let pan = controls.metronome_pan();
         let left_gain = (pan * std::f32::consts::FRAC_PI_2).cos();
         let right_gain = (pan * std::f32::consts::FRAC_PI_2).sin();
         (
-            (sample * left_gain).clamp(-0.35, 0.35),
-            (sample * right_gain).clamp(-0.35, 0.35),
+            (sample * left_gain).clamp(-0.24, 0.24),
+            (sample * right_gain).clamp(-0.24, 0.24),
         )
     }
 
