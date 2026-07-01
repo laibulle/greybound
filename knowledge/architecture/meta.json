@@ -1,4 +1,11 @@
 {
   "title": "Architecture",
-  "pages": ["index", "signal-chain", "rig-files", "circuit-diagrams", "ir-research"]
+  "pages": [
+    "index",
+    "signal-chain",
+    "rig-files",
+    "circuit-diagrams",
+    "ir-research",
+    "audio-lab-mcp"
+  ]
 }

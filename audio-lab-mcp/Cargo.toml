@@ -1,0 +1,14 @@
+[package]
+name = "greybound-audio-lab-mcp"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "stdio MCP server for Greybound audio lab orchestration."
+
+[dependencies]
+anyhow = "1.0"
+greybound = { path = "../core" }
+hound = "3.5"
+json5 = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

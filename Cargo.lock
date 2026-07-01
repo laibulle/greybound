@@ -1272,6 +1272,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "greybound-audio-lab-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "greybound",
+ "hound",
+ "json5",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "greybound-cli"
 version = "0.1.0"
 dependencies = [
