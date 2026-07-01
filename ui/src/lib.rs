@@ -389,6 +389,7 @@ impl Default for AudioSettingsState {
                 "96000 Hz".to_string(),
             ],
             period_sizes: vec![
+                "32 samples".to_string(),
                 "64 samples".to_string(),
                 "128 samples".to_string(),
                 "256 samples".to_string(),

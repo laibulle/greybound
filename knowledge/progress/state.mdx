@@ -42,9 +42,10 @@ description: Decisions and open questions that should steer upcoming implementat
   UI at about 30 Hz.
 - The desktop Settings button now opens a functional Audio Settings panel with
   discovered CoreAudio input/output devices, selectable sample rate and buffer
-  size, channel choices, and runtime status. Changing input, output, sample
-  rate, or buffer size restarts the live audio engine with the selected runtime
-  configuration.
+  size down to 32 samples, channel choices, and runtime status. Changing input,
+  output, sample rate, or buffer size restarts the live audio engine with the
+  selected runtime configuration; unsupported low-latency buffers surface as
+  runtime status errors rather than being silently coerced.
 
 ## Open Questions
 
