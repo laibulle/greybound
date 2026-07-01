@@ -5,6 +5,7 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
 use iced::widget::{button, column, container, pick_list, row, slider, text};
 use iced::{mouse, Alignment, Background, Color, Element, Length, Point, Rectangle, Size, Vector};
+use std::rc::Rc;
 
 const INK: Color = Color::from_rgb(0.09, 0.12, 0.24);
 const PANEL: Color = Color::from_rgb(0.72, 0.78, 0.91);
@@ -90,6 +91,74 @@ fn dark_container() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(DarkContainer))
 }
 
+struct DarkFieldContainer;
+
+impl container::StyleSheet for DarkFieldContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(Color::WHITE),
+            background: Some(Background::Color(Color::from_rgb(0.055, 0.055, 0.055))),
+            border_radius: 18.0.into(),
+            border_width: 1.0,
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.04),
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn dark_field_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(DarkFieldContainer))
+}
+
+struct DarkPickList;
+
+impl pick_list::StyleSheet for DarkPickList {
+    type Style = iced::theme::Theme;
+
+    fn active(&self, _style: &Self::Style) -> pick_list::Appearance {
+        pick_list::Appearance {
+            text_color: Color::WHITE,
+            placeholder_color: Color::from_rgb(0.72, 0.72, 0.72),
+            handle_color: Color::WHITE,
+            background: Background::Color(Color::from_rgb(0.055, 0.055, 0.055)),
+            border_radius: 12.0.into(),
+            border_width: 1.0,
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.08),
+        }
+    }
+
+    fn hovered(&self, _style: &Self::Style) -> pick_list::Appearance {
+        pick_list::Appearance {
+            border_color: Color::from_rgb(0.54, 0.64, 0.92),
+            ..self.active(_style)
+        }
+    }
+}
+
+struct DarkMenu;
+
+impl iced::overlay::menu::StyleSheet for DarkMenu {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> iced::overlay::menu::Appearance {
+        iced::overlay::menu::Appearance {
+            text_color: Color::WHITE,
+            background: Background::Color(Color::from_rgb(0.08, 0.08, 0.08)),
+            border_width: 1.0,
+            border_radius: 8.0.into(),
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+            selected_text_color: Color::WHITE,
+            selected_background: Background::Color(Color::from_rgb(0.20, 0.24, 0.35)),
+        }
+    }
+}
+
+fn dark_pick_list() -> iced::theme::PickList {
+    iced::theme::PickList::Custom(Rc::new(DarkPickList), Rc::new(DarkMenu))
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     SelectDevice(usize),
@@ -98,6 +167,8 @@ pub enum Message {
     CloseAudioSettings,
     AudioInputSelected(String),
     AudioOutputSelected(String),
+    AudioSampleRateSelected(String),
+    AudioBufferSizeSelected(String),
     AudioDevicesChanged {
         inputs: Vec<String>,
         outputs: Vec<String>,
@@ -296,6 +367,8 @@ pub struct AudioSettingsState {
     pub status: String,
     pub sample_rate: u32,
     pub period_size: u32,
+    pub sample_rates: Vec<String>,
+    pub period_sizes: Vec<String>,
 }
 
 impl Default for AudioSettingsState {
@@ -309,6 +382,19 @@ impl Default for AudioSettingsState {
             status: "Audio engine starting".to_string(),
             sample_rate: 48_000,
             period_size: 256,
+            sample_rates: vec![
+                "44100 Hz".to_string(),
+                "48000 Hz".to_string(),
+                "88200 Hz".to_string(),
+                "96000 Hz".to_string(),
+            ],
+            period_sizes: vec![
+                "64 samples".to_string(),
+                "128 samples".to_string(),
+                "256 samples".to_string(),
+                "512 samples".to_string(),
+                "1024 samples".to_string(),
+            ],
         }
     }
 }
@@ -368,6 +454,18 @@ impl GreyboundUi {
             Message::AudioOutputSelected(device) => {
                 self.audio_settings.selected_output = Some(device);
                 self.audio_settings.status = "Restarting audio engine".to_string();
+            }
+            Message::AudioSampleRateSelected(value) => {
+                if let Some(sample_rate) = parse_prefixed_u32(&value) {
+                    self.audio_settings.sample_rate = sample_rate;
+                    self.audio_settings.status = "Restarting audio engine".to_string();
+                }
+            }
+            Message::AudioBufferSizeSelected(value) => {
+                if let Some(period_size) = parse_prefixed_u32(&value) {
+                    self.audio_settings.period_size = period_size;
+                    self.audio_settings.status = "Restarting audio engine".to_string();
+                }
             }
             Message::AudioDevicesChanged {
                 inputs,
@@ -583,18 +681,44 @@ impl GreyboundUi {
             settings.selected_input.clone(),
             Message::AudioInputSelected,
         )
+        .style(dark_pick_list())
+        .text_size(self.font(17.0) as f32)
+        .padding([self.s(12.0), self.s(14.0)])
         .width(Length::Fixed(self.s(390.0)));
         let output = pick_list(
             settings.outputs.clone(),
             settings.selected_output.clone(),
             Message::AudioOutputSelected,
         )
+        .style(dark_pick_list())
+        .text_size(self.font(17.0) as f32)
+        .padding([self.s(12.0), self.s(14.0)])
         .width(Length::Fixed(self.s(390.0)));
+        let sample_rate = pick_list(
+            settings.sample_rates.clone(),
+            Some(format!("{} Hz", settings.sample_rate)),
+            Message::AudioSampleRateSelected,
+        )
+        .style(dark_pick_list())
+        .text_size(self.font(17.0) as f32)
+        .padding([self.s(12.0), self.s(14.0)])
+        .width(Length::Fixed(self.s(185.0)));
+        let period_size = pick_list(
+            settings.period_sizes.clone(),
+            Some(format!("{} samples", settings.period_size)),
+            Message::AudioBufferSizeSelected,
+        )
+        .style(dark_pick_list())
+        .text_size(self.font(17.0) as f32)
+        .padding([self.s(12.0), self.s(14.0)])
+        .width(Length::Fixed(self.s(185.0)));
 
         let card = container(
             column![
                 row![
-                    text("Audio Settings").size(self.font(28.0)),
+                    text("Audio Settings")
+                        .size(self.font(28.0))
+                        .style(Color::WHITE),
                     button(text("X").size(self.font(18.0)))
                         .on_press(Message::CloseAudioSettings)
                         .style(iced::theme::Button::custom(ChromeButton))
@@ -605,11 +729,17 @@ impl GreyboundUi {
                 row![
                     self.settings_field(
                         "Audio Device Type",
-                        text("CoreAudio").size(self.font(18.0)).into()
+                        text("CoreAudio")
+                            .size(self.font(18.0))
+                            .style(Color::WHITE)
+                            .into()
                     ),
                     self.settings_field(
                         "Status",
-                        text(settings.status.as_str()).size(self.font(15.0)).into()
+                        text(settings.status.as_str())
+                            .size(self.font(15.0))
+                            .style(Color::WHITE)
+                            .into()
                     ),
                 ]
                 .spacing(self.s(44.0)),
@@ -621,11 +751,8 @@ impl GreyboundUi {
                 row![
                     self.settings_box("Audio Input Channels", "1"),
                     self.settings_box("Audio Output Channels", "1 + 2"),
-                    self.settings_box("Sample Rate", &format!("{} Hz", settings.sample_rate)),
-                    self.settings_box(
-                        "Audio Buffer Size",
-                        &format!("{} samples", settings.period_size)
-                    ),
+                    self.settings_field_width("Sample Rate", sample_rate.into(), 185.0),
+                    self.settings_field_width("Audio Buffer Size", period_size.into(), 185.0),
                 ]
                 .spacing(self.s(28.0)),
             ]
@@ -649,13 +776,22 @@ impl GreyboundUi {
         label: &'static str,
         control: Element<'a, Message>,
     ) -> Element<'a, Message> {
+        self.settings_field_width(label, control, 410.0)
+    }
+
+    fn settings_field_width<'a>(
+        &self,
+        label: &'static str,
+        control: Element<'a, Message>,
+        width: f32,
+    ) -> Element<'a, Message> {
         container(
             column![
-                text(label).size(self.font(16.0)),
+                text(label).size(self.font(16.0)).style(Color::WHITE),
                 container(control)
                     .padding([self.s(12.0), self.s(14.0)])
-                    .width(Length::Fixed(self.s(410.0)))
-                    .style(ghost_container(Color::from_rgb(0.06, 0.06, 0.06))),
+                    .width(Length::Fixed(self.s(width)))
+                    .style(dark_field_container()),
             ]
             .spacing(self.s(8.0)),
         )
@@ -665,12 +801,16 @@ impl GreyboundUi {
     fn settings_box(&self, label: &'static str, value: &str) -> Element<'_, Message> {
         container(
             column![
-                text(label).size(self.font(15.0)),
-                container(text(value.to_string()).size(self.font(18.0)))
-                    .padding([self.s(14.0), self.s(16.0)])
-                    .width(Length::Fixed(self.s(185.0)))
-                    .height(Length::Fixed(self.s(58.0)))
-                    .style(ghost_container(Color::from_rgb(0.06, 0.06, 0.06))),
+                text(label).size(self.font(15.0)).style(Color::WHITE),
+                container(
+                    text(value.to_string())
+                        .size(self.font(18.0))
+                        .style(Color::WHITE)
+                )
+                .padding([self.s(14.0), self.s(16.0)])
+                .width(Length::Fixed(self.s(185.0)))
+                .height(Length::Fixed(self.s(58.0)))
+                .style(dark_field_container()),
             ]
             .spacing(self.s(8.0)),
         )
@@ -823,6 +963,10 @@ fn uniform_scale(width: f32, height: f32) -> f32 {
     (width / DESIGN_WIDTH)
         .min(height / DESIGN_HEIGHT)
         .clamp(0.45, 1.60)
+}
+
+fn parse_prefixed_u32(value: &str) -> Option<u32> {
+    value.split_whitespace().next()?.parse().ok()
 }
 
 #[derive(Debug, Clone)]

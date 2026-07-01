@@ -17,8 +17,6 @@ use std::sync::{
 };
 use std::time::Duration;
 
-const DEFAULT_SAMPLE_RATE: u32 = 48_000;
-const DEFAULT_PERIOD_SIZE: u32 = 256;
 const RMS_SCALE: f64 = 1_000_000_000.0;
 
 fn main() -> iced::Result {
@@ -100,7 +98,10 @@ impl Application for Desktop {
 
         let restart_audio = matches!(
             &message,
-            Message::AudioInputSelected(_) | Message::AudioOutputSelected(_)
+            Message::AudioInputSelected(_)
+                | Message::AudioOutputSelected(_)
+                | Message::AudioSampleRateSelected(_)
+                | Message::AudioBufferSizeSelected(_)
         );
         self.ui.update(message);
         if restart_audio {
@@ -148,11 +149,15 @@ struct LiveAudioEngine {
     meters: Arc<MeterStats>,
     input_device: String,
     output_device: String,
+    sample_rate: u32,
+    period_size: u32,
 }
 
 impl LiveAudioEngine {
     fn start(ui: &GreyboundUi) -> Result<Self> {
         let host = cpal::default_host();
+        let sample_rate = ui.audio_settings.sample_rate;
+        let period_size = ui.audio_settings.period_size;
         let input_device =
             selected_or_default_input(&host, ui.audio_settings.selected_input.as_deref())?;
         let output_device =
@@ -161,21 +166,21 @@ impl LiveAudioEngine {
         let output_device_name = device_name(&output_device);
         let output_range = select_config(
             output_device.supported_output_configs()?,
-            DEFAULT_SAMPLE_RATE,
-            DEFAULT_PERIOD_SIZE,
+            sample_rate,
+            period_size,
             "output",
         )?;
         let input_range = select_config(
             input_device.supported_input_configs()?,
-            DEFAULT_SAMPLE_RATE,
-            DEFAULT_PERIOD_SIZE,
+            sample_rate,
+            period_size,
             "input",
         )?;
-        let output_config = stream_config(&output_range, DEFAULT_SAMPLE_RATE, DEFAULT_PERIOD_SIZE);
-        let input_config = stream_config(&input_range, DEFAULT_SAMPLE_RATE, DEFAULT_PERIOD_SIZE);
+        let output_config = stream_config(&output_range, sample_rate, period_size);
+        let input_config = stream_config(&input_range, sample_rate, period_size);
         let input_channels = input_config.channels as usize;
         let output_channels = output_config.channels as usize;
-        let (mut producer, consumer) = RingBuffer::<f32>::new(DEFAULT_PERIOD_SIZE as usize * 16);
+        let (mut producer, consumer) = RingBuffer::<f32>::new(period_size as usize * 16);
         let meters = Arc::new(MeterStats::default());
 
         let input_meters = meters.clone();
@@ -197,7 +202,7 @@ impl LiveAudioEngine {
         let output_controls = controls.clone();
         let output_meters = meters.clone();
         let output_name = output_device_name.clone();
-        let mut runtime = AudioRuntime::new(DEFAULT_SAMPLE_RATE as f32, consumer)?;
+        let mut runtime = AudioRuntime::new(sample_rate as f32, consumer)?;
         let output_stream = output_device.build_output_stream(
             &output_config,
             move |data: &mut [f32], _| {
@@ -224,6 +229,8 @@ impl LiveAudioEngine {
             meters,
             input_device: input_device_name,
             output_device: output_device_name,
+            sample_rate,
+            period_size,
         })
     }
 
@@ -234,7 +241,7 @@ impl LiveAudioEngine {
     fn status(&self) -> String {
         format!(
             "Running: {} -> {}, {} Hz / {} samples",
-            self.input_device, self.output_device, DEFAULT_SAMPLE_RATE, DEFAULT_PERIOD_SIZE
+            self.input_device, self.output_device, self.sample_rate, self.period_size
         )
     }
 }
