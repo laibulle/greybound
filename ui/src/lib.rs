@@ -354,6 +354,7 @@ pub enum Message {
         width: u32,
         height: u32,
     },
+    ToggleDeviceBypass(usize),
     ToggleBypass(bool),
     SetDeviceControl {
         index: usize,
@@ -384,7 +385,6 @@ pub enum ControlKind {
 pub enum GlobalControl {
     Input,
     IrMix,
-    SpringMix,
     Output,
 }
 
@@ -809,6 +809,13 @@ impl GreyboundUi {
             Message::ToggleBypass(value) => {
                 self.active_device_mut().bypassed = value;
             }
+            Message::ToggleDeviceBypass(index) => {
+                if let Some(device) = self.devices.get_mut(index) {
+                    device.bypassed = !device.bypassed;
+                    self.selected_index = index;
+                    self.view_mode = ViewMode::Pedals;
+                }
+            }
             Message::SetDeviceControl {
                 index,
                 control,
@@ -874,12 +881,6 @@ impl GreyboundUi {
                         percent_readout(self.cab.master)
                     ),
                     container("").width(Length::Fill),
-                    self.global_knob(
-                        "SPRING",
-                        GlobalControl::SpringMix,
-                        self.springfield_mix(),
-                        percent_readout(self.springfield_mix())
-                    ),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -1555,28 +1556,11 @@ impl GreyboundUi {
         .into()
     }
 
-    fn springfield_mix(&self) -> f32 {
-        self.devices
-            .iter()
-            .find(|device| device.model == DeviceModel::Springfield)
-            .map(|device| device.master)
-            .unwrap_or(0.0)
-    }
-
     fn set_global_control(&mut self, control: GlobalControl, value: f32) {
         let value = value.clamp(0.0, 1.0);
         match control {
             GlobalControl::Input => self.input_gain = value,
             GlobalControl::IrMix => self.cab.master = value,
-            GlobalControl::SpringMix => {
-                if let Some(device) = self
-                    .devices
-                    .iter_mut()
-                    .find(|device| device.model == DeviceModel::Springfield)
-                {
-                    device.master = value;
-                }
-            }
             GlobalControl::Output => self.output_gain = value,
         }
     }
@@ -1711,6 +1695,17 @@ impl canvas::Program<Message> for BoardArt {
                             control,
                             value: start_value,
                         }),
+                    );
+                }
+
+                if let Some(index) = hit_test_pedal_footswitch(
+                    self.devices.len(),
+                    unscale_size(bounds.size(), self.scale),
+                    position,
+                ) {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::ToggleDeviceBypass(index)),
                     );
                 }
 
@@ -2037,6 +2032,23 @@ fn hit_test_pedal_knob(
             .into_iter()
             .find(|(_, center)| distance(*center, position) <= 48.0)
             .map(|(control, _)| (index, control))
+    })
+}
+
+fn hit_test_pedal_footswitch(device_count: usize, size: Size, position: Point) -> Option<usize> {
+    let layout = board_layout(device_count, size);
+    let y = pedal_board_y(size, layout.pedal_h);
+
+    (0..device_count).find(|index| {
+        let origin = Point::new(
+            layout.start_x + *index as f32 * (layout.pedal_w + layout.gap),
+            y,
+        );
+        let center = Point::new(
+            origin.x + layout.pedal_w * 0.50,
+            origin.y + layout.pedal_h * 0.82,
+        );
+        distance(center, position) <= 50.0
     })
 }
 

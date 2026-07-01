@@ -79,11 +79,15 @@ description: Decisions and open questions that should steer upcoming implementat
   separate. Implemented tools can list assets, inspect rigs, render bounded
   WAVs with temporary control overrides, parse monitor/WAV health, call the lab
   comparison workflow, and summarize run metadata.
-- The desktop top control bar no longer exposes `cable` as a user control.
-  Cable capacitance remains a rig/lab parameter. The visible global controls are
-  now plugged into live audio: `INPUT` applies pre-chain gain, `OUTPUT` applies
-  post-chain gain, `SPRING` controls the Springfield mix, and `IR MIX` blends
-  between dry amp output and the cabinet IR convolution.
+- The desktop top control bar no longer exposes `cable` or a duplicate
+  `SPRING` mix as user controls. Cable capacitance remains a rig/lab parameter,
+  and Springfield mix belongs on the Springfield pedal surface. The visible
+  global controls are plugged into live audio: `INPUT` applies pre-chain gain,
+  `OUTPUT` applies post-chain gain, and `IR MIX` blends between dry amp output
+  and the cabinet IR convolution.
+- Desktop pedal footswitches are direct bypass hit targets. Clicking a
+  pedalboard footswitch selects that pedal and toggles its bypass state, which is
+  then copied into the live `SignalChain` runtime controls.
 - The desktop app handles window close explicitly. Iced's automatic close
   handling is disabled so `CloseRequested` can first set a shutdown state, drop
   the CPAL audio streams, drop the MCP sidecar, prevent meter ticks from
