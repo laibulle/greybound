@@ -67,12 +67,30 @@ fn ghost_container(background: Color) -> iced::theme::Container {
 #[derive(Debug, Clone)]
 pub enum Message {
     SelectDevice(usize),
+    SelectView(ViewMode),
     ToggleBypass(bool),
     GainChanged(f32),
     BassChanged(f32),
     TrebleChanged(f32),
     CutChanged(f32),
     MasterChanged(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    Pedals,
+    Amp,
+    Cab,
+}
+
+impl ViewMode {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Pedals => "PEDALS",
+            Self::Amp => "AMP",
+            Self::Cab => "CAB",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,19 +195,20 @@ impl DeviceState {
 #[derive(Debug, Clone)]
 pub struct GreyboundUi {
     pub devices: Vec<DeviceState>,
+    pub amp: DeviceState,
+    pub cab: DeviceState,
     pub selected_index: usize,
+    pub view_mode: ViewMode,
 }
 
 impl Default for GreyboundUi {
     fn default() -> Self {
         Self {
-            devices: vec![
-                DeviceState::minotaur(),
-                DeviceState::nox30(),
-                DeviceState::springfield(),
-                DeviceState::cab_ir(),
-            ],
+            devices: vec![DeviceState::minotaur(), DeviceState::springfield()],
+            amp: DeviceState::nox30(),
+            cab: DeviceState::cab_ir(),
             selected_index: 0,
+            view_mode: ViewMode::Pedals,
         }
     }
 }
@@ -200,43 +219,35 @@ impl GreyboundUi {
             Message::SelectDevice(index) => {
                 if index < self.devices.len() {
                     self.selected_index = index;
+                    self.view_mode = ViewMode::Pedals;
                 }
+            }
+            Message::SelectView(view_mode) => {
+                self.view_mode = view_mode;
             }
             Message::ToggleBypass(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.bypassed = value;
-                }
+                self.active_device_mut().bypassed = value;
             }
             Message::GainChanged(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.gain = value;
-                }
+                self.active_device_mut().gain = value;
             }
             Message::BassChanged(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.bass = value;
-                }
+                self.active_device_mut().bass = value;
             }
             Message::TrebleChanged(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.treble = value;
-                }
+                self.active_device_mut().treble = value;
             }
             Message::CutChanged(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.cut = value;
-                }
+                self.active_device_mut().cut = value;
             }
             Message::MasterChanged(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.master = value;
-                }
+                self.active_device_mut().master = value;
             }
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let selected = &self.devices[self.selected_index];
+        let selected = self.active_device();
 
         let top = container(
             row![
@@ -254,12 +265,27 @@ impl GreyboundUi {
         .padding([22, 34])
         .style(ghost_container(Color::from_rgba(0.78, 0.83, 0.95, 0.84)));
 
-        let board = Canvas::new(BoardArt {
-            devices: self.devices.clone(),
-            selected_index: self.selected_index,
-        })
-        .width(Length::Fill)
-        .height(Length::Fixed(560.0));
+        let main_view: Element<'_, Message> = match self.view_mode {
+            ViewMode::Pedals => Canvas::new(BoardArt {
+                devices: self.devices.clone(),
+                selected_index: self.selected_index,
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(560.0))
+            .into(),
+            ViewMode::Amp => Canvas::new(AmpArt {
+                amp: self.amp.clone(),
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(560.0))
+            .into(),
+            ViewMode::Cab => Canvas::new(CabArt {
+                cab: self.cab.clone(),
+            })
+            .width(Length::Fill)
+            .height(Length::Fixed(560.0))
+            .into(),
+        };
 
         let controls = self.selected_controls(selected);
 
@@ -283,7 +309,7 @@ impl GreyboundUi {
         .width(Length::Fill)
         .style(ghost_container(Color::from_rgb(0.02, 0.025, 0.03)));
 
-        container(column![top, board, controls, bottom].spacing(0))
+        container(column![top, main_view, controls, bottom].spacing(0))
             .width(Length::Fill)
             .height(Length::Fill)
             .style(ghost_container(PANEL))
@@ -300,6 +326,13 @@ impl GreyboundUi {
                     text("RIG: grey-nox").size(13),
                 ]
                 .spacing(22)
+                .align_items(Alignment::Center),
+                row![
+                    self.view_button(ViewMode::Pedals),
+                    self.view_button(ViewMode::Amp),
+                    self.view_button(ViewMode::Cab),
+                ]
+                .spacing(10)
                 .align_items(Alignment::Center),
                 row![
                     button(text("<").size(18))
@@ -329,6 +362,20 @@ impl GreyboundUi {
         )
         .width(Length::Fill)
         .into()
+    }
+
+    fn view_button(&self, view_mode: ViewMode) -> Element<'_, Message> {
+        let label = if self.view_mode == view_mode {
+            format!("* {}", view_mode.label())
+        } else {
+            view_mode.label().to_string()
+        };
+
+        button(text(label).size(12))
+            .on_press(Message::SelectView(view_mode))
+            .style(iced::theme::Button::custom(ChromeButton))
+            .padding([8, 12])
+            .into()
     }
 
     fn selected_controls(&self, selected: &DeviceState) -> Element<'_, Message> {
@@ -425,6 +472,22 @@ impl GreyboundUi {
             .map(|device| device.master)
             .unwrap_or(0.0)
     }
+
+    fn active_device(&self) -> &DeviceState {
+        match self.view_mode {
+            ViewMode::Pedals => &self.devices[self.selected_index],
+            ViewMode::Amp => &self.amp,
+            ViewMode::Cab => &self.cab,
+        }
+    }
+
+    fn active_device_mut(&mut self) -> &mut DeviceState {
+        match self.view_mode {
+            ViewMode::Pedals => &mut self.devices[self.selected_index],
+            ViewMode::Amp => &mut self.amp,
+            ViewMode::Cab => &mut self.cab,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -504,6 +567,100 @@ impl canvas::Program<Message> for BoardArt {
         _cursor: mouse::Cursor,
     ) -> mouse::Interaction {
         mouse::Interaction::Pointer
+    }
+}
+
+#[derive(Debug, Clone)]
+struct AmpArt {
+    amp: DeviceState,
+}
+
+impl canvas::Program<Message> for AmpArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        draw_stage_background(&mut frame, bounds.size());
+        draw_amp_head(&mut frame, bounds.size(), &self.amp);
+        draw_chain_legend(&mut frame, bounds.size());
+        vec![frame.into_geometry()]
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CabArt {
+    cab: DeviceState,
+}
+
+impl canvas::Program<Message> for CabArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        draw_stage_background(&mut frame, bounds.size());
+
+        let w = bounds.width.min(760.0);
+        let h = 360.0;
+        let origin = Point::new((bounds.width - w) * 0.5, 78.0);
+        let body = rounded_rect(origin, Size::new(w, h), 24.0);
+        frame.fill(&body, Color::from_rgb(0.50, 0.45, 0.36));
+        frame.stroke(
+            &body,
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 0.95, 0.78, 0.55))
+                .with_width(3.0),
+        );
+
+        let grille = rounded_rect(
+            Point::new(origin.x + 52.0, origin.y + 62.0),
+            Size::new(w - 104.0, h - 132.0),
+            12.0,
+        );
+        frame.fill(&grille, Color::from_rgb(0.70, 0.64, 0.53));
+        for y in 0..18 {
+            let yy = origin.y + 78.0 + y as f32 * 10.0;
+            frame.stroke(
+                &Path::line(
+                    Point::new(origin.x + 70.0, yy),
+                    Point::new(origin.x + w - 70.0, yy),
+                ),
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.32, 0.25, 0.20, 0.28))
+                    .with_width(2.0),
+            );
+        }
+        draw_text(
+            &mut frame,
+            self.cab.model.title(),
+            Point::new(origin.x + w * 0.5, origin.y + 34.0),
+            30.0,
+            Color::from_rgb(0.05, 0.04, 0.035),
+            Horizontal::Center,
+        );
+        draw_text(
+            &mut frame,
+            "lab/references/tone3000-irs/celestion.wav",
+            Point::new(origin.x + w * 0.5, origin.y + h - 42.0),
+            18.0,
+            Color::from_rgba(0.05, 0.04, 0.035, 0.72),
+            Horizontal::Center,
+        );
+        draw_chain_legend(&mut frame, bounds.size());
+        vec![frame.into_geometry()]
     }
 }
 
@@ -593,6 +750,211 @@ fn draw_stage_background(frame: &mut Frame, size: Size) {
         Stroke::default()
             .with_color(Color::from_rgba(0.97, 0.99, 1.0, 0.18))
             .with_width(2.0),
+    );
+}
+
+fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
+    let amp_w = size.width.min(1080.0);
+    let amp_h = 390.0;
+    let origin = Point::new((size.width - amp_w) * 0.5, 74.0);
+
+    let shadow = rounded_rect(
+        Point::new(origin.x + 12.0, origin.y + 22.0),
+        Size::new(amp_w, amp_h),
+        38.0,
+    );
+    frame.fill(&shadow, Color::from_rgba(0.04, 0.04, 0.06, 0.28));
+
+    let handle = Path::new(|p| {
+        p.move_to(Point::new(origin.x + amp_w * 0.25, origin.y - 22.0));
+        p.quadratic_curve_to(
+            Point::new(origin.x + amp_w * 0.50, origin.y - 80.0),
+            Point::new(origin.x + amp_w * 0.75, origin.y - 22.0),
+        );
+    });
+    frame.stroke(
+        &handle,
+        Stroke::default()
+            .with_color(Color::from_rgb(0.07, 0.05, 0.08))
+            .with_width(12.0),
+    );
+    frame.stroke(
+        &handle,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.96, 0.70, 0.34, 0.52))
+            .with_width(2.0),
+    );
+
+    let body = rounded_rect(origin, Size::new(amp_w, amp_h), 42.0);
+    frame.fill(&body, Color::from_rgb(0.88, 0.67, 0.68));
+    frame.stroke(
+        &body,
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.94, 0.98, 0.76))
+            .with_width(5.0),
+    );
+
+    let panel = rounded_rect(
+        Point::new(origin.x + 36.0, origin.y + 34.0),
+        Size::new(amp_w - 72.0, 118.0),
+        20.0,
+    );
+    frame.fill(&panel, Color::from_rgb(0.76, 0.53, 0.50));
+    frame.stroke(
+        &panel,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.33, 0.16, 0.14, 0.30))
+            .with_width(2.0),
+    );
+
+    let badge = rounded_rect(
+        Point::new(origin.x + 70.0, origin.y + 58.0),
+        Size::new(82.0, 72.0),
+        10.0,
+    );
+    frame.fill(&badge, Color::from_rgba(1.0, 0.88, 0.90, 0.80));
+    draw_text(
+        frame,
+        "GB",
+        Point::new(origin.x + 111.0, origin.y + 96.0),
+        26.0,
+        Color::from_rgb(0.02, 0.02, 0.025),
+        Horizontal::Center,
+    );
+
+    draw_text(
+        frame,
+        "INPUT",
+        Point::new(origin.x + 235.0, origin.y + 62.0),
+        13.0,
+        Color::from_rgb(0.08, 0.06, 0.06),
+        Horizontal::Center,
+    );
+    frame.fill(
+        &Path::circle(Point::new(origin.x + 235.0, origin.y + 104.0), 18.0),
+        GOLD,
+    );
+    frame.fill(
+        &Path::circle(Point::new(origin.x + 235.0, origin.y + 104.0), 10.0),
+        Color::from_rgb(0.04, 0.035, 0.05),
+    );
+
+    let knob_y = origin.y + 96.0;
+    let first_knob_x = origin.x + amp_w * 0.38;
+    let spacing = 120.0;
+    draw_knob(
+        frame,
+        Point::new(first_knob_x, knob_y),
+        30.0,
+        amp.gain,
+        "Volume",
+    );
+    draw_knob(
+        frame,
+        Point::new(first_knob_x + spacing, knob_y),
+        30.0,
+        amp.bass,
+        "Bass",
+    );
+    draw_knob(
+        frame,
+        Point::new(first_knob_x + spacing * 2.0, knob_y),
+        30.0,
+        amp.cut,
+        "Cut",
+    );
+    draw_knob(
+        frame,
+        Point::new(first_knob_x + spacing * 3.0, knob_y),
+        30.0,
+        amp.master,
+        "Sag",
+    );
+    draw_knob(
+        frame,
+        Point::new(first_knob_x + spacing * 4.0, knob_y),
+        30.0,
+        amp.treble,
+        "Treble",
+    );
+
+    draw_text(
+        frame,
+        "POWER",
+        Point::new(origin.x + amp_w - 112.0, origin.y + 58.0),
+        14.0,
+        Color::from_rgb(0.08, 0.06, 0.06),
+        Horizontal::Center,
+    );
+    frame.fill(
+        &Path::circle(Point::new(origin.x + amp_w - 112.0, origin.y + 104.0), 16.0),
+        GOLD,
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(origin.x + amp_w - 112.0, origin.y + 88.0),
+            Point::new(origin.x + amp_w - 112.0, origin.y + 114.0),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgb(0.05, 0.04, 0.05))
+            .with_width(4.0),
+    );
+    frame.fill(
+        &Path::circle(Point::new(origin.x + amp_w - 112.0, origin.y + 136.0), 11.0),
+        if amp.bypassed {
+            Color::from_rgb(0.09, 0.25, 0.25)
+        } else {
+            Color::from_rgb(0.0, 0.75, 0.78)
+        },
+    );
+
+    let grille_origin = Point::new(origin.x + 92.0, origin.y + 188.0);
+    let grille_size = Size::new(amp_w - 184.0, 150.0);
+    let grille = rounded_rect(grille_origin, grille_size, 12.0);
+    frame.fill(&grille, Color::from_rgb(0.91, 0.77, 0.77));
+    frame.stroke(
+        &grille,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.32, 0.16, 0.16, 0.32))
+            .with_width(2.0),
+    );
+
+    for row in 0..2 {
+        for col in 0..6 {
+            let cell_w = grille_size.width / 6.0;
+            let cell_h = grille_size.height / 2.0;
+            let x = grille_origin.x + col as f32 * cell_w + 12.0;
+            let y = grille_origin.y + row as f32 * cell_h + 12.0;
+            let motif = rounded_rect(
+                Point::new(x, y),
+                Size::new(cell_w - 24.0, cell_h - 24.0),
+                4.0,
+            );
+            frame.stroke(
+                &motif,
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.58, 0.35, 0.34, 0.50))
+                    .with_width(4.0),
+            );
+            frame.stroke(
+                &Path::line(
+                    Point::new(x + 14.0, y + cell_h * 0.42),
+                    Point::new(x + cell_w - 38.0, y + cell_h * 0.42),
+                ),
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.58, 0.35, 0.34, 0.42))
+                    .with_width(4.0),
+            );
+        }
+    }
+
+    draw_text(
+        frame,
+        "NOX30",
+        Point::new(origin.x + amp_w - 112.0, origin.y + amp_h - 52.0),
+        32.0,
+        Color::from_rgb(0.04, 0.025, 0.03),
+        Horizontal::Center,
     );
 }
 

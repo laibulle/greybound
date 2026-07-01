@@ -1,5 +1,5 @@
 use greybound::{AmpControls, Greybound};
-use greybound_ui::{DeviceModel, GreyboundUi, Message};
+use greybound_ui::{GreyboundUi, Message};
 use iced::{Application, Command, Element, Settings, Subscription};
 
 fn main() -> iced::Result {
@@ -33,12 +33,8 @@ impl Application for Desktop {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         self.ui.update(message);
-        if let Some(device) = self
-            .ui
-            .devices
-            .iter()
-            .find(|device| device.model == DeviceModel::Nox30)
         {
+            let device = &self.ui.amp;
             let controls = AmpControls {
                 volume: device.gain,
                 bass: device.bass,
