@@ -99,6 +99,27 @@ fn footer_container() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(FooterContainer))
 }
 
+struct AppPanelContainer;
+
+impl container::StyleSheet for AppPanelContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(INK),
+            background: Some(Background::Color(PANEL)),
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn app_panel_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(AppPanelContainer))
+}
+
 struct GhostContainer(Color);
 
 impl container::StyleSheet for GhostContainer {
@@ -709,7 +730,7 @@ impl GreyboundUi {
         let panel = container(column![top, main_view, bottom].spacing(0))
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
             .height(Length::Fixed(self.s(DESIGN_HEIGHT)))
-            .style(ghost_container(PANEL));
+            .style(app_panel_container());
 
         container(panel)
             .width(Length::Fill)

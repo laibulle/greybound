@@ -60,6 +60,9 @@ description: Decisions and open questions that should steer upcoming implementat
   corners owned by the modal shell, and no nested borders around select fields.
 - The desktop footer is a full-width bar, not a floating pill. It should use a
   square-edged footer container rather than the generic rounded ghost container.
+- The root plugin panel is also a full-bleed fixed surface and should use a
+  square-edged app panel container. Rounded containers are reserved for real
+  overlays, devices, fields, and controls.
 - On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
   the low-latency device heuristic. It scores compatible devices and prefers
   known pro/external audio interfaces such as Scarlett/Focusrite over integrated
