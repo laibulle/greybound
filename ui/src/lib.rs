@@ -3044,35 +3044,19 @@ fn draw_footswitch(frame: &mut Frame, center: Point) {
 }
 
 fn draw_pedal_surface_reflections(frame: &mut Frame, origin: Point, size: Size) {
-    let corner_light = Path::new(|path| {
-        path.move_to(Point::new(origin.x + 2.0, origin.y + 42.0));
-        path.line_to(Point::new(origin.x + 2.0, origin.y + 26.0));
-        path.quadratic_curve_to(
-            Point::new(origin.x + 2.0, origin.y + 2.0),
-            Point::new(origin.x + 26.0, origin.y + 2.0),
-        );
-        path.line_to(Point::new(origin.x + size.width * 0.44, origin.y + 2.0));
-    });
-    frame.stroke(
-        &corner_light,
-        Stroke::default()
-            .with_color(Color::from_rgba(1.0, 0.98, 0.90, 0.18))
-            .with_width(6.0),
+    let top_glint = rounded_rect(
+        Point::new(origin.x + 22.0, origin.y + 4.0),
+        Size::new(size.width * 0.16, 3.0),
+        1.5,
     );
+    frame.fill(&top_glint, Color::from_rgba(1.0, 0.98, 0.90, 0.12));
 
-    let corner_core = Path::new(|path| {
-        path.move_to(Point::new(origin.x + 3.0, origin.y + 32.0));
-        path.quadratic_curve_to(
-            Point::new(origin.x + 3.0, origin.y + 3.0),
-            Point::new(origin.x + 32.0, origin.y + 3.0),
-        );
-    });
-    frame.stroke(
-        &corner_core,
-        Stroke::default()
-            .with_color(Color::from_rgba(1.0, 1.0, 0.96, 0.20))
-            .with_width(2.0),
+    let left_glint = rounded_rect(
+        Point::new(origin.x + 4.0, origin.y + 22.0),
+        Size::new(3.0, size.height * 0.08),
+        1.5,
     );
+    frame.fill(&left_glint, Color::from_rgba(1.0, 0.98, 0.90, 0.08));
 
     let right_shadow = Path::new(|path| {
         path.move_to(Point::new(origin.x + size.width - 1.0, origin.y + 34.0));
