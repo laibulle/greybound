@@ -999,7 +999,10 @@ impl canvas::Program<Message> for KnobArt {
             &mut frame,
             center,
             radius,
-            KnobSpec::normalized(self.label, self.value),
+            KnobSpec {
+                skin: KnobSkin::HeaderDial,
+                ..KnobSpec::normalized(self.label, self.value)
+            },
         );
         vec![frame.into_geometry()]
     }

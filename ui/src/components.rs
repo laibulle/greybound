@@ -47,6 +47,7 @@ impl<'a> KnobSpec<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum KnobSkin {
     AsatoBlack,
+    HeaderDial,
     Teal,
 }
 
@@ -57,6 +58,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
 
     match spec.skin {
         KnobSkin::AsatoBlack => draw_asato_cap(frame, center, radius, value),
+        KnobSkin::HeaderDial => draw_header_dial(frame, center, radius, value),
         KnobSkin::Teal => draw_teal_cap(frame, center, radius, value),
     }
 
@@ -246,6 +248,58 @@ fn draw_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32) {
         value,
         Color::from_rgb(0.92, 0.88, 0.80),
         5.0,
+    );
+}
+
+fn draw_header_dial(frame: &mut Frame, center: Point, radius: f32, value: f32) {
+    frame.stroke(
+        &arc_path(
+            center,
+            radius + 6.0,
+            KNOB_MIN_ANGLE_DEGREES.to_radians(),
+            KNOB_MAX_ANGLE_DEGREES.to_radians(),
+            48,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.47, 0.55, 0.72, 0.36))
+            .with_width(5.0),
+    );
+
+    let active_end = knob_angle(value);
+    frame.stroke(
+        &arc_path(
+            center,
+            radius + 6.0,
+            KNOB_MIN_ANGLE_DEGREES.to_radians(),
+            active_end,
+            36,
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgb(0.10, 0.14, 0.29))
+            .with_width(4.0),
+    );
+
+    frame.fill(
+        &Path::circle(Point::new(center.x + 2.0, center.y + 3.0), radius),
+        Color::from_rgba(0.50, 0.58, 0.76, 0.10),
+    );
+    frame.fill(
+        &Path::circle(center, radius),
+        Color::from_rgb(0.88, 0.91, 1.0),
+    );
+
+    let angle = knob_angle(value);
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x, center.y),
+            Point::new(
+                center.x + angle.cos() * radius * 0.74,
+                center.y + angle.sin() * radius * 0.74,
+            ),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgb(0.10, 0.14, 0.29))
+            .with_width(3.0),
     );
 }
 
