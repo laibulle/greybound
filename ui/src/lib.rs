@@ -311,6 +311,12 @@ pub enum Message {
     SelectView(ViewMode),
     ToggleAudioSettings,
     CloseAudioSettings,
+    ToggleMetronome,
+    CloseMetronome,
+    ToggleMetronomePlayback,
+    MetronomeBpmStep(f32),
+    MetronomeVolumeChanged(f32),
+    MetronomePanChanged(f32),
     AudioInputSelected(String),
     AudioOutputSelected(String),
     AudioSampleRateSelected(String),
@@ -366,6 +372,12 @@ pub enum GlobalControl {
     IrMix,
     SpringMix,
     Output,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetronomeControl {
+    Volume,
+    Pan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -514,9 +526,31 @@ pub struct GreyboundUi {
     pub output_gain: f32,
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
+    pub metronome: MetronomeState,
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub scale: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct MetronomeState {
+    pub open: bool,
+    pub enabled: bool,
+    pub bpm: f32,
+    pub volume: f32,
+    pub pan: f32,
+}
+
+impl Default for MetronomeState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            enabled: false,
+            bpm: 120.0,
+            volume: 0.70,
+            pan: 0.50,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -589,6 +623,7 @@ impl Default for GreyboundUi {
             output_gain: 0.58,
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
+            metronome: MetronomeState::default(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             scale: 1.0,
@@ -610,9 +645,33 @@ impl GreyboundUi {
             }
             Message::ToggleAudioSettings => {
                 self.audio_settings.open = !self.audio_settings.open;
+                if self.audio_settings.open {
+                    self.metronome.open = false;
+                }
             }
             Message::CloseAudioSettings => {
                 self.audio_settings.open = false;
+            }
+            Message::ToggleMetronome => {
+                self.metronome.open = !self.metronome.open;
+                if self.metronome.open {
+                    self.audio_settings.open = false;
+                }
+            }
+            Message::CloseMetronome => {
+                self.metronome.open = false;
+            }
+            Message::ToggleMetronomePlayback => {
+                self.metronome.enabled = !self.metronome.enabled;
+            }
+            Message::MetronomeBpmStep(delta) => {
+                self.metronome.bpm = (self.metronome.bpm + delta).clamp(30.0, 260.0);
+            }
+            Message::MetronomeVolumeChanged(value) => {
+                self.metronome.volume = value.clamp(0.0, 1.0);
+            }
+            Message::MetronomePanChanged(value) => {
+                self.metronome.pan = value.clamp(0.0, 1.0);
             }
             Message::AudioInputSelected(device) => {
                 self.audio_settings.selected_input = Some(device);
@@ -760,6 +819,8 @@ impl GreyboundUi {
 
         let main_view: Element<'_, Message> = if self.audio_settings.open {
             self.audio_settings_panel()
+        } else if self.metronome.open {
+            self.metronome_panel()
         } else {
             match self.view_mode {
                 ViewMode::Pedals => Canvas::new(BoardArt {
@@ -793,8 +854,15 @@ impl GreyboundUi {
                 text("TUNER").size(self.font(14.0)).style(bottom_text),
                 text("MIDI").size(self.font(14.0)).style(bottom_text),
                 text("TAP").size(self.font(14.0)).style(bottom_text),
-                text("120.0 BPM").size(self.font(14.0)).style(bottom_text),
-                text("METRONOME").size(self.font(14.0)).style(bottom_text),
+                text(format!("{:.1} BPM", self.metronome.bpm))
+                    .size(self.font(14.0))
+                    .style(bottom_text),
+                button(text("METRONOME").size(self.font(14.0)).style(Color::WHITE))
+                    .on_press(Message::ToggleMetronome)
+                    .style(iced::theme::Button::custom(FooterButton {
+                        selected: self.metronome.open || self.metronome.enabled
+                    }))
+                    .padding([self.s(4.0), self.s(10.0)]),
                 button(text("SETTINGS").size(self.font(14.0)).style(Color::WHITE))
                     .on_press(Message::ToggleAudioSettings)
                     .style(iced::theme::Button::custom(FooterButton {
@@ -915,7 +983,115 @@ impl GreyboundUi {
         ]
         .spacing(self.s(28.0));
 
-        let modal = self.modal_frame("Audio Settings", content.into());
+        let modal = self.modal_frame("Audio Settings", Message::CloseAudioSettings, content.into());
+
+        container(modal)
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(666.0)))
+            .center_x()
+            .center_y()
+            .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
+            .into()
+    }
+
+    fn metronome_panel(&self) -> Element<'_, Message> {
+        let metro = &self.metronome;
+        let secondary = Color::from_rgb(0.72, 0.72, 0.72);
+        let play_label = if metro.enabled { "STOP" } else { "PLAY" };
+
+        let content = column![
+            row![
+                self.metronome_knob(
+                    "VOLUME",
+                    MetronomeControl::Volume,
+                    metro.volume,
+                    metronome_volume_readout(metro.volume)
+                ),
+                self.settings_select_field(
+                    "TIME SIGNATURE",
+                    container(text("4/4").size(self.font(18.0)).style(Color::WHITE))
+                        .padding([self.s(14.0), self.s(16.0)])
+                        .width(Length::Fixed(self.s(250.0)))
+                        .height(Length::Fixed(self.s(58.0)))
+                        .style(dark_field_container())
+                        .into(),
+                    250.0
+                ),
+                self.settings_select_field(
+                    "SOUND",
+                    container(text("Blip").size(self.font(18.0)).style(Color::WHITE))
+                        .padding([self.s(14.0), self.s(16.0)])
+                        .width(Length::Fixed(self.s(250.0)))
+                        .height(Length::Fixed(self.s(58.0)))
+                        .style(dark_field_container())
+                        .into(),
+                    250.0
+                ),
+                self.metronome_knob(
+                    "PAN",
+                    MetronomeControl::Pan,
+                    metro.pan,
+                    metronome_pan_readout(metro.pan)
+                ),
+            ]
+            .spacing(self.s(54.0))
+            .align_items(Alignment::Center),
+            self.settings_separator(),
+            row![
+                column![
+                    text("BPM").size(self.font(14.0)).style(secondary),
+                    row![
+                        column![
+                            button(text("▲").size(self.font(18.0)).style(Color::WHITE))
+                                .on_press(Message::MetronomeBpmStep(1.0))
+                                .style(iced::theme::Button::custom(FooterButton {
+                                    selected: false
+                                }))
+                                .padding([self.s(0.0), self.s(8.0)]),
+                            button(text("▼").size(self.font(18.0)).style(Color::WHITE))
+                                .on_press(Message::MetronomeBpmStep(-1.0))
+                                .style(iced::theme::Button::custom(FooterButton {
+                                    selected: false
+                                }))
+                                .padding([self.s(0.0), self.s(8.0)]),
+                        ]
+                        .spacing(self.s(4.0)),
+                        text(format!("{:.1}", metro.bpm))
+                            .size(self.font(58.0))
+                            .style(Color::WHITE),
+                    ]
+                    .spacing(self.s(18.0))
+                    .align_items(Alignment::Center),
+                ]
+                .spacing(self.s(10.0)),
+                button(text("TAP").size(self.font(18.0)).style(Color::WHITE))
+                    .style(iced::theme::Button::custom(FooterButton {
+                        selected: false
+                    }))
+                    .padding([self.s(26.0), self.s(26.0)]),
+                self.settings_select_field(
+                    "RHYTHM",
+                    container(text("1/4").size(self.font(18.0)).style(Color::WHITE))
+                        .padding([self.s(14.0), self.s(16.0)])
+                        .width(Length::Fixed(self.s(250.0)))
+                        .height(Length::Fixed(self.s(58.0)))
+                        .style(dark_field_container())
+                        .into(),
+                    250.0
+                ),
+                button(text(play_label).size(self.font(22.0)).style(Color::WHITE))
+                    .on_press(Message::ToggleMetronomePlayback)
+                    .style(iced::theme::Button::custom(FooterButton {
+                        selected: metro.enabled
+                    }))
+                    .padding([self.s(28.0), self.s(34.0)]),
+            ]
+            .spacing(self.s(70.0))
+            .align_items(Alignment::Center),
+        ]
+        .spacing(self.s(38.0));
+
+        let modal = self.modal_frame("Metronome", Message::CloseMetronome, content.into());
 
         container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -929,10 +1105,11 @@ impl GreyboundUi {
     fn modal_frame<'a>(
         &self,
         title: &'static str,
+        close_message: Message,
         content: Element<'a, Message>,
     ) -> Element<'a, Message> {
         let close = button(text("X").size(self.font(26.0)).style(Color::WHITE))
-            .on_press(Message::CloseAudioSettings)
+            .on_press(close_message)
             .style(iced::theme::Button::custom(FooterButton {
                 selected: false,
             }))
@@ -974,6 +1151,25 @@ impl GreyboundUi {
         .width(Length::Fixed(self.s(980.0)))
         .height(Length::Fixed(self.s(590.0)))
         .style(dark_container())
+        .into()
+    }
+
+    fn metronome_knob(
+        &self,
+        label: &'static str,
+        control: MetronomeControl,
+        value: f32,
+        readout: String,
+    ) -> Element<'_, Message> {
+        Canvas::new(MetronomeKnobArt {
+            control,
+            value,
+            scale: self.scale,
+            label,
+            readout,
+        })
+        .width(Length::Fixed(self.s(136.0)))
+        .height(Length::Fixed(self.s(154.0)))
         .into()
     }
 
