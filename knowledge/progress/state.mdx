@@ -84,6 +84,13 @@ description: Decisions and open questions that should steer upcoming implementat
   now plugged into live audio: `INPUT` applies pre-chain gain, `OUTPUT` applies
   post-chain gain, `SPRING` controls the Springfield mix, and `IR MIX` blends
   between dry amp output and the cabinet IR convolution.
+- The desktop app handles window close explicitly. Iced's automatic close
+  handling is disabled so `CloseRequested` can first set a shutdown state, drop
+  the CPAL audio streams, drop the MCP sidecar, prevent meter ticks from
+  restarting audio, and then call `iced::window::close()`.
+- The desktop input VU meter now measures the post-`INPUT` gain signal entering
+  the DSP chain, not the raw CoreAudio capture. Lowering the `INPUT` knob should
+  lower both the actual chain drive and the displayed input level.
 
 ## Open Questions
 

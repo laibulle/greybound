@@ -328,6 +328,7 @@ pub enum Message {
         input: f32,
         output: f32,
     },
+    ShutdownRequested,
     WindowResized {
         width: u32,
         height: u32,
@@ -651,6 +652,7 @@ impl GreyboundUi {
                 self.meters.input = input.clamp(0.0, 1.0);
                 self.meters.output = output.clamp(0.0, 1.0);
             }
+            Message::ShutdownRequested => {}
             Message::WindowResized { width, height } => {
                 self.scale = uniform_scale(width as f32, height as f32);
             }

@@ -31,6 +31,7 @@ fn main() -> iced::Result {
             min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
             ..iced::window::Settings::default()
         },
+        exit_on_close_request: false,
         ..Settings::default()
     })
 }
@@ -41,6 +42,7 @@ struct Desktop {
     audio_error: Option<String>,
     _audio_lab_mcp: Option<AudioLabMcpSidecar>,
     correcting_window_size: bool,
+    shutting_down: bool,
 }
 
 impl Application for Desktop {
@@ -71,6 +73,7 @@ impl Application for Desktop {
                 audio_error,
                 _audio_lab_mcp: AudioLabMcpSidecar::start().ok(),
                 correcting_window_size: false,
+                shutting_down: false,
             },
             Command::none(),
         )
@@ -81,6 +84,13 @@ impl Application for Desktop {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
+        if matches!(message, Message::ShutdownRequested) {
+            self.shutting_down = true;
+            self.audio = None;
+            self._audio_lab_mcp = None;
+            return iced::window::close();
+        }
+
         if let Message::WindowResized { width, height } = message {
             self.ui.update(Message::WindowResized { width, height });
             if self.correcting_window_size {
@@ -97,6 +107,9 @@ impl Application for Desktop {
         }
 
         if let Message::MeterProbeTick(_) = message {
+            if self.shutting_down {
+                return Command::none();
+            }
             if self.audio.is_none() {
                 match LiveAudioEngine::start(&self.ui) {
                     Ok(engine) => {
@@ -158,6 +171,9 @@ impl Application for Desktop {
             iced::subscription::events_with(|event, _status| match event {
                 iced::Event::Window(iced::window::Event::Resized { width, height }) => {
                     Some(Message::WindowResized { width, height })
+                }
+                iced::Event::Window(iced::window::Event::CloseRequested) => {
+                    Some(Message::ShutdownRequested)
                 }
                 _ => None,
             }),
@@ -257,14 +273,12 @@ impl LiveAudioEngine {
         let (mut producer, consumer) = RingBuffer::<f32>::new(period_size as usize * 16);
         let meters = Arc::new(MeterStats::default());
 
-        let input_meters = meters.clone();
         let input_name = input_device_name.clone();
         let input_stream = input_device.build_input_stream(
             &input_config,
             move |data: &[f32], _| {
                 for frame in data.chunks_exact(input_channels) {
                     let sample = frame[0];
-                    input_meters.record_input(sample);
                     let _ = producer.push(sample);
                 }
             },
@@ -347,6 +361,7 @@ impl AudioRuntime {
 
     fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> f32 {
         let input = self.input.pop().unwrap_or(0.0) * controls.input_gain();
+        meters.record_input(input);
         controls.load_device_controls_into(&mut self.device_controls);
         let chain_output = self.chain.process(
             input,
