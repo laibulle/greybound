@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
-use iced::widget::{button, column, container, pick_list, row, slider, text};
+use iced::widget::{button, column, container, row, slider, text};
 use iced::{mouse, Alignment, Background, Color, Element, Length, Point, Rectangle, Size, Vector};
 
 const INK: Color = Color::from_rgb(0.09, 0.12, 0.24);
@@ -15,6 +15,7 @@ const GOLD: Color = Color::from_rgb(0.76, 0.61, 0.35);
 pub enum DeviceKind {
     Amp,
     Pedal,
+    Cab,
 }
 
 struct ChromeButton;
@@ -67,8 +68,6 @@ fn ghost_container(background: Color) -> iced::theme::Container {
 pub enum Message {
     SelectDevice(usize),
     ToggleBypass(bool),
-    ToggleDumble(bool),
-    SetModel(Model),
     GainChanged(f32),
     BassChanged(f32),
     TrebleChanged(f32),
@@ -77,16 +76,29 @@ pub enum Message {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Model {
-    Ac30,
-    Dumble,
+pub enum DeviceModel {
+    Minotaur,
+    Nox30,
+    Springfield,
+    CabIr,
 }
 
-impl std::fmt::Display for Model {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl DeviceModel {
+    fn title(self) -> &'static str {
         match self {
-            Model::Ac30 => write!(f, "Nox Top Boost"),
-            Model::Dumble => write!(f, "ODS Lead"),
+            Self::Minotaur => "Minotaur",
+            Self::Nox30 => "Nox30",
+            Self::Springfield => "Springfield",
+            Self::CabIr => "Celestion IR",
+        }
+    }
+
+    fn subtitle(self) -> &'static str {
+        match self {
+            Self::Minotaur => "Klon-style greybox overdrive",
+            Self::Nox30 => "JMI-era Top Boost greybox amp",
+            Self::Springfield => "Spring tank greybox/IR hybrid",
+            Self::CabIr => "External cabinet impulse response",
         }
     }
 }
@@ -95,44 +107,69 @@ impl std::fmt::Display for Model {
 pub struct DeviceState {
     pub name: String,
     pub kind: DeviceKind,
+    pub model: DeviceModel,
     pub bypassed: bool,
     pub gain: f32,
     pub bass: f32,
     pub treble: f32,
     pub cut: f32,
     pub master: f32,
-    pub dumble: bool,
-    pub model: Model,
 }
 
 impl DeviceState {
-    pub fn new_amp(name: &str) -> Self {
+    pub fn minotaur() -> Self {
         Self {
-            name: name.to_string(),
-            kind: DeviceKind::Amp,
+            name: "MINOTAUR".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::Minotaur,
             bypassed: false,
-            gain: 0.55,
-            bass: 0.50,
-            treble: 0.60,
-            cut: 0.35,
-            master: 0.50,
-            dumble: false,
-            model: Model::Ac30,
+            gain: 0.42,
+            bass: 0.0,
+            treble: 0.70,
+            cut: 0.0,
+            master: 0.42,
         }
     }
 
-    pub fn new_pedal(name: &str) -> Self {
+    pub fn nox30() -> Self {
         Self {
-            name: name.to_string(),
-            kind: DeviceKind::Pedal,
+            name: "NOX30".to_string(),
+            kind: DeviceKind::Amp,
+            model: DeviceModel::Nox30,
             bypassed: false,
-            gain: 0.42,
-            bass: 0.45,
-            treble: 0.54,
-            cut: 0.38,
-            master: 0.70,
-            dumble: false,
-            model: Model::Ac30,
+            gain: 0.58,
+            bass: 0.54,
+            treble: 0.59,
+            cut: 0.43,
+            master: 0.45,
+        }
+    }
+
+    pub fn springfield() -> Self {
+        Self {
+            name: "SPRING".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::Springfield,
+            bypassed: false,
+            gain: 0.48,
+            bass: 0.0,
+            treble: 0.58,
+            cut: 0.0,
+            master: 0.26,
+        }
+    }
+
+    pub fn cab_ir() -> Self {
+        Self {
+            name: "CAB IR".to_string(),
+            kind: DeviceKind::Cab,
+            model: DeviceModel::CabIr,
+            bypassed: false,
+            gain: 0.0,
+            bass: 0.0,
+            treble: 0.0,
+            cut: 0.0,
+            master: 1.0,
         }
     }
 }
@@ -147,13 +184,12 @@ impl Default for GreyboundUi {
     fn default() -> Self {
         Self {
             devices: vec![
-                DeviceState::new_pedal("COMP"),
-                DeviceState::new_pedal("OD1"),
-                DeviceState::new_pedal("OD2"),
-                DeviceState::new_pedal("MOD"),
-                DeviceState::new_amp("NOX"),
+                DeviceState::minotaur(),
+                DeviceState::nox30(),
+                DeviceState::springfield(),
+                DeviceState::cab_ir(),
             ],
-            selected_index: 1,
+            selected_index: 0,
         }
     }
 }
@@ -169,16 +205,6 @@ impl GreyboundUi {
             Message::ToggleBypass(value) => {
                 if let Some(device) = self.devices.get_mut(self.selected_index) {
                     device.bypassed = value;
-                }
-            }
-            Message::ToggleDumble(value) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.dumble = value;
-                }
-            }
-            Message::SetModel(model) => {
-                if let Some(device) = self.devices.get_mut(self.selected_index) {
-                    device.model = model;
                 }
             }
             Message::GainChanged(value) => {
@@ -215,11 +241,11 @@ impl GreyboundUi {
         let top = container(
             row![
                 self.global_knob("INPUT", 0.50, "0.0 dB"),
-                self.global_knob("GATE", selected.cut, "-80.0 dB"),
-                self.global_knob("TRANSPOSE", 0.50, "0 st"),
+                self.global_knob("CABLE", 0.47, "470 pF"),
+                self.global_knob("IR MIX", 1.0, "100%"),
                 self.preset_strip(selected),
-                self.global_knob("DOUBLER", selected.bass, "7.15 ms"),
-                self.global_knob("OUTPUT", selected.master, "-0.2 dB"),
+                self.global_knob("SPRING", self.springfield_mix(), "mix"),
+                self.global_knob("OUTPUT", 0.58, "-3.9 dB"),
             ]
             .spacing(20)
             .align_items(Alignment::Center),
@@ -269,9 +295,9 @@ impl GreyboundUi {
             column![
                 row![
                     text("GREYBOUND").size(18),
-                    text("DELETE").size(13),
-                    text("SAVE").size(13),
-                    text("SAVE AS...").size(13),
+                    text("GREY-NOX").size(13),
+                    text("GREYBOX ONLY").size(13),
+                    text("RIG: grey-nox").size(13),
                 ]
                 .spacing(22)
                 .align_items(Alignment::Center),
@@ -280,9 +306,13 @@ impl GreyboundUi {
                         .style(iced::theme::Button::custom(ChromeButton))
                         .padding([8, 12]),
                     container(
-                        text(format!("* Black Tea / {}", selected.name))
-                            .size(18)
-                            .horizontal_alignment(Horizontal::Left)
+                        text(format!(
+                            "{} / {}",
+                            selected.model.title(),
+                            selected.model.subtitle()
+                        ))
+                        .size(18)
+                        .horizontal_alignment(Horizontal::Left)
                     )
                     .padding([14, 20])
                     .width(Length::Fixed(430.0))
@@ -308,27 +338,36 @@ impl GreyboundUi {
             "ACTIVE"
         };
 
-        let row = row![
-            button(text(bypass_label).size(13))
-                .on_press(Message::ToggleBypass(!selected.bypassed))
-                .style(iced::theme::Button::custom(ChromeButton))
-                .padding([10, 16]),
-            pick_list(
-                &[Model::Ac30, Model::Dumble],
-                Some(selected.model),
-                Message::SetModel
-            )
-            .width(Length::Fixed(160.0)),
-            self.control("GAIN", selected.gain, Message::GainChanged),
-            self.control("BASS", selected.bass, Message::BassChanged),
-            self.control("TREBLE", selected.treble, Message::TrebleChanged),
-            self.control("CUT", selected.cut, Message::CutChanged),
-            self.control("MASTER", selected.master, Message::MasterChanged),
-        ]
+        let mut controls = row![button(text(bypass_label).size(13))
+            .on_press(Message::ToggleBypass(!selected.bypassed))
+            .style(iced::theme::Button::custom(ChromeButton))
+            .padding([10, 16]),]
         .spacing(16)
         .align_items(Alignment::Center);
 
-        container(row)
+        controls = match selected.model {
+            DeviceModel::Minotaur => controls
+                .push(self.control("GAIN", selected.gain, Message::GainChanged))
+                .push(self.control("TREBLE", selected.treble, Message::TrebleChanged))
+                .push(self.control("OUTPUT", selected.master, Message::MasterChanged)),
+            DeviceModel::Nox30 => controls
+                .push(self.control("VOLUME", selected.gain, Message::GainChanged))
+                .push(self.control("BASS", selected.bass, Message::BassChanged))
+                .push(self.control("TREBLE", selected.treble, Message::TrebleChanged))
+                .push(self.control("CUT", selected.cut, Message::CutChanged))
+                .push(self.control("SAG", selected.master, Message::MasterChanged)),
+            DeviceModel::Springfield => controls
+                .push(self.control("DWELL", selected.gain, Message::GainChanged))
+                .push(self.control("TONE", selected.treble, Message::TrebleChanged))
+                .push(self.control("MIX", selected.master, Message::MasterChanged)),
+            DeviceModel::CabIr => controls.push(
+                container(text("IR: lab/references/tone3000-irs/celestion.wav").size(13))
+                    .padding([10, 14])
+                    .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24))),
+            ),
+        };
+
+        container(controls)
             .padding([12, 28])
             .width(Length::Fill)
             .style(ghost_container(Color::from_rgba(0.62, 0.69, 0.84, 0.62)))
@@ -377,6 +416,14 @@ impl GreyboundUi {
             .spacing(4),
         )
         .into()
+    }
+
+    fn springfield_mix(&self) -> f32 {
+        self.devices
+            .iter()
+            .find(|device| device.model == DeviceModel::Springfield)
+            .map(|device| device.master)
+            .unwrap_or(0.0)
     }
 }
 
@@ -430,11 +477,11 @@ impl canvas::Program<Message> for BoardArt {
 
         for (index, device) in self.devices.iter().enumerate() {
             let x = layout.start_x + index as f32 * (layout.pedal_w + layout.gap);
-            let palette = match index % 4 {
-                0 => PEDAL_CREAM,
-                1 => Color::from_rgb(0.74, 0.68, 0.60),
-                2 => PEDAL_PEACH,
-                _ => PEDAL_SAGE,
+            let palette = match device.model {
+                DeviceModel::Minotaur => Color::from_rgb(0.73, 0.65, 0.47),
+                DeviceModel::Nox30 => PEDAL_CREAM,
+                DeviceModel::Springfield => PEDAL_PEACH,
+                DeviceModel::CabIr => PEDAL_SAGE,
             };
             draw_pedal(
                 &mut frame,
@@ -602,64 +649,108 @@ fn draw_pedal(
     );
 
     let knob_y = origin.y + 76.0;
-    if device.name == "OD2" {
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.31, knob_y),
-            31.0,
-            device.gain,
-            "Volume",
-        );
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.69, knob_y),
-            31.0,
-            device.treble,
-            "Gain",
-        );
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.50, knob_y + 88.0),
-            31.0,
-            device.cut,
-            "Cut",
-        );
-    } else {
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.28, knob_y),
-            31.0,
-            device.gain,
-            "Volume",
-        );
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.72, knob_y),
-            31.0,
-            device.treble,
-            "Gain",
-        );
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.28, knob_y + 88.0),
-            31.0,
-            device.bass,
-            "Tone",
-        );
-        draw_knob(
-            frame,
-            Point::new(origin.x + size.width * 0.72, knob_y + 88.0),
-            31.0,
-            device.master,
-            "Level",
-        );
+    match device.model {
+        DeviceModel::Minotaur => {
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.30, knob_y),
+                31.0,
+                device.gain,
+                "Gain",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.70, knob_y),
+                31.0,
+                device.treble,
+                "Treble",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+                31.0,
+                device.master,
+                "Output",
+            );
+        }
+        DeviceModel::Nox30 => {
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.28, knob_y),
+                31.0,
+                device.gain,
+                "Volume",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.72, knob_y),
+                31.0,
+                device.treble,
+                "Treble",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.28, knob_y + 88.0),
+                31.0,
+                device.bass,
+                "Bass",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.72, knob_y + 88.0),
+                31.0,
+                device.cut,
+                "Cut",
+            );
+        }
+        DeviceModel::Springfield => {
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.30, knob_y),
+                31.0,
+                device.gain,
+                "Dwell",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.70, knob_y),
+                31.0,
+                device.treble,
+                "Tone",
+            );
+            draw_knob(
+                frame,
+                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+                31.0,
+                device.master,
+                "Mix",
+            );
+        }
+        DeviceModel::CabIr => {
+            draw_text(
+                frame,
+                "celestion.wav",
+                Point::new(origin.x + size.width * 0.50, knob_y + 18.0),
+                20.0,
+                Color::from_rgb(0.03, 0.03, 0.035),
+                Horizontal::Center,
+            );
+            draw_text(
+                frame,
+                "optional post-amp convolution",
+                Point::new(origin.x + size.width * 0.50, knob_y + 54.0),
+                13.0,
+                Color::from_rgba(0.03, 0.03, 0.035, 0.72),
+                Horizontal::Center,
+            );
+        }
     }
 
     draw_text(
         frame,
-        "あざと",
+        device.model.subtitle(),
         Point::new(origin.x + size.width * 0.50, origin.y + 30.0),
-        24.0,
+        13.0,
         Color::from_rgb(0.02, 0.025, 0.03),
         Horizontal::Center,
     );
@@ -820,7 +911,7 @@ fn draw_texture_plate(frame: &mut Frame, origin: Point, size: Size, name: &str) 
     );
 
     match name {
-        "MOD" => {
+        "CAB IR" => {
             let center = Point::new(origin.x + size.width * 0.5, origin.y + size.height * 0.5);
             for i in 0..18 {
                 frame.stroke(
@@ -831,7 +922,7 @@ fn draw_texture_plate(frame: &mut Frame, origin: Point, size: Size, name: &str) 
                 );
             }
         }
-        "OD2" => {
+        "SPRING" => {
             for y in 0..6 {
                 for x in 0..9 {
                     let cx = origin.x + 16.0 + x as f32 * (size.width - 32.0) / 8.0;

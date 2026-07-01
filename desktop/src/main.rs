@@ -1,5 +1,5 @@
 use greybound::{AmpControls, Greybound};
-use greybound_ui::{GreyboundUi, Message};
+use greybound_ui::{DeviceModel, GreyboundUi, Message};
 use iced::{Application, Command, Element, Settings, Subscription};
 
 fn main() -> iced::Result {
@@ -33,17 +33,21 @@ impl Application for Desktop {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         self.ui.update(message);
-        // Map current selected device's UI state to plugin controls and push to plugin
-        if let Some(device) = self.ui.devices.get(self.ui.selected_index) {
+        if let Some(device) = self
+            .ui
+            .devices
+            .iter()
+            .find(|device| device.model == DeviceModel::Nox30)
+        {
             let controls = AmpControls {
                 volume: device.gain,
                 bass: device.bass,
                 cut: device.cut,
                 treble: device.treble,
-                output: device.master,
+                output: 0.58,
                 drive: 0.0,
                 presence: 0.0,
-                sag: 0.0,
+                sag: device.master,
             };
             self.plugin.set_ui_controls(controls);
         }
