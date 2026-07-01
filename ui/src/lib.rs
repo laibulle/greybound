@@ -3049,8 +3049,8 @@ fn draw_side_jack(frame: &mut Frame, origin: Point, left: bool) {
     let outward = |distance: f32| edge_x + sign * distance;
 
     draw_jack_slice(frame, outward(0.0), center_y, sign, 7.0, 56.0, true);
-    draw_jack_slice(frame, outward(6.0), center_y, sign, 16.0, 40.0, false);
-    draw_jack_slice(frame, outward(20.0), center_y, sign, 10.0, 28.0, false);
+    draw_jack_slice(frame, outward(6.0), center_y, sign, 11.0, 40.0, false);
+    draw_jack_slice(frame, outward(15.0), center_y, sign, 10.0, 28.0, false);
 }
 
 fn draw_jack_slice(
