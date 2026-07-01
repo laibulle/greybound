@@ -695,37 +695,54 @@ impl GreyboundUi {
         let selected = self.active_device();
         let scale = self.scale;
 
-        let top = container(
+        let mode_tabs = container(
             row![
-                self.metered_global_knob(
-                    "INPUT",
-                    GlobalControl::Input,
-                    self.input_gain,
-                    normalized_db_readout(self.input_gain, -24.0, 24.0),
-                    self.meters.input
-                ),
-                self.global_knob(
-                    "IR MIX",
-                    GlobalControl::IrMix,
-                    self.cab.master,
-                    percent_readout(self.cab.master)
-                ),
-                self.preset_strip(selected),
-                self.global_knob(
-                    "SPRING",
-                    GlobalControl::SpringMix,
-                    self.springfield_mix(),
-                    percent_readout(self.springfield_mix())
-                ),
-                self.metered_global_knob(
-                    "OUTPUT",
-                    GlobalControl::Output,
-                    self.output_gain,
-                    normalized_db_readout(self.output_gain, -24.0, 6.0),
-                    self.meters.output
-                ),
+                self.view_button(ViewMode::Pedals),
+                self.view_button(ViewMode::Amp),
+                self.view_button(ViewMode::Cab),
             ]
-            .spacing(self.s(20.0))
+            .spacing(self.s(10.0))
+            .align_items(Alignment::Center),
+        )
+        .width(Length::Fill)
+        .center_x();
+
+        let top = container(
+            column![
+                mode_tabs,
+                row![
+                    self.metered_global_knob(
+                        "INPUT",
+                        GlobalControl::Input,
+                        self.input_gain,
+                        normalized_db_readout(self.input_gain, -24.0, 24.0),
+                        self.meters.input
+                    ),
+                    self.global_knob(
+                        "IR MIX",
+                        GlobalControl::IrMix,
+                        self.cab.master,
+                        percent_readout(self.cab.master)
+                    ),
+                    self.preset_strip(selected),
+                    self.global_knob(
+                        "SPRING",
+                        GlobalControl::SpringMix,
+                        self.springfield_mix(),
+                        percent_readout(self.springfield_mix())
+                    ),
+                    self.metered_global_knob(
+                        "OUTPUT",
+                        GlobalControl::Output,
+                        self.output_gain,
+                        normalized_db_readout(self.output_gain, -24.0, 6.0),
+                        self.meters.output
+                    ),
+                ]
+                .spacing(self.s(20.0))
+                .align_items(Alignment::Center),
+            ]
+            .spacing(self.s(2.0))
             .align_items(Alignment::Center),
         )
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -805,38 +822,27 @@ impl GreyboundUi {
 
     fn preset_strip(&self, selected: &DeviceState) -> Element<'_, Message> {
         container(
-            column![
-                row![
-                    self.view_button(ViewMode::Pedals),
-                    self.view_button(ViewMode::Amp),
-                    self.view_button(ViewMode::Cab),
-                ]
-                .spacing(self.s(10.0))
-                .align_items(Alignment::Center),
-                row![
-                    button(text("<").size(self.font(18.0)))
-                        .style(iced::theme::Button::custom(ChromeButton))
-                        .padding([self.s(8.0), self.s(12.0)]),
-                    container(
-                        text(format!(
-                            "{} / {}",
-                            selected.model.title(),
-                            selected.model.subtitle()
-                        ))
-                        .size(self.font(18.0))
-                        .horizontal_alignment(Horizontal::Left)
-                    )
-                    .padding([self.s(14.0), self.s(20.0)])
-                    .width(Length::Fixed(self.s(430.0)))
-                    .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.72))),
-                    button(text(">").size(self.font(18.0)))
-                        .style(iced::theme::Button::custom(ChromeButton))
-                        .padding([self.s(8.0), self.s(12.0)]),
-                ]
-                .spacing(self.s(10.0))
-                .align_items(Alignment::Center),
+            row![
+                button(text("<").size(self.font(18.0)))
+                    .style(iced::theme::Button::custom(ChromeButton))
+                    .padding([self.s(8.0), self.s(12.0)]),
+                container(
+                    text(format!(
+                        "{} / {}",
+                        selected.model.title(),
+                        selected.model.subtitle()
+                    ))
+                    .size(self.font(18.0))
+                    .horizontal_alignment(Horizontal::Left)
+                )
+                .padding([self.s(14.0), self.s(20.0)])
+                .width(Length::Fixed(self.s(430.0)))
+                .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.72))),
+                button(text(">").size(self.font(18.0)))
+                    .style(iced::theme::Button::custom(ChromeButton))
+                    .padding([self.s(8.0), self.s(12.0)]),
             ]
-            .spacing(self.s(14.0))
+            .spacing(self.s(10.0))
             .align_items(Alignment::Center),
         )
         .width(Length::Fill)
