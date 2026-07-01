@@ -860,6 +860,7 @@ impl GreyboundUi {
             column![
                 container(
                     row![
+                        container("").width(Length::Fixed(self.s(36.0))),
                         container(text(title).size(self.font(24.0)).style(Color::WHITE))
                             .height(Length::Fill)
                             .center_y(),
@@ -868,13 +869,13 @@ impl GreyboundUi {
                             .height(Length::Fill)
                             .align_x(Horizontal::Right)
                             .center_y(),
+                        container("").width(Length::Fixed(self.s(16.0))),
                     ]
                     .height(Length::Fill)
                     .align_items(Alignment::Center)
                 )
                 .height(Length::Fixed(self.s(58.0)))
                 .width(Length::Fill)
-                .padding([0.0, self.s(36.0)])
                 .style(modal_title_bar_container()),
                 container("")
                     .height(Length::Fixed(self.s(1.0)))
