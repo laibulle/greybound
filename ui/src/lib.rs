@@ -1087,6 +1087,7 @@ impl GreyboundUi {
                 Canvas::new(GlobalKnobArt {
                     control,
                     value,
+                    scale: self.scale,
                     label: ""
                 })
                 .width(Length::Fixed(self.s(92.0)))
@@ -1674,6 +1675,7 @@ fn distance(a: Point, b: Point) -> f32 {
 struct GlobalKnobArt {
     control: GlobalControl,
     value: f32,
+    scale: f32,
     label: &'static str,
 }
 
@@ -1689,7 +1691,10 @@ impl canvas::Program<Message> for GlobalKnobArt {
     ) -> (canvas::event::Status, Option<Message>) {
         match event {
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|position| unscale_point(position, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
                 state.gesture = Some(DragGesture {
@@ -1710,7 +1715,10 @@ impl canvas::Program<Message> for GlobalKnobArt {
                 let Some(gesture) = state.gesture else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|position| unscale_point(position, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
                 (
