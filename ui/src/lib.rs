@@ -16,6 +16,9 @@ const TEAL: Color = Color::from_rgb(0.35, 0.56, 0.57);
 const GOLD: Color = Color::from_rgb(0.76, 0.61, 0.35);
 pub const DESIGN_WIDTH: f32 = 1600.0;
 pub const DESIGN_HEIGHT: f32 = 900.0;
+const PEDAL_STANDARD_WIDTH: f32 = 300.0;
+const PEDAL_STANDARD_HEIGHT: f32 = 565.0;
+const PEDAL_KNOB_RADIUS: f32 = 37.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -429,15 +432,6 @@ impl DeviceModel {
             Self::Nox30 => "Nox30",
             Self::Springfield => "Springfield",
             Self::CabIr => "Celestion IR",
-        }
-    }
-
-    fn subtitle(self) -> &'static str {
-        match self {
-            Self::Minotaur => "Klon-style greybox overdrive",
-            Self::Nox30 => "JMI-era Top Boost greybox amp",
-            Self::Springfield => "Spring tank greybox/IR hybrid",
-            Self::CabIr => "External cabinet impulse response",
         }
     }
 }
@@ -1778,7 +1772,7 @@ impl canvas::Program<Message> for BoardArt {
         draw_stage_background(&mut frame, logical_size);
 
         let layout = board_layout(self.devices.len(), logical_size);
-        let y = 70.0;
+        let y = pedal_board_y(logical_size, layout.pedal_h);
 
         for (index, device) in self.devices.iter().enumerate() {
             let x = layout.start_x + index as f32 * (layout.pedal_w + layout.gap);
@@ -1980,9 +1974,14 @@ struct BoardLayout {
 
 fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     let count = device_count.max(1) as f32;
-    let gap = 34.0;
-    let pedal_w = ((size.width - 86.0 - gap * (count - 1.0)) / count).clamp(190.0, 275.0);
-    let pedal_h = 420.0;
+    let gap = 44.0;
+    let available_width = size.width - 86.0 - gap * (count - 1.0);
+    let pedal_w = (available_width / count)
+        .min(PEDAL_STANDARD_WIDTH)
+        .max(220.0);
+    let pedal_h = (pedal_w * (PEDAL_STANDARD_HEIGHT / PEDAL_STANDARD_WIDTH))
+        .min(size.height - 44.0)
+        .max(420.0);
     let total = pedal_w * count + gap * (count - 1.0);
 
     BoardLayout {
@@ -1993,9 +1992,13 @@ fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     }
 }
 
+fn pedal_board_y(size: Size, pedal_h: f32) -> f32 {
+    ((size.height - pedal_h) * 0.5 + 10.0).max(22.0)
+}
+
 fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<usize> {
     let layout = board_layout(device_count, size);
-    let y = 70.0;
+    let y = pedal_board_y(size, layout.pedal_h);
 
     (0..device_count).find(|index| {
         let x = layout.start_x + *index as f32 * (layout.pedal_w + layout.gap);
@@ -2022,7 +2025,7 @@ fn hit_test_pedal_knob(
     position: Point,
 ) -> Option<(usize, ControlKind)> {
     let layout = board_layout(devices.len(), size);
-    let y = 70.0;
+    let y = pedal_board_y(size, layout.pedal_h);
 
     devices.iter().enumerate().find_map(|(index, device)| {
         let origin = Point::new(
@@ -2042,7 +2045,7 @@ fn pedal_knob_centers(
     origin: Point,
     size: Size,
 ) -> Vec<(ControlKind, Point)> {
-    let knob_y = origin.y + 76.0;
+    let knob_y = origin.y + size.height * 0.155;
 
     match device.model {
         DeviceModel::Minotaur => vec![
@@ -2056,7 +2059,7 @@ fn pedal_knob_centers(
             ),
             (
                 ControlKind::Master,
-                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
             ),
         ],
         DeviceModel::Springfield => vec![
@@ -2070,7 +2073,7 @@ fn pedal_knob_centers(
             ),
             (
                 ControlKind::Master,
-                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
             ),
         ],
         _ => Vec::new(),
@@ -2778,13 +2781,13 @@ fn draw_pedal(
         false,
     );
 
-    let knob_y = origin.y + 76.0;
+    let knob_y = origin.y + size.height * 0.155;
     match device.model {
         DeviceModel::Minotaur => {
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.30, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Gain",
                 device.gain,
                 KnobSkin::Teal,
@@ -2792,15 +2795,15 @@ fn draw_pedal(
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.70, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Treble",
                 device.treble,
                 KnobSkin::Teal,
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
-                31.0,
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                PEDAL_KNOB_RADIUS,
                 "Output",
                 device.master,
                 KnobSkin::Teal,
@@ -2810,7 +2813,7 @@ fn draw_pedal(
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.28, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Volume",
                 device.gain,
                 KnobSkin::AsatoBlack,
@@ -2818,23 +2821,23 @@ fn draw_pedal(
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.72, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Treble",
                 device.treble,
                 KnobSkin::AsatoBlack,
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.28, knob_y + 88.0),
-                31.0,
+                Point::new(origin.x + size.width * 0.28, knob_y + size.height * 0.155),
+                PEDAL_KNOB_RADIUS,
                 "Bass",
                 device.bass,
                 KnobSkin::AsatoBlack,
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.72, knob_y + 88.0),
-                31.0,
+                Point::new(origin.x + size.width * 0.72, knob_y + size.height * 0.155),
+                PEDAL_KNOB_RADIUS,
                 "Cut",
                 device.cut,
                 KnobSkin::AsatoBlack,
@@ -2844,7 +2847,7 @@ fn draw_pedal(
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.30, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Dwell",
                 device.gain,
                 KnobSkin::Teal,
@@ -2852,15 +2855,15 @@ fn draw_pedal(
             draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.70, knob_y),
-                31.0,
+                PEDAL_KNOB_RADIUS,
                 "Tone",
                 device.treble,
                 KnobSkin::Teal,
             );
             draw_component_knob(
                 frame,
-                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
-                31.0,
+                Point::new(origin.x + size.width * 0.50, knob_y + size.height * 0.165),
+                PEDAL_KNOB_RADIUS,
                 "Mix",
                 device.master,
                 KnobSkin::Teal,
@@ -2886,24 +2889,7 @@ fn draw_pedal(
         }
     }
 
-    draw_text(
-        frame,
-        device.model.subtitle(),
-        Point::new(origin.x + size.width * 0.50, origin.y + 30.0),
-        13.0,
-        Color::from_rgb(0.02, 0.025, 0.03),
-        Horizontal::Center,
-    );
-
     let title_y = origin.y + size.height * 0.56;
-    draw_text(
-        frame,
-        ">  >>>>",
-        Point::new(origin.x + 27.0, title_y),
-        22.0,
-        Color::from_rgb(0.11, 0.12, 0.12),
-        Horizontal::Left,
-    );
     draw_text(
         frame,
         &device.name,
@@ -2912,22 +2898,14 @@ fn draw_pedal(
         Color::from_rgb(0.02, 0.025, 0.03),
         Horizontal::Center,
     );
-    draw_text(
-        frame,
-        ">>>>  >",
-        Point::new(origin.x + size.width - 28.0, title_y),
-        22.0,
-        Color::from_rgb(0.11, 0.12, 0.12),
-        Horizontal::Right,
-    );
 
-    let plate_origin = Point::new(origin.x + 18.0, origin.y + size.height * 0.64);
-    let plate_size = Size::new(size.width - 36.0, size.height * 0.27);
+    let plate_origin = Point::new(origin.x + 20.0, origin.y + size.height * 0.64);
+    let plate_size = Size::new(size.width - 40.0, size.height * 0.31);
     draw_texture_plate(frame, plate_origin, plate_size, device.name.as_str());
 
     let led = Path::circle(
         Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.69),
-        10.0,
+        10.5,
     );
     frame.fill(
         &led,
@@ -2946,7 +2924,7 @@ fn draw_pedal(
 
     draw_footswitch(
         frame,
-        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.81),
+        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.82),
     );
 }
 
