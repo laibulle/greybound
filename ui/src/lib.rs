@@ -120,6 +120,27 @@ fn app_panel_container() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(AppPanelContainer))
 }
 
+struct ControlBarContainer;
+
+impl container::StyleSheet for ControlBarContainer {
+    type Style = iced::theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            text_color: Some(INK),
+            background: Some(Background::Color(Color::from_rgba(0.78, 0.83, 0.95, 0.84))),
+            border_radius: 0.0.into(),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
+            ..container::Appearance::default()
+        }
+    }
+}
+
+fn control_bar_container() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(ControlBarContainer))
+}
+
 struct GhostContainer(Color);
 
 impl container::StyleSheet for GhostContainer {
@@ -668,7 +689,7 @@ impl GreyboundUi {
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
         .height(Length::Fixed(self.s(190.0)))
         .padding([self.s(22.0), self.s(34.0)])
-        .style(ghost_container(Color::from_rgba(0.78, 0.83, 0.95, 0.84)));
+        .style(control_bar_container());
 
         let main_view: Element<'_, Message> = if self.audio_settings.open {
             self.audio_settings_panel()
