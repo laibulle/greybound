@@ -860,11 +860,16 @@ impl GreyboundUi {
             column![
                 container(
                     row![
-                        text(title).size(self.font(24.0)).style(Color::WHITE),
+                        container(text(title).size(self.font(24.0)).style(Color::WHITE))
+                            .height(Length::Fill)
+                            .center_y(),
                         container(close)
                             .width(Length::Fill)
-                            .align_x(Horizontal::Right),
+                            .height(Length::Fill)
+                            .align_x(Horizontal::Right)
+                            .center_y(),
                     ]
+                    .height(Length::Fill)
                     .align_items(Alignment::Center)
                 )
                 .height(Length::Fixed(self.s(58.0)))
