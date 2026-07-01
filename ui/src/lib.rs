@@ -69,11 +69,25 @@ pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
     ToggleBypass(bool),
+    SetDeviceControl {
+        index: usize,
+        control: ControlKind,
+        value: f32,
+    },
     GainChanged(f32),
     BassChanged(f32),
     TrebleChanged(f32),
     CutChanged(f32),
     MasterChanged(f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlKind {
+    Gain,
+    Bass,
+    Treble,
+    Cut,
+    Master,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +204,27 @@ impl DeviceState {
             master: 1.0,
         }
     }
+
+    fn control_value(&self, control: ControlKind) -> f32 {
+        match control {
+            ControlKind::Gain => self.gain,
+            ControlKind::Bass => self.bass,
+            ControlKind::Treble => self.treble,
+            ControlKind::Cut => self.cut,
+            ControlKind::Master => self.master,
+        }
+    }
+
+    fn set_control(&mut self, control: ControlKind, value: f32) {
+        let value = value.clamp(0.0, 1.0);
+        match control {
+            ControlKind::Gain => self.gain = value,
+            ControlKind::Bass => self.bass = value,
+            ControlKind::Treble => self.treble = value,
+            ControlKind::Cut => self.cut = value,
+            ControlKind::Master => self.master = value,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +262,17 @@ impl GreyboundUi {
             }
             Message::ToggleBypass(value) => {
                 self.active_device_mut().bypassed = value;
+            }
+            Message::SetDeviceControl {
+                index,
+                control,
+                value,
+            } => {
+                if let Some(device) = self.devices.get_mut(index) {
+                    device.set_control(control, value);
+                    self.selected_index = index;
+                    self.view_mode = ViewMode::Pedals;
+                }
             }
             Message::GainChanged(value) => {
                 self.active_device_mut().gain = value;
@@ -496,29 +542,87 @@ struct BoardArt {
     selected_index: usize,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct DragState {
+    gesture: Option<DragGesture>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DragGesture {
+    index: Option<usize>,
+    control: ControlKind,
+    start_position: Point,
+    start_value: f32,
+}
+
 impl canvas::Program<Message> for BoardArt {
-    type State = ();
+    type State = DragState;
 
     fn update(
         &self,
-        _state: &mut Self::State,
+        state: &mut Self::State,
         event: canvas::Event,
         bounds: Rectangle,
         cursor: mouse::Cursor,
     ) -> (canvas::event::Status, Option<Message>) {
-        let canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event else {
-            return (canvas::event::Status::Ignored, None);
-        };
+        match event {
+            canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
 
-        let Some(position) = cursor.position_in(bounds) else {
-            return (canvas::event::Status::Ignored, None);
-        };
+                if let Some((index, control)) =
+                    hit_test_pedal_knob(&self.devices, bounds.size(), position)
+                {
+                    let start_value = self.devices[index].control_value(control);
+                    state.gesture = Some(DragGesture {
+                        index: Some(index),
+                        control,
+                        start_position: position,
+                        start_value,
+                    });
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::SetDeviceControl {
+                            index,
+                            control,
+                            value: start_value,
+                        }),
+                    );
+                }
 
-        if let Some(index) = hit_test_pedal(self.devices.len(), bounds.size(), position) {
-            return (
-                canvas::event::Status::Captured,
-                Some(Message::SelectDevice(index)),
-            );
+                if let Some(index) = hit_test_pedal(self.devices.len(), bounds.size(), position) {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::SelectDevice(index)),
+                    );
+                }
+            }
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let Some(gesture) = state.gesture else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                let Some(index) = gesture.index else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+
+                return (
+                    canvas::event::Status::Captured,
+                    Some(Message::SetDeviceControl {
+                        index,
+                        control: gesture.control,
+                        value: dragged_value(gesture, position),
+                    }),
+                );
+            }
+            canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                state.gesture = None;
+                return (canvas::event::Status::Captured, None);
+            }
+            _ => {}
         }
 
         (canvas::event::Status::Ignored, None)
@@ -576,7 +680,60 @@ struct AmpArt {
 }
 
 impl canvas::Program<Message> for AmpArt {
-    type State = ();
+    type State = DragState;
+
+    fn update(
+        &self,
+        state: &mut Self::State,
+        event: canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> (canvas::event::Status, Option<Message>) {
+        match event {
+            canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+
+                if let Some(control) = hit_test_amp_knob(bounds.size(), position) {
+                    let start_value = self.amp.control_value(control);
+                    state.gesture = Some(DragGesture {
+                        index: None,
+                        control,
+                        start_position: position,
+                        start_value,
+                    });
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(control_message(control, start_value)),
+                    );
+                }
+            }
+            canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let Some(gesture) = state.gesture else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+                let Some(position) = cursor.position_in(bounds) else {
+                    return (canvas::event::Status::Ignored, None);
+                };
+
+                return (
+                    canvas::event::Status::Captured,
+                    Some(control_message(
+                        gesture.control,
+                        dragged_value(gesture, position),
+                    )),
+                );
+            }
+            canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                state.gesture = None;
+                return (canvas::event::Status::Captured, None);
+            }
+            _ => {}
+        }
+
+        (canvas::event::Status::Ignored, None)
+    }
 
     fn draw(
         &self,
@@ -698,6 +855,121 @@ fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<us
             && position.y >= y
             && position.y <= y + layout.pedal_h
     })
+}
+
+fn hit_test_pedal_knob(
+    devices: &[DeviceState],
+    size: Size,
+    position: Point,
+) -> Option<(usize, ControlKind)> {
+    let layout = board_layout(devices.len(), size);
+    let y = 70.0;
+
+    devices.iter().enumerate().find_map(|(index, device)| {
+        let origin = Point::new(
+            layout.start_x + index as f32 * (layout.pedal_w + layout.gap),
+            y,
+        );
+        let size = Size::new(layout.pedal_w, layout.pedal_h);
+        pedal_knob_centers(device, origin, size)
+            .into_iter()
+            .find(|(_, center)| distance(*center, position) <= 48.0)
+            .map(|(control, _)| (index, control))
+    })
+}
+
+fn pedal_knob_centers(
+    device: &DeviceState,
+    origin: Point,
+    size: Size,
+) -> Vec<(ControlKind, Point)> {
+    let knob_y = origin.y + 76.0;
+
+    match device.model {
+        DeviceModel::Minotaur => vec![
+            (
+                ControlKind::Gain,
+                Point::new(origin.x + size.width * 0.30, knob_y),
+            ),
+            (
+                ControlKind::Treble,
+                Point::new(origin.x + size.width * 0.70, knob_y),
+            ),
+            (
+                ControlKind::Master,
+                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+            ),
+        ],
+        DeviceModel::Springfield => vec![
+            (
+                ControlKind::Gain,
+                Point::new(origin.x + size.width * 0.30, knob_y),
+            ),
+            (
+                ControlKind::Treble,
+                Point::new(origin.x + size.width * 0.70, knob_y),
+            ),
+            (
+                ControlKind::Master,
+                Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
+            ),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn hit_test_amp_knob(size: Size, position: Point) -> Option<ControlKind> {
+    let amp_w = size.width.min(1080.0);
+    let origin = Point::new((size.width - amp_w) * 0.5, 74.0);
+    let knob_y = origin.y + 96.0;
+    let first_knob_x = origin.x + amp_w * 0.38;
+    let spacing = 120.0;
+    let knobs = [
+        (ControlKind::Gain, Point::new(first_knob_x, knob_y)),
+        (
+            ControlKind::Bass,
+            Point::new(first_knob_x + spacing, knob_y),
+        ),
+        (
+            ControlKind::Cut,
+            Point::new(first_knob_x + spacing * 2.0, knob_y),
+        ),
+        (
+            ControlKind::Master,
+            Point::new(first_knob_x + spacing * 3.0, knob_y),
+        ),
+        (
+            ControlKind::Treble,
+            Point::new(first_knob_x + spacing * 4.0, knob_y),
+        ),
+    ];
+
+    knobs
+        .into_iter()
+        .find(|(_, center)| distance(*center, position) <= 48.0)
+        .map(|(control, _)| control)
+}
+
+fn dragged_value(gesture: DragGesture, position: Point) -> f32 {
+    let horizontal = position.x - gesture.start_position.x;
+    let vertical = gesture.start_position.y - position.y;
+    (gesture.start_value + (horizontal + vertical) / 240.0).clamp(0.0, 1.0)
+}
+
+fn control_message(control: ControlKind, value: f32) -> Message {
+    match control {
+        ControlKind::Gain => Message::GainChanged(value),
+        ControlKind::Bass => Message::BassChanged(value),
+        ControlKind::Treble => Message::TrebleChanged(value),
+        ControlKind::Cut => Message::CutChanged(value),
+        ControlKind::Master => Message::MasterChanged(value),
+    }
+}
+
+fn distance(a: Point, b: Point) -> f32 {
+    let dx = a.x - b.x;
+    let dy = a.y - b.y;
+    (dx * dx + dy * dy).sqrt()
 }
 
 #[derive(Debug, Clone, Copy)]
