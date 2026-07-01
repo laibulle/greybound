@@ -1305,6 +1305,7 @@ dependencies = [
  "greybound",
  "greybound-ui",
  "iced",
+ "png",
  "rtrb",
 ]
 

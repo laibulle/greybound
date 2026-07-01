@@ -11,4 +11,5 @@ greybound-ui = { path = "../ui" }
 greybound = { path = "../core" }
 anyhow = "1.0"
 cpal = "0.15"
+png = "0.17"
 rtrb = "0.2"

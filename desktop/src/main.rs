@@ -12,6 +12,7 @@ use greybound_ui::{GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH};
 use iced::{Application, Command, Element, Settings, Subscription};
 use rtrb::{Consumer, RingBuffer};
 use std::fs::{self, File};
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use std::sync::{
@@ -30,12 +31,45 @@ fn main() -> iced::Result {
         window: iced::window::Settings {
             size: (DESIGN_WIDTH as u32, DESIGN_HEIGHT as u32),
             min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
+            icon: app_icon(),
             ..iced::window::Settings::default()
         },
         antialiasing: true,
         exit_on_close_request: false,
         ..Settings::default()
     })
+}
+
+fn app_icon() -> Option<iced::window::Icon> {
+    let bytes = include_bytes!("../assets/husky-app-icon.png");
+    let decoder = png::Decoder::new(Cursor::new(bytes.as_slice()));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buffer = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buffer).ok()?;
+
+    if info.bit_depth != png::BitDepth::Eight {
+        return None;
+    }
+
+    let pixels = &buffer[..info.buffer_size()];
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => pixels.to_vec(),
+        png::ColorType::Rgb => pixels
+            .chunks_exact(3)
+            .flat_map(|pixel| [pixel[0], pixel[1], pixel[2], 255])
+            .collect(),
+        png::ColorType::Grayscale => pixels
+            .iter()
+            .flat_map(|value| [*value, *value, *value, 255])
+            .collect(),
+        png::ColorType::GrayscaleAlpha => pixels
+            .chunks_exact(2)
+            .flat_map(|pixel| [pixel[0], pixel[0], pixel[0], pixel[1]])
+            .collect(),
+        png::ColorType::Indexed => return None,
+    };
+
+    iced::window::icon::from_rgba(rgba, info.width, info.height).ok()
 }
 
 struct Desktop {
