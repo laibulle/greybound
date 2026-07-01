@@ -66,7 +66,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
         draw_text(
             frame,
             spec.label,
-            Point::new(center.x, center.y + radius + 26.0),
+            Point::new(center.x, center.y + radius + 20.0),
             14.0,
             Color::from_rgb(0.09, 0.08, 0.08),
             Horizontal::Center,
@@ -248,7 +248,7 @@ fn draw_pedal_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32
     draw_text(
         frame,
         "min",
-        Point::new(center.x - radius * 1.58, center.y + radius * 1.08),
+        Point::new(center.x - radius * 1.43, center.y + radius * 0.98),
         9.0,
         Color::from_rgba(0.09, 0.08, 0.08, 0.72),
         Horizontal::Center,
@@ -256,7 +256,7 @@ fn draw_pedal_teal_cap(frame: &mut Frame, center: Point, radius: f32, value: f32
     draw_text(
         frame,
         "max",
-        Point::new(center.x + radius * 1.58, center.y + radius * 1.08),
+        Point::new(center.x + radius * 1.43, center.y + radius * 0.98),
         9.0,
         Color::from_rgba(0.09, 0.08, 0.08, 0.72),
         Horizontal::Center,
