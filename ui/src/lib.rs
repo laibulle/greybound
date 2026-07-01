@@ -1079,26 +1079,15 @@ impl GreyboundUi {
         readout: String,
     ) -> Element<'_, Message> {
         container(
-            column![
-                text(label)
-                    .size(self.font(14.0))
-                    .horizontal_alignment(Horizontal::Center)
-                    .width(Length::Fixed(self.s(104.0))),
-                Canvas::new(GlobalKnobArt {
-                    control,
-                    value,
-                    scale: self.scale,
-                    label: ""
-                })
-                .width(Length::Fixed(self.s(92.0)))
-                .height(Length::Fixed(self.s(92.0))),
-                text(readout)
-                    .size(self.font(14.0))
-                    .horizontal_alignment(Horizontal::Center)
-                    .width(Length::Fixed(self.s(104.0))),
-            ]
-            .align_items(Alignment::Center)
-            .spacing(self.s(4.0)),
+            Canvas::new(GlobalKnobArt {
+                control,
+                value,
+                scale: self.scale,
+                label,
+                readout,
+            })
+            .width(Length::Fixed(self.s(128.0)))
+            .height(Length::Fixed(self.s(148.0))),
         )
         .into()
     }
@@ -1671,12 +1660,13 @@ fn distance(a: Point, b: Point) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct GlobalKnobArt {
     control: GlobalControl,
     value: f32,
     scale: f32,
     label: &'static str,
+    readout: String,
 }
 
 impl canvas::Program<Message> for GlobalKnobArt {
@@ -1716,7 +1706,7 @@ impl canvas::Program<Message> for GlobalKnobArt {
                     return (canvas::event::Status::Ignored, None);
                 };
                 let Some(position) = cursor
-                    .position_in(bounds)
+                    .position_from(bounds.position())
                     .map(|position| unscale_point(position, self.scale))
                 else {
                     return (canvas::event::Status::Ignored, None);
@@ -1746,16 +1736,34 @@ impl canvas::Program<Message> for GlobalKnobArt {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        let radius = bounds.width.min(bounds.height) * 0.34;
-        let center = Point::new(bounds.width * 0.5, bounds.height * 0.47);
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let radius = 31.0;
+        let center = Point::new(logical_size.width * 0.5, 72.0);
+        draw_text(
+            &mut frame,
+            self.label,
+            Point::new(logical_size.width * 0.5, 18.0),
+            14.0,
+            INK,
+            Horizontal::Center,
+        );
         components::draw_knob(
             &mut frame,
             center,
             radius,
             KnobSpec {
                 skin: KnobSkin::HeaderDial,
-                ..KnobSpec::normalized(self.label, self.value)
+                ..KnobSpec::normalized("", self.value)
             },
+        );
+        draw_text(
+            &mut frame,
+            &self.readout,
+            Point::new(logical_size.width * 0.5, 136.0),
+            14.0,
+            INK,
+            Horizontal::Center,
         );
         vec![frame.into_geometry()]
     }
