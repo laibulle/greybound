@@ -346,6 +346,7 @@ pub enum Message {
     },
     AudioStatusChanged(String),
     MeterProbeTick(std::time::Instant),
+    TunerProbeTick(std::time::Instant),
     MeterLevelsChanged {
         input: f32,
         output_left: f32,
@@ -791,6 +792,7 @@ impl GreyboundUi {
                 self.audio_settings.status = status;
             }
             Message::MeterProbeTick(_) => {}
+            Message::TunerProbeTick(_) => {}
             Message::MeterLevelsChanged {
                 input,
                 output_left,

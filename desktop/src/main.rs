@@ -26,8 +26,7 @@ const RMS_SCALE: f64 = 1_000_000_000.0;
 const ASPECT_RATIO: f32 = DESIGN_WIDTH / DESIGN_HEIGHT;
 const RESIZE_TOLERANCE_PX: u32 = 2;
 const TUNER_REFRESH_MS: u64 = 33;
-const DEFAULT_UI_REFRESH_MS: u64 = 66;
-const CIRCUIT_UI_REFRESH_MS: u64 = 100;
+const METER_REFRESH_MS: u64 = 66;
 
 fn main() -> iced::Result {
     Desktop::run(Settings {
@@ -171,6 +170,16 @@ impl Application for Desktop {
                     output_left,
                     output_right,
                 });
+            }
+            return Command::none();
+        }
+
+        if let Message::TunerProbeTick(_) = message {
+            if self.shutting_down {
+                return Command::none();
+            }
+
+            if let Some(audio) = &self.audio {
                 let tuner = audio.tuner_reading();
                 self.ui.update(Message::TunerAnalysisChanged {
                     frequency_hz: tuner.frequency_hz,
@@ -225,21 +234,17 @@ impl Application for Desktop {
                 }
                 _ => None,
             }),
-            iced::time::every(Duration::from_millis(self.ui_refresh_ms()))
-                .map(Message::MeterProbeTick),
+            iced::time::every(Duration::from_millis(METER_REFRESH_MS)).map(Message::MeterProbeTick),
+            tuner_subscription(self.ui.tuner.open),
         ])
     }
 }
 
-impl Desktop {
-    fn ui_refresh_ms(&self) -> u64 {
-        if self.ui.tuner.open {
-            TUNER_REFRESH_MS
-        } else if self.ui.circuit_view {
-            CIRCUIT_UI_REFRESH_MS
-        } else {
-            DEFAULT_UI_REFRESH_MS
-        }
+fn tuner_subscription(open: bool) -> Subscription<Message> {
+    if open {
+        iced::time::every(Duration::from_millis(TUNER_REFRESH_MS)).map(Message::TunerProbeTick)
+    } else {
+        Subscription::none()
     }
 }
 
