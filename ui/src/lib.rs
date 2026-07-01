@@ -381,7 +381,7 @@ impl Default for AudioSettingsState {
             selected_output: None,
             status: "Audio engine starting".to_string(),
             sample_rate: 48_000,
-            period_size: 256,
+            period_size: 32,
             sample_rates: vec![
                 "44100 Hz".to_string(),
                 "48000 Hz".to_string(),
@@ -576,19 +576,21 @@ impl GreyboundUi {
 
         let controls = self.selected_controls(selected);
 
+        let bottom_text = Color::from_rgb(0.80, 0.82, 0.88);
         let bottom = container(
             row![
-                text("TUNER").size(self.font(14.0)),
-                text("MIDI").size(self.font(14.0)),
-                text("TAP").size(self.font(14.0)),
-                text("120.0 BPM").size(self.font(14.0)),
-                text("METRONOME").size(self.font(14.0)),
-                button(text("SETTINGS").size(self.font(14.0)))
+                text("TUNER").size(self.font(14.0)).style(bottom_text),
+                text("MIDI").size(self.font(14.0)).style(bottom_text),
+                text("TAP").size(self.font(14.0)).style(bottom_text),
+                text("120.0 BPM").size(self.font(14.0)).style(bottom_text),
+                text("METRONOME").size(self.font(14.0)).style(bottom_text),
+                button(text("SETTINGS").size(self.font(14.0)).style(Color::WHITE))
                     .on_press(Message::ToggleAudioSettings)
                     .style(iced::theme::Button::custom(ChromeButton))
                     .padding([self.s(6.0), self.s(12.0)]),
-                text("DEVELOPED BY GREYBOUND DSP")
+                text("DEVELOPED BY GREYBOUND")
                     .size(self.font(14.0))
+                    .style(bottom_text)
                     .width(Length::Fill)
                     .horizontal_alignment(Horizontal::Right),
             ]

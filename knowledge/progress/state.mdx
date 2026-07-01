@@ -33,7 +33,9 @@ description: Decisions and open questions that should steer upcoming implementat
   color is intentionally owned by the parent visual surface, not the knob.
 - Desktop layout should behave like a plugin panel, not a responsive app: use a
   fixed `1600x900` design surface and apply one uniform scale factor based on
-  the window size, preserving control positions and proportions.
+  the window size, preserving control positions and proportions. The desktop
+  shell corrects resize events back to the design aspect ratio so arbitrary
+  window ratios do not create blank margins around the plugin surface.
 - Desktop input/output VU meters are connected to live CPAL/CoreAudio telemetry
   in the desktop app. The runtime opens selected input and output devices,
   streams input channel 1 through the focused `grey-nox` chain
@@ -46,6 +48,11 @@ description: Decisions and open questions that should steer upcoming implementat
   output, sample rate, or buffer size restarts the live audio engine with the
   selected runtime configuration; unsupported low-latency buffers surface as
   runtime status errors rather than being silently coerced.
+- On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
+  the low-latency device heuristic. It scores compatible devices and prefers
+  known pro/external audio interfaces such as Scarlett/Focusrite over integrated
+  MacBook devices, then falls back to the system default if no low-latency
+  candidate is available.
 
 ## Open Questions
 
