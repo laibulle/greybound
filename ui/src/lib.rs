@@ -1,3 +1,6 @@
+pub mod components;
+
+use components::{KnobSkin, KnobSpec};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
 use iced::widget::{button, column, container, row, slider, text};
@@ -992,7 +995,12 @@ impl canvas::Program<Message> for KnobArt {
         let mut frame = Frame::new(renderer, bounds.size());
         let radius = bounds.width.min(bounds.height) * 0.34;
         let center = Point::new(bounds.width * 0.5, bounds.height * 0.47);
-        draw_knob(&mut frame, center, radius, self.value, self.label);
+        components::draw_knob(
+            &mut frame,
+            center,
+            radius,
+            KnobSpec::normalized(self.label, self.value),
+        );
         vec![frame.into_geometry()]
     }
 }
@@ -1114,40 +1122,45 @@ fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
     let knob_y = origin.y + 96.0;
     let first_knob_x = origin.x + amp_w * 0.38;
     let spacing = 120.0;
-    draw_knob(
+    draw_component_knob(
         frame,
         Point::new(first_knob_x, knob_y),
         30.0,
-        amp.gain,
         "Volume",
+        amp.gain,
+        KnobSkin::AsatoBlack,
     );
-    draw_knob(
+    draw_component_knob(
         frame,
         Point::new(first_knob_x + spacing, knob_y),
         30.0,
-        amp.bass,
         "Bass",
+        amp.bass,
+        KnobSkin::AsatoBlack,
     );
-    draw_knob(
+    draw_component_knob(
         frame,
         Point::new(first_knob_x + spacing * 2.0, knob_y),
         30.0,
-        amp.cut,
         "Cut",
+        amp.cut,
+        KnobSkin::AsatoBlack,
     );
-    draw_knob(
+    draw_component_knob(
         frame,
         Point::new(first_knob_x + spacing * 3.0, knob_y),
         30.0,
-        amp.master,
         "Sag",
+        amp.master,
+        KnobSkin::AsatoBlack,
     );
-    draw_knob(
+    draw_component_knob(
         frame,
         Point::new(first_knob_x + spacing * 4.0, knob_y),
         30.0,
-        amp.treble,
         "Treble",
+        amp.treble,
+        KnobSkin::AsatoBlack,
     );
 
     draw_text(
@@ -1285,79 +1298,89 @@ fn draw_pedal(
     let knob_y = origin.y + 76.0;
     match device.model {
         DeviceModel::Minotaur => {
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.30, knob_y),
                 31.0,
-                device.gain,
                 "Gain",
+                device.gain,
+                KnobSkin::Teal,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.70, knob_y),
                 31.0,
-                device.treble,
                 "Treble",
+                device.treble,
+                KnobSkin::Teal,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
                 31.0,
-                device.master,
                 "Output",
+                device.master,
+                KnobSkin::Teal,
             );
         }
         DeviceModel::Nox30 => {
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.28, knob_y),
                 31.0,
-                device.gain,
                 "Volume",
+                device.gain,
+                KnobSkin::AsatoBlack,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.72, knob_y),
                 31.0,
-                device.treble,
                 "Treble",
+                device.treble,
+                KnobSkin::AsatoBlack,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.28, knob_y + 88.0),
                 31.0,
-                device.bass,
                 "Bass",
+                device.bass,
+                KnobSkin::AsatoBlack,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.72, knob_y + 88.0),
                 31.0,
-                device.cut,
                 "Cut",
+                device.cut,
+                KnobSkin::AsatoBlack,
             );
         }
         DeviceModel::Springfield => {
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.30, knob_y),
                 31.0,
-                device.gain,
                 "Dwell",
+                device.gain,
+                KnobSkin::Teal,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.70, knob_y),
                 31.0,
-                device.treble,
                 "Tone",
+                device.treble,
+                KnobSkin::Teal,
             );
-            draw_knob(
+            draw_component_knob(
                 frame,
                 Point::new(origin.x + size.width * 0.50, knob_y + 92.0),
                 31.0,
-                device.master,
                 "Mix",
+                device.master,
+                KnobSkin::Teal,
             );
         }
         DeviceModel::CabIr => {
@@ -1444,94 +1467,27 @@ fn draw_pedal(
     );
 }
 
-fn draw_knob(frame: &mut Frame, center: Point, radius: f32, value: f32, label: &str) {
-    for tick in 0..25 {
-        let t = tick as f32 / 24.0;
-        let angle = (-135.0 + t * 270.0).to_radians();
-        let inner = Point::new(
-            center.x + angle.cos() * (radius + 8.0),
-            center.y + angle.sin() * (radius + 8.0),
-        );
-        let outer = Point::new(
-            center.x + angle.cos() * (radius + 15.0),
-            center.y + angle.sin() * (radius + 15.0),
-        );
-        frame.stroke(
-            &Path::line(inner, outer),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.08, 0.09, 0.10, 0.54))
-                .with_width(if tick % 4 == 0 { 1.8 } else { 1.0 }),
-        );
-    }
-
-    frame.fill(
-        &Path::circle(Point::new(center.x + 4.0, center.y + 8.0), radius + 4.0),
-        Color::from_rgba(0.06, 0.05, 0.04, 0.22),
-    );
-    frame.fill(&Path::circle(center, radius), darken(TEAL, 0.10));
-
-    for ring in 0..9 {
-        let r = radius - ring as f32 * 2.0;
-        frame.stroke(
-            &Path::circle(center, r),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.80, 0.93, 0.90, 0.06))
-                .with_width(1.0),
-        );
-    }
-
-    for tooth in 0..28 {
-        let angle = tooth as f32 / 28.0 * std::f32::consts::TAU;
-        let a = Point::new(
-            center.x + angle.cos() * (radius - 2.0),
-            center.y + angle.sin() * (radius - 2.0),
-        );
-        let b = Point::new(
-            center.x + angle.cos() * radius,
-            center.y + angle.sin() * radius,
-        );
-        frame.stroke(
-            &Path::line(a, b),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.03, 0.08, 0.08, 0.36))
-                .with_width(2.0),
-        );
-    }
-
-    let cap = Path::circle(
-        Point::new(center.x - radius * 0.22, center.y - radius * 0.22),
-        radius * 0.42,
-    );
-    frame.fill(&cap, Color::from_rgba(0.86, 0.98, 0.94, 0.13));
-
-    let angle = (-130.0 + value.clamp(0.0, 1.0) * 260.0).to_radians();
-    let pointer = Path::line(
-        Point::new(
-            center.x + angle.cos() * radius * 0.20,
-            center.y + angle.sin() * radius * 0.20,
-        ),
-        Point::new(
-            center.x + angle.cos() * radius * 0.74,
-            center.y + angle.sin() * radius * 0.74,
-        ),
-    );
-    frame.stroke(
-        &pointer,
-        Stroke::default()
-            .with_color(Color::from_rgb(0.92, 0.88, 0.80))
-            .with_width(5.0),
-    );
-
-    if !label.is_empty() {
-        draw_text(
-            frame,
+fn draw_component_knob(
+    frame: &mut Frame,
+    center: Point,
+    radius: f32,
+    label: &'static str,
+    value: f32,
+    skin: KnobSkin,
+) {
+    components::draw_knob(
+        frame,
+        center,
+        radius,
+        KnobSpec {
             label,
-            Point::new(center.x, center.y + radius + 22.0),
-            14.0,
-            Color::from_rgb(0.03, 0.03, 0.035),
-            Horizontal::Center,
-        );
-    }
+            value,
+            min: 0.0,
+            max: 1.0,
+            step: 0.01,
+            skin,
+        },
+    );
 }
 
 fn draw_texture_plate(frame: &mut Frame, origin: Point, size: Size, name: &str) {

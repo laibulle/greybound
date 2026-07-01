@@ -27,6 +27,10 @@ description: Decisions and open questions that should steer upcoming implementat
 - The desktop UI should not present the Nox30 amp as a pedalboard slot. The
   amp is a first-class top-menu view with its own large control panel; the
   pedalboard view contains only pedal/effect slots.
+- Desktop visual controls are moving into a reusable component library. The
+  first extracted component is a configurable knob renderer with label,
+  normalized value, min/max, step, and skin; surrounding amp or pedal background
+  color is intentionally owned by the parent visual surface, not the knob.
 
 ## Open Questions
 
