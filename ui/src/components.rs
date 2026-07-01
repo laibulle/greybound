@@ -2,6 +2,9 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{Frame, Path, Stroke, Text};
 use iced::{Color, Point};
 
+const KNOB_MIN_ANGLE_DEGREES: f32 = 135.0;
+const KNOB_MAX_ANGLE_DEGREES: f32 = 405.0;
+
 #[derive(Debug, Clone, Copy)]
 pub struct KnobSpec<'a> {
     pub label: &'a str,
@@ -72,7 +75,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
 fn draw_ticks(frame: &mut Frame, center: Point, radius: f32) {
     for tick in 0..29 {
         let t = tick as f32 / 28.0;
-        let angle = (-135.0 + t * 270.0).to_radians();
+        let angle = knob_angle(t);
         let inner = Point::new(
             center.x + angle.cos() * (radius + 8.0),
             center.y + angle.sin() * (radius + 8.0),
@@ -254,7 +257,7 @@ fn draw_pointer(
     color: Color,
     width: f32,
 ) {
-    let angle = (-130.0 + value.clamp(0.0, 1.0) * 260.0).to_radians();
+    let angle = knob_angle(value);
     let pointer = Path::line(
         Point::new(
             center.x + angle.cos() * radius * 0.18,
@@ -269,6 +272,12 @@ fn draw_pointer(
         &pointer,
         Stroke::default().with_color(color).with_width(width),
     );
+}
+
+fn knob_angle(value: f32) -> f32 {
+    (KNOB_MIN_ANGLE_DEGREES
+        + value.clamp(0.0, 1.0) * (KNOB_MAX_ANGLE_DEGREES - KNOB_MIN_ANGLE_DEGREES))
+        .to_radians()
 }
 
 fn scalloped_knob_path(center: Point, radius: f32) -> Path {
