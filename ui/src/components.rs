@@ -74,6 +74,17 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
     }
 }
 
+pub fn draw_vertical_meter(frame: &mut Frame, top: Point, height: f32, level: f32) {
+    let track_width = 12.0;
+    let fill_height = (height * level.clamp(0.0, 1.0)).max(3.0);
+    let track = Path::rectangle(top, iced::Size::new(track_width, height));
+    frame.fill(&track, Color::from_rgba(0.44, 0.52, 0.72, 0.28));
+
+    let fill_top = Point::new(top.x + 2.0, top.y + height - fill_height);
+    let fill = Path::rectangle(fill_top, iced::Size::new(track_width - 4.0, fill_height));
+    frame.fill(&fill, Color::from_rgb(0.08, 0.13, 0.28));
+}
+
 fn draw_ticks(frame: &mut Frame, center: Point, radius: f32) {
     for tick in 0..29 {
         let t = tick as f32 / 28.0;

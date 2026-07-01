@@ -34,6 +34,12 @@ description: Decisions and open questions that should steer upcoming implementat
 - Desktop layout should behave like a plugin panel, not a responsive app: use a
   fixed `1600x900` design surface and apply one uniform scale factor based on
   the window size, preserving control positions and proportions.
+- Desktop input/output VU meters are now connected to UI state and driven by a
+  temporary desktop-side probe that renders a deterministic signal through the
+  Nox30 amp model at about 30 Hz. This proves the meter path and control
+  sensitivity without claiming live audio telemetry; the future audio backend
+  should replace the probe by publishing real input/output levels through the
+  same meter update message.
 
 ## Open Questions
 

@@ -6,6 +6,6 @@ license = "MIT"
 description = "Desktop frontend for Greybound using iced."
 
 [dependencies]
-iced = { version = "0.10", features = ["canvas"] }
+iced = { version = "0.10", features = ["canvas", "tokio"] }
 greybound-ui = { path = "../ui" }
 greybound = { path = "../core" }

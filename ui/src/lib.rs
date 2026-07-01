@@ -73,6 +73,11 @@ fn ghost_container(background: Color) -> iced::theme::Container {
 pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
+    MeterProbeTick(std::time::Instant),
+    MeterLevelsChanged {
+        input: f32,
+        output: f32,
+    },
     WindowResized {
         width: u32,
         height: u32,
@@ -241,9 +246,25 @@ pub struct GreyboundUi {
     pub devices: Vec<DeviceState>,
     pub amp: DeviceState,
     pub cab: DeviceState,
+    pub meters: MeterLevels,
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub scale: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MeterLevels {
+    pub input: f32,
+    pub output: f32,
+}
+
+impl Default for MeterLevels {
+    fn default() -> Self {
+        Self {
+            input: 0.0,
+            output: 0.0,
+        }
+    }
 }
 
 impl Default for GreyboundUi {
@@ -252,6 +273,7 @@ impl Default for GreyboundUi {
             devices: vec![DeviceState::minotaur(), DeviceState::springfield()],
             amp: DeviceState::nox30(),
             cab: DeviceState::cab_ir(),
+            meters: MeterLevels::default(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             scale: 1.0,
@@ -270,6 +292,11 @@ impl GreyboundUi {
             }
             Message::SelectView(view_mode) => {
                 self.view_mode = view_mode;
+            }
+            Message::MeterProbeTick(_) => {}
+            Message::MeterLevelsChanged { input, output } => {
+                self.meters.input = input.clamp(0.0, 1.0);
+                self.meters.output = output.clamp(0.0, 1.0);
             }
             Message::WindowResized { width, height } => {
                 self.scale = uniform_scale(width as f32, height as f32);
@@ -312,12 +339,12 @@ impl GreyboundUi {
 
         let top = container(
             row![
-                self.global_knob("INPUT", 0.50, "0.0 dB"),
+                self.metered_global_knob("INPUT", 0.50, "0.0 dB", self.meters.input),
                 self.global_knob("CABLE", 0.47, "470 pF"),
                 self.global_knob("IR MIX", 1.0, "100%"),
                 self.preset_strip(selected),
                 self.global_knob("SPRING", self.springfield_mix(), "mix"),
-                self.global_knob("OUTPUT", 0.58, "-3.9 dB"),
+                self.metered_global_knob("OUTPUT", 0.58, "-3.9 dB", self.meters.output),
             ]
             .spacing(self.s(20.0))
             .align_items(Alignment::Center),
@@ -538,6 +565,24 @@ impl GreyboundUi {
             .align_items(Alignment::Center)
             .spacing(self.s(4.0)),
         )
+        .into()
+    }
+
+    fn metered_global_knob(
+        &self,
+        label: &'static str,
+        value: f32,
+        readout: &'static str,
+        meter_level: f32,
+    ) -> Element<'_, Message> {
+        row![
+            Canvas::new(MeterArt { level: meter_level })
+                .width(Length::Fixed(self.s(18.0)))
+                .height(Length::Fixed(self.s(132.0))),
+            self.global_knob(label, value, readout),
+        ]
+        .spacing(self.s(12.0))
+        .align_items(Alignment::Center)
         .into()
     }
 
@@ -1084,6 +1129,30 @@ impl canvas::Program<Message> for KnobArt {
                 ..KnobSpec::normalized(self.label, self.value)
             },
         );
+        vec![frame.into_geometry()]
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MeterArt {
+    level: f32,
+}
+
+impl canvas::Program<Message> for MeterArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        let scale = (bounds.height / 132.0).max(0.001);
+        frame.scale(scale);
+        components::draw_vertical_meter(&mut frame, Point::new(3.0, 4.0), 124.0, self.level);
         vec![frame.into_geometry()]
     }
 }
