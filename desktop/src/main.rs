@@ -18,6 +18,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     Arc,
 };
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 const RMS_SCALE: f64 = 1_000_000_000.0;
@@ -132,6 +133,12 @@ impl Application for Desktop {
                     output_left,
                     output_right,
                 });
+                let tuner = audio.tuner_reading();
+                self.ui.update(Message::TunerAnalysisChanged {
+                    frequency_hz: tuner.frequency_hz,
+                    cents: tuner.cents,
+                    confidence: tuner.confidence,
+                });
             }
             return Command::none();
         }
@@ -238,8 +245,10 @@ impl Drop for AudioLabMcpSidecar {
 struct LiveAudioEngine {
     _input_stream: Stream,
     _output_stream: Stream,
+    _tuner_worker: TunerAnalysisWorker,
     controls: SharedRuntimeControls,
     meters: Arc<MeterStats>,
+    tuner: Arc<TunerStats>,
     input_device: String,
     output_device: String,
     sample_rate: u32,
@@ -274,7 +283,17 @@ impl LiveAudioEngine {
         let input_channels = input_config.channels as usize;
         let output_channels = output_config.channels as usize;
         let (mut producer, consumer) = RingBuffer::<f32>::new(period_size as usize * 16);
+        let (mut tuner_producer, tuner_consumer) =
+            RingBuffer::<f32>::new((sample_rate as usize / 2).max(period_size as usize * 16));
         let meters = Arc::new(MeterStats::default());
+        let tuner = Arc::new(TunerStats::default());
+        let controls = SharedRuntimeControls::new(ui);
+        let tuner_worker = TunerAnalysisWorker::start(
+            sample_rate as f32,
+            tuner_consumer,
+            controls.clone(),
+            tuner.clone(),
+        );
 
         let input_name = input_device_name.clone();
         let input_stream = input_device.build_input_stream(
@@ -283,13 +302,13 @@ impl LiveAudioEngine {
                 for frame in data.chunks_exact(input_channels) {
                     let sample = frame[0];
                     let _ = producer.push(sample);
+                    let _ = tuner_producer.push(sample);
                 }
             },
             move |error| eprintln!("Greybound input stream error on {input_name}: {error}"),
             None,
         )?;
 
-        let controls = SharedRuntimeControls::new(ui);
         let output_controls = controls.clone();
         let output_meters = meters.clone();
         let output_name = output_device_name.clone();
@@ -318,8 +337,10 @@ impl LiveAudioEngine {
         Ok(Self {
             _input_stream: input_stream,
             _output_stream: output_stream,
+            _tuner_worker: tuner_worker,
             controls,
             meters,
+            tuner,
             input_device: input_device_name,
             output_device: output_device_name,
             sample_rate,
@@ -329,6 +350,10 @@ impl LiveAudioEngine {
 
     fn meter_levels(&self) -> (f32, f32, f32) {
         self.meters.snapshot_levels()
+    }
+
+    fn tuner_reading(&self) -> TunerReading {
+        self.tuner.snapshot()
     }
 
     fn status(&self) -> String {
@@ -368,6 +393,9 @@ impl AudioRuntime {
 
     fn process(&mut self, controls: &SharedRuntimeControls, meters: &MeterStats) -> (f32, f32) {
         let guitar = self.process_guitar_mono(controls, meters);
+        if controls.tuner_muted() {
+            return (0.0, 0.0);
+        }
         let metronome = self.metronome.process(controls);
         mix_final_output(guitar, metronome)
     }
@@ -429,6 +457,9 @@ struct SharedRuntimeControls {
     metronome_pan: Arc<AtomicU32>,
     metronome_beats_per_bar: Arc<AtomicU32>,
     metronome_rhythm_division: Arc<AtomicU32>,
+    tuner_live: Arc<AtomicBool>,
+    tuner_muted: Arc<AtomicBool>,
+    tuner_reference_hz: Arc<AtomicU32>,
 }
 
 impl SharedRuntimeControls {
@@ -457,6 +488,9 @@ impl SharedRuntimeControls {
             metronome_pan: atomic_f32(0.50),
             metronome_beats_per_bar: Arc::new(AtomicU32::new(4)),
             metronome_rhythm_division: Arc::new(AtomicU32::new(1)),
+            tuner_live: Arc::new(AtomicBool::new(false)),
+            tuner_muted: Arc::new(AtomicBool::new(false)),
+            tuner_reference_hz: atomic_f32(440.0),
         };
         controls.store_from_ui(ui);
         controls
@@ -486,6 +520,13 @@ impl SharedRuntimeControls {
         store_f32(&self.metronome_pan, ui.metronome.pan.clamp(0.0, 1.0));
         self.metronome_beats_per_bar.store(4, Ordering::Relaxed);
         self.metronome_rhythm_division.store(1, Ordering::Relaxed);
+        self.tuner_live
+            .store(ui.tuner.open && ui.tuner.live, Ordering::Relaxed);
+        self.tuner_muted.store(ui.tuner.muted, Ordering::Relaxed);
+        store_f32(
+            &self.tuner_reference_hz,
+            ui.tuner.reference_hz.clamp(415.0, 466.0),
+        );
 
         if let Some(device) = ui
             .devices
@@ -588,6 +629,18 @@ impl SharedRuntimeControls {
             .load(Ordering::Relaxed)
             .clamp(1, 16)
     }
+
+    fn tuner_live(&self) -> bool {
+        self.tuner_live.load(Ordering::Relaxed)
+    }
+
+    fn tuner_muted(&self) -> bool {
+        self.tuner_muted.load(Ordering::Relaxed)
+    }
+
+    fn tuner_reference_hz(&self) -> f32 {
+        load_f32(&self.tuner_reference_hz).clamp(415.0, 466.0)
+    }
 }
 
 struct MetronomeGenerator {
@@ -663,6 +716,182 @@ impl MetronomeGenerator {
         let beats_per_second = controls.metronome_bpm() / 60.0;
         let ticks_per_beat = controls.metronome_rhythm_division() as f32;
         (self.sample_rate / (beats_per_second * ticks_per_beat)).max(1.0)
+    }
+}
+
+struct TunerAnalysisWorker {
+    stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl TunerAnalysisWorker {
+    fn start(
+        sample_rate: f32,
+        mut input: Consumer<f32>,
+        controls: SharedRuntimeControls,
+        stats: Arc<TunerStats>,
+    ) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop.clone();
+        let handle = thread::spawn(move || {
+            const WINDOW: usize = 4096;
+            const HOP: usize = 1024;
+            let mut buffer = Vec::with_capacity(WINDOW * 2);
+            let mut samples_since_analysis = 0usize;
+
+            while !worker_stop.load(Ordering::Relaxed) {
+                let mut drained = 0usize;
+                while let Ok(sample) = input.pop() {
+                    buffer.push(sample);
+                    drained += 1;
+                }
+
+                if drained == 0 {
+                    thread::sleep(Duration::from_millis(2));
+                    continue;
+                }
+
+                if buffer.len() > WINDOW * 2 {
+                    let excess = buffer.len() - WINDOW * 2;
+                    buffer.drain(0..excess);
+                }
+
+                samples_since_analysis += drained;
+                if samples_since_analysis < HOP {
+                    continue;
+                }
+                samples_since_analysis = 0;
+
+                if !controls.tuner_live() || buffer.len() < WINDOW {
+                    stats.store_empty();
+                    continue;
+                }
+
+                let start = buffer.len() - WINDOW;
+                let mut window = Vec::with_capacity(WINDOW);
+                let input_gain = controls.input_gain();
+                window.extend(buffer[start..].iter().map(|sample| sample * input_gain));
+                let reading = detect_pitch_autocorrelation(
+                    &window,
+                    sample_rate,
+                    controls.tuner_reference_hz(),
+                );
+                stats.store(reading);
+            }
+        });
+
+        Self {
+            stop,
+            handle: Some(handle),
+        }
+    }
+}
+
+impl Drop for TunerAnalysisWorker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct TunerReading {
+    frequency_hz: f32,
+    cents: f32,
+    confidence: f32,
+}
+
+#[derive(Default)]
+struct TunerStats {
+    frequency_hz: AtomicU32,
+    cents: AtomicU32,
+    confidence: AtomicU32,
+}
+
+impl TunerStats {
+    fn store(&self, reading: TunerReading) {
+        store_f32(&self.frequency_hz, reading.frequency_hz);
+        store_f32(&self.cents, reading.cents);
+        store_f32(&self.confidence, reading.confidence);
+    }
+
+    fn store_empty(&self) {
+        self.store(TunerReading {
+            frequency_hz: 0.0,
+            cents: 0.0,
+            confidence: 0.0,
+        });
+    }
+
+    fn snapshot(&self) -> TunerReading {
+        TunerReading {
+            frequency_hz: load_f32(&self.frequency_hz),
+            cents: load_f32(&self.cents),
+            confidence: load_f32(&self.confidence),
+        }
+    }
+}
+
+fn detect_pitch_autocorrelation(
+    samples: &[f32],
+    sample_rate: f32,
+    reference_hz: f32,
+) -> TunerReading {
+    let mean = samples.iter().sum::<f32>() / samples.len() as f32;
+    let mut centered = Vec::with_capacity(samples.len());
+    centered.extend(samples.iter().map(|sample| sample - mean));
+    let rms =
+        (centered.iter().map(|sample| sample * sample).sum::<f32>() / centered.len() as f32).sqrt();
+    if rms < 0.003 {
+        return empty_tuner_reading();
+    }
+
+    let min_lag = (sample_rate / 1_200.0).floor().max(1.0) as usize;
+    let max_lag = (sample_rate / 65.0).ceil().min((centered.len() / 2) as f32) as usize;
+    let mut best_lag = 0usize;
+    let mut best_score = 0.0f32;
+
+    for lag in min_lag..=max_lag {
+        let mut xy = 0.0;
+        let mut xx = 0.0;
+        let mut yy = 0.0;
+        for index in 0..(centered.len() - lag) {
+            let a = centered[index];
+            let b = centered[index + lag];
+            xy += a * b;
+            xx += a * a;
+            yy += b * b;
+        }
+        let score = xy / (xx.sqrt() * yy.sqrt()).max(0.000_001);
+        if score > best_score {
+            best_score = score;
+            best_lag = lag;
+        }
+    }
+
+    if best_lag == 0 || best_score < 0.36 {
+        return empty_tuner_reading();
+    }
+
+    let frequency_hz = sample_rate / best_lag as f32;
+    let midi_note = (69.0 + 12.0 * (frequency_hz / reference_hz).log2()).round();
+    let target_hz = reference_hz * 2.0_f32.powf((midi_note - 69.0) / 12.0);
+    let cents = 1_200.0 * (frequency_hz / target_hz).log2();
+
+    TunerReading {
+        frequency_hz,
+        cents: cents.clamp(-50.0, 50.0),
+        confidence: ((best_score - 0.36) / 0.54).clamp(0.0, 1.0),
+    }
+}
+
+fn empty_tuner_reading() -> TunerReading {
+    TunerReading {
+        frequency_hz: 0.0,
+        cents: 0.0,
+        confidence: 0.0,
     }
 }
 

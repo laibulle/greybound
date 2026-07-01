@@ -309,6 +309,17 @@ fn dark_pick_list() -> iced::theme::PickList {
 pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
+    ToggleTuner,
+    CloseTuner,
+    ToggleTunerLive,
+    ToggleTunerMute,
+    TunerDisplayModeSelected(TunerDisplayMode),
+    TunerReferenceStep(f32),
+    TunerAnalysisChanged {
+        frequency_hz: f32,
+        cents: f32,
+        confidence: f32,
+    },
     ToggleAudioSettings,
     CloseAudioSettings,
     ToggleMetronome,
@@ -378,6 +389,12 @@ pub enum GlobalControl {
 pub enum MetronomeControl {
     Volume,
     Pan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunerDisplayMode {
+    Cents,
+    Hz,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -527,9 +544,39 @@ pub struct GreyboundUi {
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
     pub metronome: MetronomeState,
+    pub tuner: TunerState,
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub scale: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TunerState {
+    pub open: bool,
+    pub live: bool,
+    pub muted: bool,
+    pub display_mode: TunerDisplayMode,
+    pub reference_hz: f32,
+    pub detected_hz: Option<f32>,
+    pub note_name: Option<String>,
+    pub cents: f32,
+    pub confidence: f32,
+}
+
+impl Default for TunerState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            live: true,
+            muted: false,
+            display_mode: TunerDisplayMode::Cents,
+            reference_hz: 440.0,
+            detected_hz: None,
+            note_name: None,
+            cents: 0.0,
+            confidence: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -624,6 +671,7 @@ impl Default for GreyboundUi {
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
             metronome: MetronomeState::default(),
+            tuner: TunerState::default(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             scale: 1.0,
@@ -643,10 +691,50 @@ impl GreyboundUi {
             Message::SelectView(view_mode) => {
                 self.view_mode = view_mode;
             }
+            Message::ToggleTuner => {
+                self.tuner.open = !self.tuner.open;
+                if self.tuner.open {
+                    self.audio_settings.open = false;
+                    self.metronome.open = false;
+                }
+            }
+            Message::CloseTuner => {
+                self.tuner.open = false;
+            }
+            Message::ToggleTunerLive => {
+                self.tuner.live = !self.tuner.live;
+            }
+            Message::ToggleTunerMute => {
+                self.tuner.muted = !self.tuner.muted;
+            }
+            Message::TunerDisplayModeSelected(mode) => {
+                self.tuner.display_mode = mode;
+            }
+            Message::TunerReferenceStep(delta) => {
+                self.tuner.reference_hz = (self.tuner.reference_hz + delta).clamp(415.0, 466.0);
+            }
+            Message::TunerAnalysisChanged {
+                frequency_hz,
+                cents,
+                confidence,
+            } => {
+                let confidence = confidence.clamp(0.0, 1.0);
+                self.tuner.confidence = confidence;
+                if frequency_hz > 0.0 && confidence > 0.0 {
+                    self.tuner.detected_hz = Some(frequency_hz);
+                    self.tuner.cents = cents.clamp(-50.0, 50.0);
+                    self.tuner.note_name = Some(note_name(frequency_hz, self.tuner.reference_hz));
+                } else if self.tuner.live {
+                    self.tuner.detected_hz = None;
+                    self.tuner.note_name = None;
+                    self.tuner.cents = 0.0;
+                }
+            }
             Message::ToggleAudioSettings => {
                 self.audio_settings.open = !self.audio_settings.open;
                 if self.audio_settings.open {
                     self.metronome.open = false;
+                    self.tuner.open = false;
                 }
             }
             Message::CloseAudioSettings => {
@@ -656,6 +744,7 @@ impl GreyboundUi {
                 self.metronome.open = !self.metronome.open;
                 if self.metronome.open {
                     self.audio_settings.open = false;
+                    self.tuner.open = false;
                 }
             }
             Message::CloseMetronome => {
@@ -821,6 +910,8 @@ impl GreyboundUi {
             self.audio_settings_panel()
         } else if self.metronome.open {
             self.metronome_panel()
+        } else if self.tuner.open {
+            self.tuner_panel()
         } else {
             match self.view_mode {
                 ViewMode::Pedals => Canvas::new(BoardArt {
@@ -851,7 +942,12 @@ impl GreyboundUi {
         let bottom_text = Color::from_rgb(0.80, 0.82, 0.88);
         let bottom = container(
             row![
-                text("TUNER").size(self.font(14.0)).style(bottom_text),
+                button(text("TUNER").size(self.font(14.0)).style(Color::WHITE))
+                    .on_press(Message::ToggleTuner)
+                    .style(iced::theme::Button::custom(FooterButton {
+                        selected: self.tuner.open || self.tuner.muted
+                    }))
+                    .padding([self.s(4.0), self.s(10.0)]),
                 text("MIDI").size(self.font(14.0)).style(bottom_text),
                 text("TAP").size(self.font(14.0)).style(bottom_text),
                 text(format!("{:.1} BPM", self.metronome.bpm))
@@ -1104,6 +1200,156 @@ impl GreyboundUi {
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
             .into()
+    }
+
+    fn tuner_panel(&self) -> Element<'_, Message> {
+        let tuner = &self.tuner;
+        let mode_cents = tuner.display_mode == TunerDisplayMode::Cents;
+        let reading = match (
+            tuner.display_mode,
+            tuner.detected_hz,
+            tuner.note_name.as_deref(),
+        ) {
+            (TunerDisplayMode::Cents, Some(_), Some(note)) => {
+                format!("{note} {:+.1} c", tuner.cents)
+            }
+            (TunerDisplayMode::Hz, Some(frequency), Some(note)) => {
+                format!("{note} {:.1} Hz", frequency)
+            }
+            _ => "--".to_string(),
+        };
+
+        let content = column![
+            Canvas::new(TunerArt {
+                cents: tuner.cents,
+                confidence: tuner.confidence,
+                reading,
+                scale: self.scale,
+            })
+            .width(Length::Fixed(self.s(1_060.0)))
+            .height(Length::Fixed(self.s(330.0))),
+            row![
+                row![
+                    button(text("Cents").size(self.font(16.0)).style(Color::WHITE))
+                        .on_press(Message::TunerDisplayModeSelected(TunerDisplayMode::Cents))
+                        .style(iced::theme::Button::custom(FooterButton {
+                            selected: mode_cents
+                        }))
+                        .padding([self.s(14.0), self.s(18.0)]),
+                    button(text("Hz").size(self.font(16.0)).style(Color::WHITE))
+                        .on_press(Message::TunerDisplayModeSelected(TunerDisplayMode::Hz))
+                        .style(iced::theme::Button::custom(FooterButton {
+                            selected: !mode_cents
+                        }))
+                        .padding([self.s(14.0), self.s(18.0)]),
+                ]
+                .spacing(0),
+                container("").width(Length::Fill),
+                button(
+                    text(if tuner.live { "LIVE" } else { "HOLD" })
+                        .size(self.font(15.0))
+                        .style(Color::WHITE)
+                )
+                .on_press(Message::ToggleTunerLive)
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: tuner.live
+                }))
+                .padding([self.s(12.0), self.s(24.0)]),
+                text("Live Tuner")
+                    .size(self.font(16.0))
+                    .style(Color::from_rgb(0.82, 0.82, 0.82)),
+                container("").width(Length::Fill),
+                row![
+                    text(format!("{:.1}", tuner.reference_hz))
+                        .size(self.font(16.0))
+                        .style(Color::WHITE),
+                    column![
+                        button(text("+").size(self.font(12.0)).style(Color::WHITE))
+                            .on_press(Message::TunerReferenceStep(0.5))
+                            .style(iced::theme::Button::custom(FooterButton {
+                                selected: false
+                            }))
+                            .padding([self.s(0.0), self.s(8.0)]),
+                        button(text("-").size(self.font(12.0)).style(Color::WHITE))
+                            .on_press(Message::TunerReferenceStep(-0.5))
+                            .style(iced::theme::Button::custom(FooterButton {
+                                selected: false
+                            }))
+                            .padding([self.s(0.0), self.s(8.0)]),
+                    ]
+                    .spacing(self.s(2.0)),
+                ]
+                .spacing(self.s(8.0))
+                .align_items(Alignment::Center),
+            ]
+            .spacing(self.s(22.0))
+            .align_items(Alignment::Center),
+        ]
+        .spacing(self.s(28.0));
+
+        let modal = self.tuner_modal_frame(content.into());
+
+        container(modal)
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(666.0)))
+            .center_x()
+            .center_y()
+            .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
+            .into()
+    }
+
+    fn tuner_modal_frame<'a>(&self, content: Element<'a, Message>) -> Element<'a, Message> {
+        let mute_label = if self.tuner.muted { "MUTED" } else { "OUT" };
+        let mute = button(text(mute_label).size(self.font(14.0)).style(Color::WHITE))
+            .on_press(Message::ToggleTunerMute)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: self.tuner.muted,
+            }))
+            .padding([self.s(6.0), self.s(10.0)]);
+        let close = button(text("X").size(self.font(26.0)).style(Color::WHITE))
+            .on_press(Message::CloseTuner)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: false,
+            }))
+            .padding([self.s(2.0), self.s(8.0)]);
+
+        container(
+            column![
+                container(
+                    row![
+                        container("").width(Length::Fixed(self.s(36.0))),
+                        container(text("Tuner").size(self.font(24.0)).style(Color::WHITE))
+                            .height(Length::Fill)
+                            .center_y(),
+                        container(row![mute, close].spacing(self.s(16.0)))
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .align_x(Horizontal::Right)
+                            .center_y(),
+                        container("").width(Length::Fixed(self.s(16.0))),
+                    ]
+                    .height(Length::Fill)
+                    .align_items(Alignment::Center)
+                )
+                .height(Length::Fixed(self.s(58.0)))
+                .width(Length::Fill)
+                .style(modal_title_bar_container()),
+                container("")
+                    .height(Length::Fixed(self.s(1.0)))
+                    .width(Length::Fill)
+                    .style(modal_rule_container()),
+                container(content)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .padding([self.s(34.0), self.s(36.0)])
+                    .style(modal_body_container()),
+            ]
+            .spacing(0),
+        )
+        .width(Length::Fixed(self.s(1_080.0)))
+        .height(Length::Fixed(self.s(590.0)))
+        .style(dark_container())
+        .into()
     }
 
     fn modal_frame<'a>(
@@ -1401,6 +1647,16 @@ fn metronome_pan_readout(value: f32) -> String {
     } else {
         format!("R {:.0}", (value - 0.5) * 200.0)
     }
+}
+
+fn note_name(frequency_hz: f32, reference_hz: f32) -> String {
+    const NAMES: [&str; 12] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
+    let midi = (69.0 + 12.0 * (frequency_hz / reference_hz).log2()).round() as i32;
+    let name = NAMES[midi.rem_euclid(12) as usize];
+    let octave = midi / 12 - 1;
+    format!("{name}{octave}")
 }
 
 #[derive(Debug, Clone)]
@@ -2111,6 +2367,88 @@ impl canvas::Program<Message> for MetronomeKnobArt {
         _cursor: mouse::Cursor,
     ) -> mouse::Interaction {
         mouse::Interaction::Pointer
+    }
+}
+
+struct TunerArt {
+    cents: f32,
+    confidence: f32,
+    reading: String,
+    scale: f32,
+}
+
+impl canvas::Program<Message> for TunerArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let center_y = logical_size.height * 0.48;
+        let left = 56.0;
+        let right = logical_size.width - 56.0;
+        let center_x = (left + right) * 0.5;
+
+        draw_text(
+            &mut frame,
+            "-50",
+            Point::new(left + 12.0, 54.0),
+            18.0,
+            Color::from_rgb(0.66, 0.66, 0.66),
+            Horizontal::Left,
+        );
+        draw_text(
+            &mut frame,
+            "+50",
+            Point::new(right - 12.0, 54.0),
+            18.0,
+            Color::from_rgb(0.66, 0.66, 0.66),
+            Horizontal::Right,
+        );
+
+        frame.stroke(
+            &Path::line(Point::new(left, center_y), Point::new(right, center_y)),
+            Stroke::default().with_color(Color::WHITE).with_width(3.0),
+        );
+
+        let confidence = self.confidence.clamp(0.0, 1.0);
+        let marker_x = center_x + (self.cents.clamp(-50.0, 50.0) / 50.0) * ((right - left) * 0.5);
+        let marker = Path::circle(Point::new(marker_x, center_y), 54.0);
+        frame.fill(&marker, Color::from_rgb(0.075, 0.075, 0.075));
+        frame.stroke(
+            &marker,
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.45 + 0.55 * confidence))
+                .with_width(4.0),
+        );
+
+        let in_tune = self.cents.abs() <= 3.0 && confidence > 0.55;
+        if in_tune {
+            frame.stroke(
+                &Path::circle(Point::new(marker_x, center_y), 64.0),
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.45, 0.95, 0.72, 0.45))
+                    .with_width(3.0),
+            );
+        }
+
+        draw_text(
+            &mut frame,
+            &self.reading,
+            Point::new(center_x, center_y + 96.0),
+            26.0,
+            Color::WHITE,
+            Horizontal::Center,
+        );
+
+        vec![frame.into_geometry()]
     }
 }
 

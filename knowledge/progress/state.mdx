@@ -103,6 +103,16 @@ description: Decisions and open questions that should steer upcoming implementat
   modal with play/stop, BPM step, volume, and pan controls. The CPAL output
   callback owns a sample-clock metronome generator and mixes its stereo click
   after guitar DSP/output gain, so pan appears on the stereo output VU meters.
+- The desktop tuner should be specified and implemented as a runtime utility,
+  not a rig device. It should analyze a clean input-side signal rather than the
+  processed output, so pedals, amp, Springfield, cab IR, and metronome playback
+  cannot affect pitch detection. The V1 spec lives in
+  `knowledge/architecture/desktop-tuner.mdx`.
+- Desktop tuner V1 is implemented in the live app. The footer opens a modal
+  with cents/Hz display, live/hold, output mute, and reference pitch stepping.
+  A dedicated worker consumes a duplicated input-side ring buffer and publishes
+  normalized-autocorrelation pitch readings through atomics; mute gates only the
+  final desktop output bus.
 
 ## Open Questions
 
@@ -117,6 +127,8 @@ description: Decisions and open questions that should steer upcoming implementat
   stay invisible until a lab/debug panel is built?
 - Should the desktop metronome also be available in offline renders, or remain
   desktop/live-only until a render use case is clear?
+- Should desktop tuner V1 analyze raw input or post-`INPUT` gain? Current
+  recommendation is post-`INPUT` for consistency with the input VU.
 
 ## Risks
 
