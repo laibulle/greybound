@@ -1,9 +1,16 @@
 use greybound::{AmpControls, Greybound};
-use greybound_ui::{GreyboundUi, Message};
+use greybound_ui::{GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH};
 use iced::{Application, Command, Element, Settings, Subscription};
 
 fn main() -> iced::Result {
-    Desktop::run(Settings::default())
+    Desktop::run(Settings {
+        window: iced::window::Settings {
+            size: (DESIGN_WIDTH as u32, DESIGN_HEIGHT as u32),
+            min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
+            ..iced::window::Settings::default()
+        },
+        ..Settings::default()
+    })
 }
 
 struct Desktop {
@@ -55,6 +62,11 @@ impl Application for Desktop {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::none()
+        iced::subscription::events_with(|event, _status| match event {
+            iced::Event::Window(iced::window::Event::Resized { width, height }) => {
+                Some(Message::WindowResized { width, height })
+            }
+            _ => None,
+        })
     }
 }

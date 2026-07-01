@@ -13,6 +13,8 @@ const PEDAL_PEACH: Color = Color::from_rgb(0.77, 0.56, 0.45);
 const PEDAL_SAGE: Color = Color::from_rgb(0.67, 0.62, 0.49);
 const TEAL: Color = Color::from_rgb(0.35, 0.56, 0.57);
 const GOLD: Color = Color::from_rgb(0.76, 0.61, 0.35);
+pub const DESIGN_WIDTH: f32 = 1600.0;
+pub const DESIGN_HEIGHT: f32 = 900.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -71,6 +73,10 @@ fn ghost_container(background: Color) -> iced::theme::Container {
 pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
+    WindowResized {
+        width: u32,
+        height: u32,
+    },
     ToggleBypass(bool),
     SetDeviceControl {
         index: usize,
@@ -237,6 +243,7 @@ pub struct GreyboundUi {
     pub cab: DeviceState,
     pub selected_index: usize,
     pub view_mode: ViewMode,
+    pub scale: f32,
 }
 
 impl Default for GreyboundUi {
@@ -247,6 +254,7 @@ impl Default for GreyboundUi {
             cab: DeviceState::cab_ir(),
             selected_index: 0,
             view_mode: ViewMode::Pedals,
+            scale: 1.0,
         }
     }
 }
@@ -262,6 +270,9 @@ impl GreyboundUi {
             }
             Message::SelectView(view_mode) => {
                 self.view_mode = view_mode;
+            }
+            Message::WindowResized { width, height } => {
+                self.scale = uniform_scale(width as f32, height as f32);
             }
             Message::ToggleBypass(value) => {
                 self.active_device_mut().bypassed = value;
@@ -297,6 +308,7 @@ impl GreyboundUi {
 
     pub fn view(&self) -> Element<'_, Message> {
         let selected = self.active_device();
+        let scale = self.scale;
 
         let top = container(
             row![
@@ -307,32 +319,36 @@ impl GreyboundUi {
                 self.global_knob("SPRING", self.springfield_mix(), "mix"),
                 self.global_knob("OUTPUT", 0.58, "-3.9 dB"),
             ]
-            .spacing(20)
+            .spacing(self.s(20.0))
             .align_items(Alignment::Center),
         )
-        .width(Length::Fill)
-        .padding([22, 34])
+        .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+        .height(Length::Fixed(self.s(190.0)))
+        .padding([self.s(22.0), self.s(34.0)])
         .style(ghost_container(Color::from_rgba(0.78, 0.83, 0.95, 0.84)));
 
         let main_view: Element<'_, Message> = match self.view_mode {
             ViewMode::Pedals => Canvas::new(BoardArt {
                 devices: self.devices.clone(),
                 selected_index: self.selected_index,
+                scale,
             })
-            .width(Length::Fill)
-            .height(Length::Fixed(560.0))
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(560.0)))
             .into(),
             ViewMode::Amp => Canvas::new(AmpArt {
                 amp: self.amp.clone(),
+                scale,
             })
-            .width(Length::Fill)
-            .height(Length::Fixed(560.0))
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(560.0)))
             .into(),
             ViewMode::Cab => Canvas::new(CabArt {
                 cab: self.cab.clone(),
+                scale,
             })
-            .width(Length::Fill)
-            .height(Length::Fixed(560.0))
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(560.0)))
             .into(),
         };
 
@@ -340,28 +356,35 @@ impl GreyboundUi {
 
         let bottom = container(
             row![
-                text("TUNER").size(14),
-                text("MIDI").size(14),
-                text("TAP").size(14),
-                text("120.0 BPM").size(14),
-                text("METRONOME").size(14),
-                text("SETTINGS").size(14),
+                text("TUNER").size(self.font(14.0)),
+                text("MIDI").size(self.font(14.0)),
+                text("TAP").size(self.font(14.0)),
+                text("120.0 BPM").size(self.font(14.0)),
+                text("METRONOME").size(self.font(14.0)),
+                text("SETTINGS").size(self.font(14.0)),
                 text("DEVELOPED BY GREYBOUND DSP")
-                    .size(14)
+                    .size(self.font(14.0))
                     .width(Length::Fill)
                     .horizontal_alignment(Horizontal::Right),
             ]
-            .spacing(24)
+            .spacing(self.s(24.0))
             .align_items(Alignment::Center),
         )
-        .padding([10, 18])
-        .width(Length::Fill)
+        .padding([self.s(10.0), self.s(18.0)])
+        .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+        .height(Length::Fixed(self.s(44.0)))
         .style(ghost_container(Color::from_rgb(0.02, 0.025, 0.03)));
 
-        container(column![top, main_view, controls, bottom].spacing(0))
+        let panel = container(column![top, main_view, controls, bottom].spacing(0))
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(DESIGN_HEIGHT)))
+            .style(ghost_container(PANEL));
+
+        container(panel)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(ghost_container(PANEL))
+            .center_x()
+            .center_y()
             .into()
     }
 
@@ -369,44 +392,44 @@ impl GreyboundUi {
         container(
             column![
                 row![
-                    text("GREYBOUND").size(18),
-                    text("GREY-NOX").size(13),
-                    text("GREYBOX ONLY").size(13),
-                    text("RIG: grey-nox").size(13),
+                    text("GREYBOUND").size(self.font(18.0)),
+                    text("GREY-NOX").size(self.font(13.0)),
+                    text("GREYBOX ONLY").size(self.font(13.0)),
+                    text("RIG: grey-nox").size(self.font(13.0)),
                 ]
-                .spacing(22)
+                .spacing(self.s(22.0))
                 .align_items(Alignment::Center),
                 row![
                     self.view_button(ViewMode::Pedals),
                     self.view_button(ViewMode::Amp),
                     self.view_button(ViewMode::Cab),
                 ]
-                .spacing(10)
+                .spacing(self.s(10.0))
                 .align_items(Alignment::Center),
                 row![
-                    button(text("<").size(18))
+                    button(text("<").size(self.font(18.0)))
                         .style(iced::theme::Button::custom(ChromeButton))
-                        .padding([8, 12]),
+                        .padding([self.s(8.0), self.s(12.0)]),
                     container(
                         text(format!(
                             "{} / {}",
                             selected.model.title(),
                             selected.model.subtitle()
                         ))
-                        .size(18)
+                        .size(self.font(18.0))
                         .horizontal_alignment(Horizontal::Left)
                     )
-                    .padding([14, 20])
-                    .width(Length::Fixed(430.0))
+                    .padding([self.s(14.0), self.s(20.0)])
+                    .width(Length::Fixed(self.s(430.0)))
                     .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.72))),
-                    button(text(">").size(18))
+                    button(text(">").size(self.font(18.0)))
                         .style(iced::theme::Button::custom(ChromeButton))
-                        .padding([8, 12]),
+                        .padding([self.s(8.0), self.s(12.0)]),
                 ]
-                .spacing(10)
+                .spacing(self.s(10.0))
                 .align_items(Alignment::Center),
             ]
-            .spacing(12)
+            .spacing(self.s(12.0))
             .align_items(Alignment::Center),
         )
         .width(Length::Fill)
@@ -420,10 +443,10 @@ impl GreyboundUi {
             view_mode.label().to_string()
         };
 
-        button(text(label).size(12))
+        button(text(label).size(self.font(12.0)))
             .on_press(Message::SelectView(view_mode))
             .style(iced::theme::Button::custom(ChromeButton))
-            .padding([8, 12])
+            .padding([self.s(8.0), self.s(12.0)])
             .into()
     }
 
@@ -434,11 +457,11 @@ impl GreyboundUi {
             "ACTIVE"
         };
 
-        let mut controls = row![button(text(bypass_label).size(13))
+        let mut controls = row![button(text(bypass_label).size(self.font(13.0)))
             .on_press(Message::ToggleBypass(!selected.bypassed))
             .style(iced::theme::Button::custom(ChromeButton))
-            .padding([10, 16]),]
-        .spacing(16)
+            .padding([self.s(10.0), self.s(16.0)]),]
+        .spacing(self.s(16.0))
         .align_items(Alignment::Center);
 
         controls = match selected.model {
@@ -457,15 +480,18 @@ impl GreyboundUi {
                 .push(self.control("TONE", selected.treble, Message::TrebleChanged))
                 .push(self.control("MIX", selected.master, Message::MasterChanged)),
             DeviceModel::CabIr => controls.push(
-                container(text("IR: lab/references/tone3000-irs/celestion.wav").size(13))
-                    .padding([10, 14])
-                    .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24))),
+                container(
+                    text("IR: lab/references/tone3000-irs/celestion.wav").size(self.font(13.0)),
+                )
+                .padding([self.s(10.0), self.s(14.0)])
+                .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24))),
             ),
         };
 
         container(controls)
-            .padding([12, 28])
-            .width(Length::Fill)
+            .padding([self.s(12.0), self.s(28.0)])
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(106.0)))
             .style(ghost_container(Color::from_rgba(0.62, 0.69, 0.84, 0.62)))
             .into()
     }
@@ -478,12 +504,13 @@ impl GreyboundUi {
     ) -> Element<'_, Message> {
         container(
             column![
-                text(format!("{label}  {:02}", (value * 99.0).round() as i32)).size(12),
-                slider(0.0..=1.0, value, on_change).width(Length::Fixed(116.0)),
+                text(format!("{label}  {:02}", (value * 99.0).round() as i32))
+                    .size(self.font(12.0)),
+                slider(0.0..=1.0, value, on_change).width(Length::Fixed(self.s(116.0))),
             ]
-            .spacing(4),
+            .spacing(self.s(4.0)),
         )
-        .padding([8, 10])
+        .padding([self.s(8.0), self.s(10.0)])
         .style(ghost_container(Color::from_rgba(0.94, 0.96, 1.0, 0.24)))
         .into()
     }
@@ -497,19 +524,19 @@ impl GreyboundUi {
         container(
             column![
                 text(label)
-                    .size(14)
+                    .size(self.font(14.0))
                     .horizontal_alignment(Horizontal::Center)
-                    .width(Length::Fixed(104.0)),
+                    .width(Length::Fixed(self.s(104.0))),
                 Canvas::new(KnobArt { value, label: "" })
-                    .width(Length::Fixed(92.0))
-                    .height(Length::Fixed(92.0)),
+                    .width(Length::Fixed(self.s(92.0)))
+                    .height(Length::Fixed(self.s(92.0))),
                 text(readout)
-                    .size(14)
+                    .size(self.font(14.0))
                     .horizontal_alignment(Horizontal::Center)
-                    .width(Length::Fixed(104.0)),
+                    .width(Length::Fixed(self.s(104.0))),
             ]
             .align_items(Alignment::Center)
-            .spacing(4),
+            .spacing(self.s(4.0)),
         )
         .into()
     }
@@ -537,12 +564,27 @@ impl GreyboundUi {
             ViewMode::Cab => &mut self.cab,
         }
     }
+
+    fn s(&self, value: f32) -> f32 {
+        value * self.scale
+    }
+
+    fn font(&self, value: f32) -> u16 {
+        (value * self.scale).round().max(1.0) as u16
+    }
+}
+
+fn uniform_scale(width: f32, height: f32) -> f32 {
+    (width / DESIGN_WIDTH)
+        .min(height / DESIGN_HEIGHT)
+        .clamp(0.45, 1.60)
 }
 
 #[derive(Debug, Clone)]
 struct BoardArt {
     devices: Vec<DeviceState>,
     selected_index: usize,
+    scale: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -570,13 +612,18 @@ impl canvas::Program<Message> for BoardArt {
     ) -> (canvas::event::Status, Option<Message>) {
         match event {
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|p| unscale_point(p, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
 
-                if let Some((index, control)) =
-                    hit_test_pedal_knob(&self.devices, bounds.size(), position)
-                {
+                if let Some((index, control)) = hit_test_pedal_knob(
+                    &self.devices,
+                    unscale_size(bounds.size(), self.scale),
+                    position,
+                ) {
                     let start_value = self.devices[index].control_value(control);
                     state.gesture = Some(DragGesture {
                         index: Some(index),
@@ -594,7 +641,11 @@ impl canvas::Program<Message> for BoardArt {
                     );
                 }
 
-                if let Some(index) = hit_test_pedal(self.devices.len(), bounds.size(), position) {
+                if let Some(index) = hit_test_pedal(
+                    self.devices.len(),
+                    unscale_size(bounds.size(), self.scale),
+                    position,
+                ) {
                     return (
                         canvas::event::Status::Captured,
                         Some(Message::SelectDevice(index)),
@@ -605,7 +656,10 @@ impl canvas::Program<Message> for BoardArt {
                 let Some(gesture) = state.gesture else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|p| unscale_point(p, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
                 let Some(index) = gesture.index else {
@@ -640,9 +694,11 @@ impl canvas::Program<Message> for BoardArt {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        draw_stage_background(&mut frame, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        draw_stage_background(&mut frame, logical_size);
 
-        let layout = board_layout(self.devices.len(), bounds.size());
+        let layout = board_layout(self.devices.len(), logical_size);
         let y = 70.0;
 
         for (index, device) in self.devices.iter().enumerate() {
@@ -663,7 +719,7 @@ impl canvas::Program<Message> for BoardArt {
             );
         }
 
-        draw_chain_legend(&mut frame, bounds.size());
+        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 
@@ -680,6 +736,7 @@ impl canvas::Program<Message> for BoardArt {
 #[derive(Debug, Clone)]
 struct AmpArt {
     amp: DeviceState,
+    scale: f32,
 }
 
 impl canvas::Program<Message> for AmpArt {
@@ -694,11 +751,16 @@ impl canvas::Program<Message> for AmpArt {
     ) -> (canvas::event::Status, Option<Message>) {
         match event {
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|p| unscale_point(p, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
 
-                if let Some(control) = hit_test_amp_knob(bounds.size(), position) {
+                if let Some(control) =
+                    hit_test_amp_knob(unscale_size(bounds.size(), self.scale), position)
+                {
                     let start_value = self.amp.control_value(control);
                     state.gesture = Some(DragGesture {
                         index: None,
@@ -716,7 +778,10 @@ impl canvas::Program<Message> for AmpArt {
                 let Some(gesture) = state.gesture else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                let Some(position) = cursor.position_in(bounds) else {
+                let Some(position) = cursor
+                    .position_in(bounds)
+                    .map(|p| unscale_point(p, self.scale))
+                else {
                     return (canvas::event::Status::Ignored, None);
                 };
 
@@ -747,9 +812,11 @@ impl canvas::Program<Message> for AmpArt {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        draw_stage_background(&mut frame, bounds.size());
-        draw_amp_head(&mut frame, bounds.size(), &self.amp);
-        draw_chain_legend(&mut frame, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        draw_stage_background(&mut frame, logical_size);
+        draw_amp_head(&mut frame, logical_size, &self.amp);
+        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 }
@@ -757,6 +824,7 @@ impl canvas::Program<Message> for AmpArt {
 #[derive(Debug, Clone)]
 struct CabArt {
     cab: DeviceState,
+    scale: f32,
 }
 
 impl canvas::Program<Message> for CabArt {
@@ -771,11 +839,13 @@ impl canvas::Program<Message> for CabArt {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        draw_stage_background(&mut frame, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        draw_stage_background(&mut frame, logical_size);
 
-        let w = bounds.width.min(760.0);
+        let w = logical_size.width.min(760.0);
         let h = 360.0;
-        let origin = Point::new((bounds.width - w) * 0.5, 78.0);
+        let origin = Point::new((logical_size.width - w) * 0.5, 78.0);
         let body = rounded_rect(origin, Size::new(w, h), 24.0);
         frame.fill(&body, Color::from_rgb(0.50, 0.45, 0.36));
         frame.stroke(
@@ -819,7 +889,7 @@ impl canvas::Program<Message> for CabArt {
             Color::from_rgba(0.05, 0.04, 0.035, 0.72),
             Horizontal::Center,
         );
-        draw_chain_legend(&mut frame, bounds.size());
+        draw_chain_legend(&mut frame, logical_size);
         vec![frame.into_geometry()]
     }
 }
@@ -858,6 +928,16 @@ fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<us
             && position.y >= y
             && position.y <= y + layout.pedal_h
     })
+}
+
+fn unscale_point(point: Point, scale: f32) -> Point {
+    let scale = scale.max(0.001);
+    Point::new(point.x / scale, point.y / scale)
+}
+
+fn unscale_size(size: Size, scale: f32) -> Size {
+    let scale = scale.max(0.001);
+    Size::new(size.width / scale, size.height / scale)
 }
 
 fn hit_test_pedal_knob(
