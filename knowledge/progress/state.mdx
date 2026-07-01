@@ -72,6 +72,13 @@ description: Decisions and open questions that should steer upcoming implementat
   known pro/external audio interfaces such as Scarlett/Focusrite over integrated
   MacBook devices, then falls back to the system default if no low-latency
   candidate is available.
+- The audio lab now has a first Rust MCP sidecar,
+  `greybound-audio-lab-mcp`, using stdio JSON-RPC. The desktop starts it when
+  the binary is available, routes sidecar stderr to
+  `target/greybound-mcp/audio-lab-mcp.stderr.log`, and keeps live CPAL audio
+  separate. Implemented tools can list assets, inspect rigs, render bounded
+  WAVs with temporary control overrides, parse monitor/WAV health, call the lab
+  comparison workflow, and summarize run metadata.
 
 ## Open Questions
 
@@ -82,6 +89,8 @@ description: Decisions and open questions that should steer upcoming implementat
 - Should `all-nox` remain an intentionally all-active stress rig despite severe
   full-board clipping, or should it gain a calibrated monitor-safe preset
   variant?
+- Should the MCP sidecar get an in-UI health indicator and restart button, or
+  stay invisible until a lab/debug panel is built?
 
 ## Risks
 

@@ -1,26 +1,63 @@
 ---
 title: Audio Lab MCP
-description: Proposed MCP contract for repeatable Greybound audio debugging runs.
+description: MCP contract and implementation notes for repeatable Greybound audio debugging runs.
 ---
 
-The Audio Lab MCP should let Codex run bounded, reproducible audio experiments
+The Audio Lab MCP lets Codex run bounded, reproducible audio experiments
 without manually assembling long CLI commands each time. It is an orchestration
 layer over `greybound-cli`, `greybound-lab`, rig files, WAV references, monitor
 logs, and generated reports. It should not become a second DSP runtime.
 
+## Current Implementation
+
+The first implementation lives in the workspace crate
+`audio-lab-mcp` and builds the binary `greybound-audio-lab-mcp`.
+It implements MCP over newline-delimited JSON-RPC on `stdio`, with no logging to
+stdout. The desktop app starts the sidecar at initialization when it can find
+`target/release/greybound-audio-lab-mcp` or `target/debug/greybound-audio-lab-mcp`.
+Sidecar stderr is written to `target/greybound-mcp/audio-lab-mcp.stderr.log`,
+and the desktop process owns and terminates the sidecar.
+
+Implemented tools:
+
+- `list_audio_assets`
+- `inspect_rig`
+- `render_rig`
+- `monitor_render`
+- `compare_wav`
+- `evaluate_wav`
+- `summarize_run`
+
+`sweep_controls` is currently a reserved tool entry that returns a warning
+instead of running batch renders. Future live-session tools are still out of
+scope for this first pass.
+
+Validation smoke command:
+
+```bash
+target/debug/greybound-audio-lab-mcp <<'JSON'
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"render_rig","arguments":{"rig":"rigs/grey-nox.json5","run_id":"mcp-smoke","build":false,"runtime":{"input_wav":"lab/references/tone3000-inputs/placeholder.wav","output_wav":"lab/renders/mcp/mcp-smoke.wav","monitor_log":"lab/renders/mcp/mcp-smoke.monitor.log","render_seconds":0.1,"sample_rate":48000,"period_size":32,"ir":"lab/references/tone3000-irs/celestion.wav","monitor":true},"overrides":{"amp":{"volume":0.5},"devices":[{"section":"pre_amp","index":0,"controls":{"gain":0.3}}]}}}}
+JSON
+```
+
+Observed result: `status: clean`, one monitor entry, `xrun_count: 0`,
+`hard_clip_count: 0`, output WAV at `lab/renders/mcp/mcp-smoke.wav`, monitor log
+at `lab/renders/mcp/mcp-smoke.monitor.log`, metadata at
+`lab/renders/mcp/mcp-smoke.run.json`, and a temporary override rig under
+`target/greybound-mcp/mcp-smoke/`.
+
 ## Transport And Desktop Lifecycle
 
-The first implementation should use MCP over `stdio`.
+The implementation uses MCP over `stdio`.
 
-The desktop UI should launch the MCP server as a local sidecar process when the
+The desktop UI launches the MCP server as a local sidecar process when the
 app starts. The sidecar is owned by the UI process:
 
-- start sidecar during desktop initialization,
+- start sidecar during desktop initialization when the binary exists,
 - communicate over stdin/stdout using the MCP protocol,
 - route sidecar logs to stderr or a file, never stdout,
 - shut down the sidecar when the UI exits,
-- restart the sidecar if it crashes and the user requests lab/debug features,
-- expose sidecar health in the UI when useful.
+- expose sidecar health in the UI when useful in a future pass.
 
 The desktop app should not use the MCP sidecar for real-time audio processing.
 Live CPAL/CoreAudio audio remains inside the desktop runtime. The MCP sidecar is
@@ -38,7 +75,7 @@ Example launch shape:
 }
 ```
 
-For development, the desktop can fall back to `target/debug/...` when the release
+For development, the desktop falls back to `target/debug/...` when the release
 binary is missing. In production-like runs, prefer the release sidecar because
 it may launch CPU-heavy analysis and subprocess orchestration.
 
