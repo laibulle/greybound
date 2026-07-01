@@ -1285,6 +1285,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "greybound-desktop"
+version = "0.1.0"
+dependencies = [
+ "greybound",
+ "greybound-ui",
+ "iced",
+]
+
+[[package]]
 name = "greybound-ui"
 version = "0.1.0"
 dependencies = [

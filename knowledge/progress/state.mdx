@@ -15,6 +15,10 @@ description: Decisions and open questions that should steer upcoming implementat
 - Reverbs are split by validation type: Springfield is the current spring
   graybox/IR hybrid, while StudioVerb is an original digital room/plate FDN
   effect for `all-nox`.
+- The desktop frontend remains Rust-native with `iced`; premium plugin-style
+  visuals should be built as custom-painted canvas scenes/components rather
+  than standard widgets with light styling. The first direction check compiles
+  with `cargo check -p greybound-desktop`.
 
 ## Open Questions
 
