@@ -6,4 +6,5 @@ license = "MIT"
 description = "Shared Greybound desktop UI layer for iced."
 
 [dependencies]
+greybound = { path = "../core", default-features = false }
 iced = { version = "0.10", features = ["canvas"] }

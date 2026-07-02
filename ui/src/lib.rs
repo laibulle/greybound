@@ -1,6 +1,10 @@
 pub mod components;
 
 use components::{KnobSkin, KnobSpec};
+use greybound::{
+    device_circuit_descriptor, CircuitConfidence, CircuitDescriptor, CircuitDescriptorKind,
+    CircuitNodeDescriptor, CircuitNodeKind, DeviceConfig as CoreDeviceConfig,
+};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
 use iced::widget::{button, column, container, pick_list, row, text};
@@ -3198,335 +3202,484 @@ fn draw_status_led(frame: &mut Frame, center: Point, radius: f32, active: bool) 
 }
 
 fn draw_pedal_circuit(frame: &mut Frame, origin: Point, size: Size, device: &DeviceState) {
-    let board_origin = Point::new(origin.x + 24.0, origin.y + 46.0);
-    let board_size = Size::new(size.width - 48.0, size.height - 86.0);
-    let board = rounded_rect(board_origin, board_size, 12.0);
-    frame.fill(&board, Color::from_rgb(0.08, 0.24, 0.18));
+    let Some(descriptor) = ui_circuit_descriptor(device.model) else {
+        return;
+    };
+
+    let board_origin = Point::new(origin.x + 18.0, origin.y + 40.0);
+    let board_size = Size::new(size.width - 36.0, size.height - 78.0);
+    let board = rounded_rect(board_origin, board_size, 14.0);
+    frame.fill(&board, Color::from_rgb(0.055, 0.070, 0.065));
     frame.stroke(
         &board,
         Stroke::default()
-            .with_color(Color::from_rgba(0.88, 0.70, 0.36, 0.62))
-            .with_width(2.4),
+            .with_color(Color::from_rgba(0.95, 0.80, 0.48, 0.42))
+            .with_width(1.8),
     );
 
-    for row in 0..10 {
-        let y = board_origin.y + 22.0 + row as f32 * (board_size.height - 44.0) / 9.0;
+    draw_circuit_backplate(frame, board_origin, board_size);
+
+    let graph_origin = Point::new(board_origin.x + 14.0, board_origin.y + 52.0);
+    let graph_size = Size::new(board_size.width - 28.0, board_size.height - 110.0);
+
+    for edge in descriptor.edges {
+        if let (Some(from), Some(to)) = (
+            circuit_node_by_id(descriptor, edge.from),
+            circuit_node_by_id(descriptor, edge.to),
+        ) {
+            draw_semantic_circuit_edge(
+                frame,
+                circuit_node_point(graph_origin, graph_size, from),
+                circuit_node_point(graph_origin, graph_size, to),
+            );
+        }
+    }
+
+    for node in descriptor.nodes {
+        let center = circuit_node_point(graph_origin, graph_size, node);
+        draw_semantic_circuit_node(frame, center, node);
+    }
+
+    draw_text(
+        frame,
+        descriptor.label,
+        Point::new(board_origin.x + 18.0, board_origin.y + 22.0),
+        14.0,
+        Color::from_rgb(0.90, 0.84, 0.68),
+        Horizontal::Left,
+    );
+    draw_text(
+        frame,
+        circuit_descriptor_summary(descriptor),
+        Point::new(board_origin.x + 18.0, board_origin.y + 40.0),
+        9.5,
+        Color::from_rgba(0.83, 0.78, 0.66, 0.78),
+        Horizontal::Left,
+    );
+    draw_circuit_kind_badge(
+        frame,
+        Point::new(
+            board_origin.x + board_size.width - 62.0,
+            board_origin.y + 27.0,
+        ),
+        descriptor.kind,
+    );
+
+    draw_text(
+        frame,
+        "model-level circuit, not PCB artwork",
+        Point::new(
+            board_origin.x + board_size.width * 0.5,
+            board_origin.y + board_size.height - 20.0,
+        ),
+        9.5,
+        Color::from_rgba(0.84, 0.76, 0.58, 0.72),
+        Horizontal::Center,
+    );
+}
+
+fn ui_circuit_descriptor(model: DeviceModel) -> Option<&'static CircuitDescriptor> {
+    match model {
+        DeviceModel::Minotaur => device_circuit_descriptor(CoreDeviceConfig::Minotaur),
+        DeviceModel::Springfield => device_circuit_descriptor(CoreDeviceConfig::Springfield),
+        _ => None,
+    }
+}
+
+fn circuit_descriptor_summary(descriptor: &CircuitDescriptor) -> &'static str {
+    match descriptor.model_id {
+        "minotaur" => "buffer / clean blend / clip / presence / output",
+        "springfield" => "buffer / dwell driver / spring IR / recovery / mix",
+        _ => descriptor.summary,
+    }
+}
+
+fn draw_circuit_backplate(frame: &mut Frame, origin: Point, size: Size) {
+    for row in 0..8 {
+        let y = origin.y + 64.0 + row as f32 * (size.height - 120.0) / 7.0;
         frame.stroke(
             &Path::line(
-                Point::new(board_origin.x + 16.0, y),
-                Point::new(board_origin.x + board_size.width - 16.0, y),
+                Point::new(origin.x + 12.0, y),
+                Point::new(origin.x + size.width - 12.0, y),
             ),
             Stroke::default()
-                .with_color(Color::from_rgba(0.84, 0.64, 0.30, 0.08))
+                .with_color(Color::from_rgba(0.72, 0.60, 0.36, 0.055))
                 .with_width(1.0),
         );
     }
 
-    match device.model {
-        DeviceModel::Minotaur => draw_minotaur_circuit(frame, board_origin, board_size),
-        DeviceModel::Springfield => draw_springfield_circuit(frame, board_origin, board_size),
-        _ => draw_generic_circuit(frame, board_origin, board_size),
-    }
-
-    draw_text(
-        frame,
-        match device.model {
-            DeviceModel::Minotaur => "BUFFER  CLIP  TONE  OUT",
-            DeviceModel::Springfield => "DWELL  TANK  IR  MIX",
-            _ => "GREYBOUND CIRCUIT",
-        },
-        Point::new(
-            board_origin.x + board_size.width * 0.5,
-            board_origin.y + board_size.height - 18.0,
-        ),
-        10.0,
-        Color::from_rgba(0.90, 0.78, 0.48, 0.82),
-        Horizontal::Center,
-    );
-}
-
-fn draw_minotaur_circuit(frame: &mut Frame, origin: Point, size: Size) {
-    let nodes = [
-        Point::new(origin.x + size.width * 0.18, origin.y + size.height * 0.18),
-        Point::new(origin.x + size.width * 0.42, origin.y + size.height * 0.30),
-        Point::new(origin.x + size.width * 0.58, origin.y + size.height * 0.50),
-        Point::new(origin.x + size.width * 0.78, origin.y + size.height * 0.36),
-    ];
-    draw_trace(frame, &nodes, 4.0);
-
-    draw_chip(
-        frame,
-        Point::new(origin.x + size.width * 0.28, origin.y + size.height * 0.34),
-        "IC",
-    );
-    draw_resistor(
-        frame,
-        Point::new(origin.x + size.width * 0.48, origin.y + size.height * 0.26),
-        0.18,
-    );
-    draw_resistor(
-        frame,
-        Point::new(origin.x + size.width * 0.68, origin.y + size.height * 0.58),
-        -0.16,
-    );
-    draw_diode_pair(
-        frame,
-        Point::new(origin.x + size.width * 0.52, origin.y + size.height * 0.46),
-    );
-    draw_capacitor(
-        frame,
-        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.66),
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.12),
-        "GAIN",
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.16),
-        "TREB",
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.72, origin.y + size.height * 0.74),
-        "OUT",
-    );
-}
-
-fn draw_springfield_circuit(frame: &mut Frame, origin: Point, size: Size) {
-    let send = [
-        Point::new(origin.x + size.width * 0.14, origin.y + size.height * 0.24),
-        Point::new(origin.x + size.width * 0.38, origin.y + size.height * 0.24),
-        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.42),
-        Point::new(origin.x + size.width * 0.76, origin.y + size.height * 0.42),
-    ];
-    draw_trace(frame, &send, 4.0);
-    draw_chip(
-        frame,
-        Point::new(origin.x + size.width * 0.26, origin.y + size.height * 0.34),
-        "DRV",
-    );
-    draw_spring_tank(
-        frame,
-        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.48),
-        size.width * 0.46,
-    );
-    draw_chip(
-        frame,
-        Point::new(origin.x + size.width * 0.72, origin.y + size.height * 0.28),
-        "IR",
-    );
-    draw_capacitor(
-        frame,
-        Point::new(origin.x + size.width * 0.27, origin.y + size.height * 0.66),
-    );
-    draw_resistor(
-        frame,
-        Point::new(origin.x + size.width * 0.70, origin.y + size.height * 0.62),
-        0.10,
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.22, origin.y + size.height * 0.12),
-        "DWL",
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.14),
-        "TONE",
-    );
-    draw_pot_node(
-        frame,
-        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.76),
-        "MIX",
-    );
-}
-
-fn draw_generic_circuit(frame: &mut Frame, origin: Point, size: Size) {
-    let points = [
-        Point::new(origin.x + size.width * 0.20, origin.y + size.height * 0.35),
-        Point::new(origin.x + size.width * 0.50, origin.y + size.height * 0.35),
-        Point::new(origin.x + size.width * 0.74, origin.y + size.height * 0.52),
-    ];
-    draw_trace(frame, &points, 4.0);
-    draw_chip(
-        frame,
-        Point::new(origin.x + size.width * 0.48, origin.y + size.height * 0.44),
-        "DSP",
-    );
-}
-
-fn draw_trace(frame: &mut Frame, points: &[Point], width: f32) {
-    for pair in points.windows(2) {
+    for col in 0..5 {
+        let x = origin.x + 18.0 + col as f32 * (size.width - 36.0) / 4.0;
         frame.stroke(
-            &Path::line(pair[0], pair[1]),
+            &Path::line(
+                Point::new(x, origin.y + 60.0),
+                Point::new(x, origin.y + size.height - 46.0),
+            ),
             Stroke::default()
-                .with_color(Color::from_rgb(0.80, 0.52, 0.22))
-                .with_width(width),
-        );
-    }
-    for point in points {
-        frame.fill(
-            &Path::circle(*point, width + 2.0),
-            Color::from_rgb(0.86, 0.64, 0.34),
-        );
-        frame.fill(
-            &Path::circle(*point, width * 0.45),
-            Color::from_rgb(0.11, 0.27, 0.20),
+                .with_color(Color::from_rgba(0.72, 0.60, 0.36, 0.035))
+                .with_width(1.0),
         );
     }
 }
 
-fn draw_chip(frame: &mut Frame, center: Point, label: &'static str) {
-    let body = rounded_rect(
-        Point::new(center.x - 24.0, center.y - 17.0),
-        Size::new(48.0, 34.0),
-        3.0,
-    );
-    frame.fill(&body, Color::from_rgb(0.035, 0.04, 0.045));
+fn circuit_node_by_id<'a>(
+    descriptor: &'a CircuitDescriptor,
+    id: &str,
+) -> Option<&'a CircuitNodeDescriptor> {
+    descriptor.nodes.iter().find(|node| node.id == id)
+}
+
+fn circuit_node_point(origin: Point, size: Size, node: &CircuitNodeDescriptor) -> Point {
+    Point::new(
+        origin.x + size.width * node.layout.x,
+        origin.y + size.height * node.layout.y,
+    )
+}
+
+fn draw_semantic_circuit_edge(frame: &mut Frame, from: Point, to: Point) {
+    let mid_x = (from.x + to.x) * 0.5;
+    let path = Path::new(|p| {
+        p.move_to(from);
+        p.line_to(Point::new(mid_x, from.y));
+        p.line_to(Point::new(mid_x, to.y));
+        p.line_to(to);
+    });
     frame.stroke(
-        &body,
+        &path,
         Stroke::default()
-            .with_color(Color::from_rgba(0.92, 0.84, 0.62, 0.32))
-            .with_width(1.2),
-    );
-    for pin in 0..4 {
-        let y = center.y - 11.0 + pin as f32 * 7.2;
-        frame.stroke(
-            &Path::line(
-                Point::new(center.x - 30.0, y),
-                Point::new(center.x - 24.0, y),
-            ),
-            Stroke::default()
-                .with_color(Color::from_rgb(0.78, 0.67, 0.48))
-                .with_width(2.0),
-        );
-        frame.stroke(
-            &Path::line(
-                Point::new(center.x + 24.0, y),
-                Point::new(center.x + 30.0, y),
-            ),
-            Stroke::default()
-                .with_color(Color::from_rgb(0.78, 0.67, 0.48))
-                .with_width(2.0),
-        );
-    }
-    draw_text(
-        frame,
-        label,
-        center,
-        10.0,
-        Color::from_rgba(0.92, 0.88, 0.72, 0.82),
-        Horizontal::Center,
-    );
-}
-
-fn draw_resistor(frame: &mut Frame, center: Point, tilt: f32) {
-    let body = rounded_rect(
-        Point::new(center.x - 20.0, center.y - 7.0),
-        Size::new(40.0, 14.0),
-        7.0,
-    );
-    frame.fill(&body, Color::from_rgb(0.74, 0.61, 0.42));
-    for offset in [-10.0, 0.0, 10.0] {
-        frame.stroke(
-            &Path::line(
-                Point::new(center.x + offset + tilt * 10.0, center.y - 6.0),
-                Point::new(center.x + offset - tilt * 10.0, center.y + 6.0),
-            ),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.20, 0.10, 0.06, 0.55))
-                .with_width(2.0),
-        );
-    }
-}
-
-fn draw_capacitor(frame: &mut Frame, center: Point) {
-    frame.fill(
-        &Path::circle(center, 12.0),
-        Color::from_rgb(0.18, 0.30, 0.36),
+            .with_color(Color::from_rgba(0.86, 0.58, 0.25, 0.72))
+            .with_width(3.0),
     );
     frame.stroke(
-        &Path::circle(center, 12.0),
+        &path,
         Stroke::default()
-            .with_color(Color::from_rgba(0.82, 0.94, 0.96, 0.36))
+            .with_color(Color::from_rgba(1.0, 0.86, 0.48, 0.20))
+            .with_width(1.0),
+    );
+}
+
+fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNodeDescriptor) {
+    let (width, height) = match node.kind {
+        CircuitNodeKind::Port => (28.0, 28.0),
+        CircuitNodeKind::Split | CircuitNodeKind::Mixer => (44.0, 32.0),
+        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => (50.0, 36.0),
+        CircuitNodeKind::ClippingCell => (42.0, 32.0),
+        _ => (46.0, 34.0),
+    };
+    let origin = Point::new(center.x - width * 0.5, center.y - height * 0.5);
+    let radius = match node.kind {
+        CircuitNodeKind::Port => 14.0,
+        CircuitNodeKind::ClippingCell => 8.0,
+        _ => 7.0,
+    };
+    let shape = rounded_rect(origin, Size::new(width, height), radius);
+    frame.fill(&shape, circuit_node_fill(node.kind));
+    frame.stroke(
+        &shape,
+        Stroke::default()
+            .with_color(circuit_node_stroke(node.kind))
             .with_width(1.5),
+    );
+
+    match node.kind {
+        CircuitNodeKind::ClippingCell => draw_clip_symbol(frame, center),
+        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => {
+            draw_ir_symbol(frame, center)
+        }
+        CircuitNodeKind::Split | CircuitNodeKind::Mixer => draw_mix_symbol(frame, center),
+        _ => {}
+    }
+
+    draw_text(
+        frame,
+        circuit_node_label(node),
+        Point::new(center.x, center.y - 3.0),
+        8.4,
+        Color::from_rgb(0.96, 0.92, 0.78),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        circuit_node_detail(node),
+        Point::new(center.x, center.y + 8.8),
+        6.4,
+        Color::from_rgba(0.86, 0.82, 0.70, 0.72),
+        Horizontal::Center,
+    );
+
+    if let Some(control) = node.control_id {
+        draw_control_binding_badge(
+            frame,
+            Point::new(center.x, origin.y - 13.0),
+            control_badge_label(control),
+            node.confidence,
+        );
+    } else if matches!(
+        node.kind,
+        CircuitNodeKind::InputLoad
+            | CircuitNodeKind::OutputDriver
+            | CircuitNodeKind::Port
+            | CircuitNodeKind::ImpulseResponse
+            | CircuitNodeKind::SpringTank
+    ) {
+        draw_confidence_chip(
+            frame,
+            Point::new(center.x, origin.y - 11.0),
+            node.confidence,
+        );
+    }
+}
+
+fn circuit_node_label(node: &CircuitNodeDescriptor) -> &'static str {
+    match node.id {
+        "input_jack" => "IN",
+        "input_load" => "High-Z",
+        "input_coupling" => "Couple",
+        "path_split" => "Split",
+        "clean_path" => "Clean",
+        "drive_gain" => "Drive",
+        "soft_clip" => "Clip",
+        "drive_filter" => "Smooth",
+        "treble_presence" => "Presence",
+        "output_level" => "Level",
+        "output_driver" => "Driver",
+        "output_jack" => "OUT",
+        "dwell_driver" => "Dwell",
+        "spring_ir_tank" => "Tank IR",
+        "splash_diffusion" => "Splash",
+        "recovery_tone" => "Recover",
+        "wet_dry_mixer" => "Mix",
+        _ => node.label,
+    }
+}
+
+fn circuit_node_detail(node: &CircuitNodeDescriptor) -> &'static str {
+    match node.kind {
+        CircuitNodeKind::Port => "voltage",
+        CircuitNodeKind::InputLoad => "load",
+        CircuitNodeKind::CouplingFilter => "HP",
+        CircuitNodeKind::Buffer => "buffer",
+        CircuitNodeKind::Split => "branch",
+        CircuitNodeKind::CleanPath => "attack",
+        CircuitNodeKind::GainStage => "gain",
+        CircuitNodeKind::ClippingCell => "diodes",
+        CircuitNodeKind::ToneNetwork => "filter",
+        CircuitNodeKind::LevelControl => "pot",
+        CircuitNodeKind::OutputDriver => "low-Z",
+        CircuitNodeKind::TransducerDriver => "drive",
+        CircuitNodeKind::SpringTank => "tank",
+        CircuitNodeKind::ImpulseResponse => "IR",
+        CircuitNodeKind::DiffusionNetwork => "delay",
+        CircuitNodeKind::Mixer => "sum",
+    }
+}
+
+fn circuit_node_fill(kind: CircuitNodeKind) -> Color {
+    match kind {
+        CircuitNodeKind::Port => Color::from_rgb(0.12, 0.18, 0.18),
+        CircuitNodeKind::InputLoad | CircuitNodeKind::OutputDriver | CircuitNodeKind::Buffer => {
+            Color::from_rgb(0.13, 0.22, 0.23)
+        }
+        CircuitNodeKind::CouplingFilter | CircuitNodeKind::ToneNetwork => {
+            Color::from_rgb(0.18, 0.24, 0.19)
+        }
+        CircuitNodeKind::GainStage | CircuitNodeKind::TransducerDriver => {
+            Color::from_rgb(0.30, 0.20, 0.13)
+        }
+        CircuitNodeKind::ClippingCell => Color::from_rgb(0.29, 0.14, 0.15),
+        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => {
+            Color::from_rgb(0.13, 0.22, 0.28)
+        }
+        CircuitNodeKind::DiffusionNetwork => Color::from_rgb(0.16, 0.18, 0.28),
+        CircuitNodeKind::CleanPath | CircuitNodeKind::Split | CircuitNodeKind::Mixer => {
+            Color::from_rgb(0.16, 0.23, 0.18)
+        }
+        CircuitNodeKind::LevelControl => Color::from_rgb(0.25, 0.20, 0.13),
+    }
+}
+
+fn circuit_node_stroke(kind: CircuitNodeKind) -> Color {
+    match kind {
+        CircuitNodeKind::ClippingCell => Color::from_rgba(1.0, 0.50, 0.44, 0.62),
+        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => {
+            Color::from_rgba(0.50, 0.78, 0.95, 0.58)
+        }
+        CircuitNodeKind::Port | CircuitNodeKind::InputLoad | CircuitNodeKind::OutputDriver => {
+            Color::from_rgba(0.78, 0.92, 0.86, 0.52)
+        }
+        _ => Color::from_rgba(0.96, 0.78, 0.44, 0.48),
+    }
+}
+
+fn draw_clip_symbol(frame: &mut Frame, center: Point) {
+    for offset in [-7.0, 7.0] {
+        let diode = Path::new(|path| {
+            path.move_to(Point::new(center.x + offset - 5.0, center.y + 13.0));
+            path.line_to(Point::new(center.x + offset, center.y + 5.0));
+            path.line_to(Point::new(center.x + offset + 5.0, center.y + 13.0));
+            path.close();
+        });
+        frame.stroke(
+            &diode,
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 0.78, 0.54, 0.64))
+                .with_width(1.1),
+        );
+    }
+}
+
+fn draw_ir_symbol(frame: &mut Frame, center: Point) {
+    for i in 0..16 {
+        let x = center.x - 22.0 + i as f32 * 44.0 / 15.0;
+        let y = center.y + 12.0 + (i as f32 * 1.35).sin() * 4.2;
+        frame.fill(
+            &Path::circle(Point::new(x, y), 1.55),
+            Color::from_rgba(0.72, 0.94, 1.0, 0.62),
+        );
+    }
+}
+
+fn draw_mix_symbol(frame: &mut Frame, center: Point) {
+    frame.stroke(
+        &Path::line(
+            Point::new(center.x - 14.0, center.y + 12.0),
+            Point::new(center.x + 14.0, center.y + 12.0),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.92, 0.76, 0.42, 0.52))
+            .with_width(1.2),
     );
     frame.stroke(
         &Path::line(
-            Point::new(center.x - 5.0, center.y),
-            Point::new(center.x + 5.0, center.y),
+            Point::new(center.x, center.y + 5.0),
+            Point::new(center.x, center.y + 19.0),
         ),
         Stroke::default()
-            .with_color(Color::from_rgba(0.92, 1.0, 1.0, 0.60))
-            .with_width(1.6),
+            .with_color(Color::from_rgba(0.92, 0.76, 0.42, 0.52))
+            .with_width(1.2),
     );
 }
 
-fn draw_diode_pair(frame: &mut Frame, center: Point) {
-    for offset in [-10.0, 10.0] {
-        let diode = Path::new(|path| {
-            path.move_to(Point::new(center.x + offset - 7.0, center.y + 6.0));
-            path.line_to(Point::new(center.x + offset, center.y - 6.0));
-            path.line_to(Point::new(center.x + offset + 7.0, center.y + 6.0));
-            path.close();
-        });
-        frame.fill(&diode, Color::from_rgb(0.18, 0.58, 0.58));
-        frame.stroke(
-            &Path::line(
-                Point::new(center.x + offset - 8.0, center.y + 8.0),
-                Point::new(center.x + offset + 8.0, center.y + 8.0),
-            ),
-            Stroke::default()
-                .with_color(Color::from_rgb(0.82, 0.70, 0.44))
-                .with_width(2.0),
-        );
-    }
-}
-
-fn draw_pot_node(frame: &mut Frame, center: Point, label: &'static str) {
-    frame.fill(
-        &Path::circle(center, 10.0),
-        Color::from_rgb(0.80, 0.58, 0.28),
+fn draw_control_binding_badge(
+    frame: &mut Frame,
+    center: Point,
+    control: &'static str,
+    confidence: CircuitConfidence,
+) {
+    let body = rounded_rect(
+        Point::new(center.x - 22.0, center.y - 8.0),
+        Size::new(44.0, 16.0),
+        8.0,
     );
+    frame.fill(&body, Color::from_rgb(0.72, 0.52, 0.25));
     frame.stroke(
-        &Path::circle(center, 10.0),
+        &body,
         Stroke::default()
-            .with_color(Color::from_rgba(1.0, 0.88, 0.54, 0.62))
-            .with_width(1.5),
+            .with_color(Color::from_rgba(1.0, 0.82, 0.42, 0.54))
+            .with_width(1.0),
     );
     draw_text(
         frame,
-        label,
-        Point::new(center.x, center.y + 22.0),
-        9.0,
-        Color::from_rgba(0.88, 0.76, 0.48, 0.86),
+        control,
+        Point::new(center.x, center.y - 1.0),
+        7.4,
+        Color::from_rgb(0.06, 0.05, 0.035),
+        Horizontal::Center,
+    );
+    draw_confidence_dot(frame, Point::new(center.x + 26.0, center.y), confidence);
+}
+
+fn draw_confidence_chip(frame: &mut Frame, center: Point, confidence: CircuitConfidence) {
+    let width = 42.0;
+    let body = rounded_rect(
+        Point::new(center.x - width * 0.5, center.y - 7.0),
+        Size::new(width, 14.0),
+        7.0,
+    );
+    frame.fill(&body, Color::from_rgba(0.02, 0.025, 0.025, 0.72));
+    frame.stroke(
+        &body,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.70, 0.84, 0.78, 0.24))
+            .with_width(1.0),
+    );
+    draw_text(
+        frame,
+        confidence_label(confidence),
+        Point::new(center.x, center.y - 1.0),
+        6.8,
+        Color::from_rgba(0.82, 0.90, 0.82, 0.72),
         Horizontal::Center,
     );
 }
 
-fn draw_spring_tank(frame: &mut Frame, center: Point, width: f32) {
-    let tank = rounded_rect(
-        Point::new(center.x - width * 0.5, center.y - 22.0),
-        Size::new(width, 44.0),
-        8.0,
+fn draw_confidence_dot(frame: &mut Frame, center: Point, confidence: CircuitConfidence) {
+    let color = match confidence {
+        CircuitConfidence::ExternalReference => Color::from_rgb(0.45, 0.78, 0.95),
+        CircuitConfidence::Inferred | CircuitConfidence::Algorithmic => {
+            Color::from_rgb(0.95, 0.65, 0.36)
+        }
+        _ => Color::from_rgb(0.58, 0.88, 0.58),
+    };
+    frame.fill(&Path::circle(center, 3.0), color);
+}
+
+fn draw_circuit_kind_badge(frame: &mut Frame, center: Point, kind: CircuitDescriptorKind) {
+    let width = match kind {
+        CircuitDescriptorKind::GreyboxIrHybrid => 84.0,
+        _ => 64.0,
+    };
+    let body = rounded_rect(
+        Point::new(center.x - width * 0.5, center.y - 11.0),
+        Size::new(width, 22.0),
+        11.0,
     );
-    frame.fill(&tank, Color::from_rgba(0.10, 0.12, 0.11, 0.62));
+    frame.fill(&body, Color::from_rgba(0.02, 0.025, 0.025, 0.82));
     frame.stroke(
-        &tank,
+        &body,
         Stroke::default()
-            .with_color(Color::from_rgba(0.85, 0.70, 0.42, 0.50))
-            .with_width(1.6),
+            .with_color(Color::from_rgba(0.95, 0.78, 0.46, 0.42))
+            .with_width(1.0),
     );
-    let left = center.x - width * 0.40;
-    for i in 0..24 {
-        let x = left + i as f32 * width * 0.80 / 23.0;
-        let y = center.y + (i as f32 * 0.9).sin() * 9.0;
-        frame.fill(
-            &Path::circle(Point::new(x, y), 2.0),
-            Color::from_rgb(0.78, 0.67, 0.48),
-        );
+    draw_text(
+        frame,
+        circuit_descriptor_kind_label(kind),
+        Point::new(center.x, center.y - 1.0),
+        7.6,
+        Color::from_rgb(0.90, 0.82, 0.64),
+        Horizontal::Center,
+    );
+}
+
+fn control_badge_label(control_id: &str) -> &'static str {
+    match control_id {
+        "gain" => "GAIN",
+        "treble" => "TREB",
+        "output" => "OUT",
+        "dwell" => "DWL",
+        "tone" => "TONE",
+        "mix" => "MIX",
+        _ => "CTRL",
+    }
+}
+
+fn confidence_label(confidence: CircuitConfidence) -> &'static str {
+    match confidence {
+        CircuitConfidence::KnownBoundary => "known",
+        CircuitConfidence::SchematicInspired => "inferred",
+        CircuitConfidence::Inferred => "infer",
+        CircuitConfidence::TunedGreybox => "tuned",
+        CircuitConfidence::ExternalReference => "ref",
+        CircuitConfidence::Algorithmic => "algo",
+    }
+}
+
+fn circuit_descriptor_kind_label(kind: CircuitDescriptorKind) -> &'static str {
+    match kind {
+        CircuitDescriptorKind::CircuitInformed => "CIRCUIT",
+        CircuitDescriptorKind::Greybox => "GREYBOX",
+        CircuitDescriptorKind::GreyboxIrHybrid => "GREYBOX / IR",
+        CircuitDescriptorKind::Algorithmic => "ALGO",
     }
 }
 

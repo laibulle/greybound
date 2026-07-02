@@ -123,6 +123,11 @@ description: Decisions and open questions that should steer upcoming implementat
   references, and confidence labels. These descriptors are model-level circuit
   explanations, not PCB artwork or full SPICE netlists, and the desktop circuit
   view should consume them before the next visual rendering pass.
+- The desktop pedal circuit view no longer draws an invented decorative PCB.
+  `greybound-ui` now depends on `greybound` with default features disabled and
+  renders Minotaur and Springfield directly from the runtime circuit
+  descriptors: stage nodes, routed edges, control badges, confidence hints, and
+  a greybox/IR-hybrid badge.
 
 ## Open Questions
 
