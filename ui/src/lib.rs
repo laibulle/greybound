@@ -3228,7 +3228,7 @@ fn draw_pedal_circuit(frame: &mut Frame, origin: Point, size: Size, device: &Dev
             circuit_placement_by_id(&layout.placements, edge.from),
             circuit_placement_by_id(&layout.placements, edge.to),
         ) {
-            draw_semantic_circuit_edge(frame, from.point, to.point, layout.direction);
+            draw_semantic_circuit_edge(frame, from, to, layout.direction);
         }
     }
 
@@ -3345,6 +3345,13 @@ fn layout_circuit_graph<'a>(
     } else {
         CircuitLayoutDirection::LeftToRight
     };
+
+    if matches!(direction, CircuitLayoutDirection::TopToBottom) {
+        if let Some(layout) = layout_series_parallel_circuit(descriptor, origin, size) {
+            return layout;
+        }
+    }
+
     let node_count = descriptor.nodes.len();
     let mut outgoing = vec![Vec::<usize>::new(); node_count];
     let mut incoming = vec![Vec::<usize>::new(); node_count];
@@ -3424,8 +3431,9 @@ fn layout_circuit_graph<'a>(
 
     for (layer, nodes) in layer_nodes.iter().enumerate() {
         let layer_position = layer as f32 / layer_divisor;
+        let cross_positions = layer_cross_positions(nodes, descriptor, direction);
         for (slot, &node_index) in nodes.iter().enumerate() {
-            let cross = layer_cross_position(slot, nodes.len());
+            let cross = cross_positions[slot];
             let point = match direction {
                 CircuitLayoutDirection::TopToBottom => Point::new(
                     origin.x + x_pad + usable_width * cross,
@@ -3448,6 +3456,171 @@ fn layout_circuit_graph<'a>(
         direction,
         placements,
     }
+}
+
+fn layout_series_parallel_circuit<'a>(
+    descriptor: &'a CircuitDescriptor,
+    origin: Point,
+    size: Size,
+) -> Option<CircuitGraphLayout<'a>> {
+    let node_count = descriptor.nodes.len();
+    let mut outgoing = vec![Vec::<usize>::new(); node_count];
+    let mut incoming = vec![Vec::<usize>::new(); node_count];
+
+    for edge in descriptor.edges {
+        let from = circuit_node_index(descriptor, edge.from)?;
+        let to = circuit_node_index(descriptor, edge.to)?;
+        outgoing[from].push(to);
+        incoming[to].push(from);
+    }
+
+    let split = (0..node_count).find(|&index| outgoing[index].len() > 1)?;
+    let merge = (0..node_count)
+        .filter(|&index| incoming[index].len() > 1)
+        .find(|&candidate| {
+            outgoing[split]
+                .iter()
+                .all(|&branch| branch == candidate || reaches(branch, candidate, &outgoing))
+        })?;
+
+    let root = (0..node_count)
+        .find(|&index| incoming[index].is_empty() && reaches(index, split, &outgoing))?;
+    let pre_split = path_between(root, split, &outgoing)?;
+    let post_merge = follow_single_output_path(merge, &outgoing);
+    let branch_paths: Vec<Vec<usize>> = outgoing[split]
+        .iter()
+        .map(|&branch| {
+            if branch == merge {
+                Some(Vec::new())
+            } else {
+                path_between(branch, merge, &outgoing)
+                    .map(|path| path.into_iter().take_while(|&node| node != merge).collect())
+            }
+        })
+        .collect::<Option<Vec<_>>>()?;
+
+    let mut placements = Vec::with_capacity(node_count);
+    let x_pad = 38.0;
+    let y_pad = 18.0;
+    let usable_width = (size.width - x_pad * 2.0).max(1.0);
+    let usable_height = (size.height - y_pad * 2.0).max(1.0);
+
+    let point = |x: f32, y: f32| {
+        Point::new(
+            origin.x + x_pad + usable_width * x,
+            origin.y + y_pad + usable_height * y,
+        )
+    };
+
+    let split_y = 0.30;
+    let merge_y = 0.72;
+    let pre_len = pre_split.len().saturating_sub(1).max(1);
+    for (slot, &node_index) in pre_split.iter().enumerate() {
+        let y = split_y * slot as f32 / pre_len as f32;
+        placements.push(CircuitNodePlacement {
+            id: descriptor.nodes[node_index].id,
+            node: &descriptor.nodes[node_index],
+            point: point(0.50, y),
+        });
+    }
+
+    let branch_count = branch_paths.len().max(1);
+    for (branch_slot, branch) in branch_paths.iter().enumerate() {
+        if branch.is_empty() {
+            continue;
+        }
+        let lane = branch_lane(branch_slot, branch_count);
+        let branch_len = branch.len() + 1;
+        for (slot, &node_index) in branch.iter().enumerate() {
+            let y = split_y + (merge_y - split_y) * (slot + 1) as f32 / branch_len as f32;
+            placements.push(CircuitNodePlacement {
+                id: descriptor.nodes[node_index].id,
+                node: &descriptor.nodes[node_index],
+                point: point(lane, y),
+            });
+        }
+    }
+
+    let post_len = post_merge.len().saturating_sub(1).max(1);
+    for (slot, &node_index) in post_merge.iter().enumerate() {
+        let y = merge_y + (0.97 - merge_y) * slot as f32 / post_len as f32;
+        placements.push(CircuitNodePlacement {
+            id: descriptor.nodes[node_index].id,
+            node: &descriptor.nodes[node_index],
+            point: point(0.50, y),
+        });
+    }
+
+    for node in descriptor.nodes {
+        if placements.iter().all(|placement| placement.id != node.id) {
+            placements.push(CircuitNodePlacement {
+                id: node.id,
+                node,
+                point: Point::new(
+                    origin.x + size.width * node.layout.x,
+                    origin.y + size.height * node.layout.y,
+                ),
+            });
+        }
+    }
+
+    Some(CircuitGraphLayout {
+        direction: CircuitLayoutDirection::TopToBottom,
+        placements,
+    })
+}
+
+fn branch_lane(slot: usize, count: usize) -> f32 {
+    if count <= 1 {
+        0.50
+    } else {
+        let span = 0.58;
+        0.50 - span * 0.5 + span * slot as f32 / (count - 1) as f32
+    }
+}
+
+fn reaches(start: usize, target: usize, outgoing: &[Vec<usize>]) -> bool {
+    if start == target {
+        return true;
+    }
+    let mut stack = vec![start];
+    let mut seen = vec![false; outgoing.len()];
+    while let Some(current) = stack.pop() {
+        if seen[current] {
+            continue;
+        }
+        seen[current] = true;
+        for &next in &outgoing[current] {
+            if next == target {
+                return true;
+            }
+            stack.push(next);
+        }
+    }
+    false
+}
+
+fn path_between(start: usize, target: usize, outgoing: &[Vec<usize>]) -> Option<Vec<usize>> {
+    if start == target {
+        return Some(vec![start]);
+    }
+    for &next in &outgoing[start] {
+        if let Some(mut path) = path_between(next, target, outgoing) {
+            path.insert(0, start);
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn follow_single_output_path(start: usize, outgoing: &[Vec<usize>]) -> Vec<usize> {
+    let mut path = vec![start];
+    let mut current = start;
+    while outgoing[current].len() == 1 {
+        current = outgoing[current][0];
+        path.push(current);
+    }
+    path
 }
 
 fn descriptor_layout_fallback<'a>(
@@ -3524,36 +3697,89 @@ fn barycenter(node_index: usize, neighbors: &[Vec<usize>], neighbor_order: &[f32
     }
 }
 
-fn layer_cross_position(slot: usize, count: usize) -> f32 {
-    if count <= 1 {
-        0.5
-    } else {
-        let span = ((count - 1) as f32 * 0.32).min(0.74);
-        0.5 - span * 0.5 + span * slot as f32 / (count - 1) as f32
+fn layer_cross_positions(
+    nodes: &[usize],
+    descriptor: &CircuitDescriptor,
+    direction: CircuitLayoutDirection,
+) -> Vec<f32> {
+    const MIN_CROSS_GAP: f32 = 0.30;
+    const MIN_CROSS: f32 = 0.11;
+    const MAX_CROSS: f32 = 0.89;
+
+    if nodes.is_empty() {
+        return Vec::new();
     }
+
+    if nodes.len() == 1 {
+        return vec![
+            initial_layer_order(&descriptor.nodes[nodes[0]], direction).clamp(MIN_CROSS, MAX_CROSS)
+        ];
+    }
+
+    let mut crosses: Vec<f32> = nodes
+        .iter()
+        .map(|&node_index| {
+            initial_layer_order(&descriptor.nodes[node_index], direction)
+                .clamp(MIN_CROSS, MAX_CROSS)
+        })
+        .collect();
+
+    for index in 1..crosses.len() {
+        let required = crosses[index - 1] + MIN_CROSS_GAP;
+        if crosses[index] < required {
+            crosses[index] = required;
+        }
+    }
+
+    if let Some(overflow) = crosses.last().map(|last| (*last - MAX_CROSS).max(0.0)) {
+        if overflow > 0.0 {
+            for cross in &mut crosses {
+                *cross -= overflow;
+            }
+        }
+    }
+
+    for index in (0..crosses.len().saturating_sub(1)).rev() {
+        let required = crosses[index + 1] - MIN_CROSS_GAP;
+        if crosses[index] > required {
+            crosses[index] = required;
+        }
+    }
+
+    if let Some(underflow) = crosses.first().map(|first| (MIN_CROSS - *first).max(0.0)) {
+        if underflow > 0.0 {
+            for cross in &mut crosses {
+                *cross += underflow;
+            }
+        }
+    }
+
+    crosses
 }
 
 fn draw_semantic_circuit_edge(
     frame: &mut Frame,
-    from: Point,
-    to: Point,
+    from: &CircuitNodePlacement<'_>,
+    to: &CircuitNodePlacement<'_>,
     direction: CircuitLayoutDirection,
 ) {
+    let from_point = circuit_edge_anchor(from, direction, true);
+    let to_point = circuit_edge_anchor(to, direction, false);
     let path = Path::new(|p| {
-        p.move_to(from);
+        p.move_to(from_point);
         match direction {
             CircuitLayoutDirection::LeftToRight => {
-                let mid_x = (from.x + to.x) * 0.5;
-                p.line_to(Point::new(mid_x, from.y));
-                p.line_to(Point::new(mid_x, to.y));
+                let mid_x = (from_point.x + to_point.x) * 0.5;
+                p.line_to(Point::new(mid_x, from_point.y));
+                p.line_to(Point::new(mid_x, to_point.y));
             }
             CircuitLayoutDirection::TopToBottom => {
-                let mid_y = (from.y + to.y) * 0.5;
-                p.line_to(Point::new(from.x, mid_y));
-                p.line_to(Point::new(to.x, mid_y));
+                let mid_y = (from_point.y + to_point.y) * 0.5;
+                p.line_to(Point::new(from_point.x, mid_y));
+                p.line_to(Point::new(to_point.x, mid_y));
             }
         }
-        p.line_to(to);
+        p.line_to(to_point);
     });
     frame.stroke(
         &path,
@@ -3569,14 +3795,30 @@ fn draw_semantic_circuit_edge(
     );
 }
 
+fn circuit_edge_anchor(
+    placement: &CircuitNodePlacement<'_>,
+    direction: CircuitLayoutDirection,
+    outgoing: bool,
+) -> Point {
+    let (width, height) = circuit_node_size(placement.node.kind);
+    match direction {
+        CircuitLayoutDirection::LeftToRight => {
+            let offset = if outgoing { width * 0.5 } else { -width * 0.5 };
+            Point::new(placement.point.x + offset, placement.point.y)
+        }
+        CircuitLayoutDirection::TopToBottom => {
+            let offset = if outgoing {
+                height * 0.5
+            } else {
+                -height * 0.5
+            };
+            Point::new(placement.point.x, placement.point.y + offset)
+        }
+    }
+}
+
 fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNodeDescriptor) {
-    let (width, height) = match node.kind {
-        CircuitNodeKind::Port => (28.0, 28.0),
-        CircuitNodeKind::Split | CircuitNodeKind::Mixer => (44.0, 32.0),
-        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => (50.0, 36.0),
-        CircuitNodeKind::ClippingCell => (42.0, 32.0),
-        _ => (46.0, 34.0),
-    };
+    let (width, height) = circuit_node_size(node.kind);
     let origin = Point::new(center.x - width * 0.5, center.y - height * 0.5);
     let radius = match node.kind {
         CircuitNodeKind::Port => 14.0,
@@ -3621,7 +3863,7 @@ fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNo
     if let Some(control) = node.control_id {
         draw_control_binding_badge(
             frame,
-            Point::new(center.x + width * 0.5 + 13.0, center.y),
+            Point::new(origin.x + width - 7.0, origin.y + 7.0),
             control_badge_label(control),
             node.confidence,
         );
@@ -3638,6 +3880,16 @@ fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNo
             Point::new(origin.x + width - 5.0, origin.y + height - 5.0),
             node.confidence,
         );
+    }
+}
+
+fn circuit_node_size(kind: CircuitNodeKind) -> (f32, f32) {
+    match kind {
+        CircuitNodeKind::Port => (28.0, 28.0),
+        CircuitNodeKind::Split | CircuitNodeKind::Mixer => (44.0, 32.0),
+        CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => (50.0, 36.0),
+        CircuitNodeKind::ClippingCell => (42.0, 32.0),
+        _ => (46.0, 34.0),
     }
 }
 
@@ -3777,11 +4029,7 @@ fn draw_control_binding_badge(
     control: &'static str,
     confidence: CircuitConfidence,
 ) {
-    let body = rounded_rect(
-        Point::new(center.x - 15.0, center.y - 7.0),
-        Size::new(30.0, 14.0),
-        7.0,
-    );
+    let body = Path::circle(center, 7.4);
     frame.fill(&body, Color::from_rgb(0.72, 0.52, 0.25));
     frame.stroke(
         &body,
@@ -3792,12 +4040,16 @@ fn draw_control_binding_badge(
     draw_text(
         frame,
         control,
-        Point::new(center.x, center.y - 1.0),
+        Point::new(center.x, center.y - 0.5),
         6.5,
         Color::from_rgb(0.06, 0.05, 0.035),
         Horizontal::Center,
     );
-    draw_confidence_dot(frame, Point::new(center.x + 18.0, center.y), confidence);
+    draw_confidence_dot(
+        frame,
+        Point::new(center.x + 6.0, center.y + 6.0),
+        confidence,
+    );
 }
 
 fn draw_confidence_dot(frame: &mut Frame, center: Point, confidence: CircuitConfidence) {
@@ -3840,12 +4092,12 @@ fn draw_circuit_kind_badge(frame: &mut Frame, center: Point, kind: CircuitDescri
 
 fn control_badge_label(control_id: &str) -> &'static str {
     match control_id {
-        "gain" => "GAIN",
-        "treble" => "TREB",
-        "output" => "OUT",
-        "dwell" => "DWL",
-        "tone" => "TONE",
-        "mix" => "MIX",
+        "gain" => "G",
+        "treble" => "T",
+        "output" => "O",
+        "dwell" => "D",
+        "tone" => "T",
+        "mix" => "M",
         _ => "CTRL",
     }
 }

@@ -133,6 +133,15 @@ description: Decisions and open questions that should steer upcoming implementat
   layers by longest path, ordered with barycentric sweeps to reduce crossings,
   and oriented top-to-bottom inside tall pedal surfaces so dense signal graphs
   do not collapse horizontally.
+- The circuit layout's coordinate assignment preserves descriptor-authored
+  cross-axis lanes for single-node layers and spreads multi-node branch layers
+  with a minimum gap. Edges now route from component borders instead of node
+  centers, and control bindings render as compact in-node badges to reduce
+  visual collisions.
+- For pedal-shaped tall circuit views, the renderer now first tries a
+  two-terminal series-parallel graph layout before falling back to the generic
+  Sugiyama-style layout. This better matches Greybound pedal descriptors with a
+  signal spine, explicit split branches, a merge point, and an output path.
 
 ## Open Questions
 
