@@ -670,6 +670,38 @@ mod tests {
     }
 
     #[test]
+    fn nox30_experimental_tone_stack_boundary_path_stays_transparent() {
+        let mut controls = controls();
+        controls.volume = 0.64;
+        controls.bass = 0.22;
+        controls.treble = 0.88;
+        controls.cut = 0.37;
+        controls.drive = 0.0;
+        controls.sag = 0.30;
+
+        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
+        let mut experimental = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut max_difference = 0.0_f32;
+
+        for sample_idx in 0..24_000 {
+            let t = sample_idx as f32 / 48_000.0;
+            let input = (std::f32::consts::TAU * 82.0 * t).sin() * 0.04
+                + (std::f32::consts::TAU * 997.0 * t).sin() * 0.025
+                + (std::f32::consts::TAU * 5_200.0 * t).sin() * 0.012;
+            let stable_output = stable.process(input, controls);
+            let experimental_output = experimental.process(input, controls);
+            if sample_idx >= 4_800 {
+                max_difference = max_difference.max((stable_output - experimental_output).abs());
+            }
+        }
+
+        assert!(
+            max_difference < 1e-7,
+            "transparent tone-stack boundary path changed audio: max_difference={max_difference}"
+        );
+    }
+
+    #[test]
     fn nox30_identity_fx_loop_matches_full_process() {
         let mut controls = controls();
         controls.volume = 0.56;
@@ -1105,8 +1137,7 @@ mod tests {
     #[test]
     fn tone_stack_boundary_impedance_changes_response() {
         let normal = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 220_000.0);
-        let loaded_source =
-            tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 50_000.0, 220_000.0);
+        let loaded_source = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 50_000.0, 220_000.0);
         let heavy_load = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 47_000.0);
 
         assert!(
