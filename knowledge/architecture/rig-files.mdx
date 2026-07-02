@@ -71,7 +71,7 @@ Rig files use JSON5 so they can keep JSON-like structure while supporting commen
 - `fx_loop`: ordered devices between the amp preamp send and return/power section. Nox30 has an explicit split here; other amp models currently use the compatible chain API until their internals are split.
 - `post_amp`: ordered devices after the amp, currently available in the data model.
 - `*.bypassed`: explicit activation state for pedal slots, `amp`, and `cab`. Use `false` for active and `true` for bypassed.
-- `amp.model`: `nox30`, `dumbler`, or `sheriff800`.
+- `amp.model`: `nox30`, `nox30-experimental`, `dumbler`, or `sheriff800`.
 - `amp.controls`: normalized `0.0..1.0` amp controls.
 - `cab.ir`: path to a mono WAV impulse response matching the runtime sample rate.
 - `cab.bypassed`: whether the configured speaker IR starts bypassed.
@@ -98,6 +98,8 @@ Supported device ids:
   implementation.
 - `rigs/grey-nox.json5`: Klon/Minotaur into Nox30. This is the default focused
   rig because those are the current real grey-box implementations.
+- `rigs/grey-nox-experimental.json5`: the same `grey-nox` topology and
+  controls with `amp.model: "nox30-experimental"` for lab A/B work.
 
 ## Boundaries
 

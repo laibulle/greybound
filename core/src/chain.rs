@@ -466,6 +466,14 @@ pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
                 ..STANDARD_AMP_VISUAL
             },
         },
+        "nox30-experimental" => AmpModelDescriptor {
+            id: "nox30-experimental",
+            label: "Nox30 Exp",
+            visual: DeviceVisualDescriptor {
+                color: "copper",
+                ..STANDARD_AMP_VISUAL
+            },
+        },
         "sheriff800" | "sheriff-800" => AmpModelDescriptor {
             id: "sheriff800",
             label: "Sheriff800",
@@ -1141,6 +1149,14 @@ mod tests {
             "black-gold"
         );
         assert_eq!(amp_model_descriptor("dumbler").visual.color, "tan");
+        assert_eq!(
+            amp_model_descriptor("nox30-experimental").id,
+            "nox30-experimental"
+        );
+        assert_eq!(
+            amp_model_descriptor("nox30-experimental").label,
+            "Nox30 Exp"
+        );
     }
 
     #[test]
