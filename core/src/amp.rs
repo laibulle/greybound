@@ -137,7 +137,7 @@ impl VoxAmp {
 
     pub fn with_model(sample_rate: f32, model: &str) -> Self {
         let coefficients = half_band_coefficients();
-        let oversampled = !matches!(model, "nox30");
+        let oversampled = !matches!(model, "nox30" | "nox30-experimental");
         let core_sample_rate = if oversampled {
             sample_rate * OVERSAMPLING_FACTOR
         } else {
@@ -381,6 +381,42 @@ mod tests {
         assert!(
             difference_sum < 1e-9,
             "default/nox30 mismatch: difference={difference_sum}"
+        );
+    }
+
+    #[test]
+    fn nox30_experimental_alias_starts_bit_equivalent_to_stable() {
+        let mut controls = controls();
+        controls.volume = 0.76;
+        controls.bass = 0.52;
+        controls.treble = 0.61;
+        controls.cut = 0.47;
+        controls.drive = 0.68;
+        controls.presence = 0.44;
+        controls.sag = 0.70;
+
+        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
+        let mut experimental = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..6_144 {
+            let chord = (std::f32::consts::TAU * 196.0 * sample_idx as f32 / 48_000.0).sin()
+                + (std::f32::consts::TAU * 247.0 * sample_idx as f32 / 48_000.0).sin() * 0.7
+                + (std::f32::consts::TAU * 330.0 * sample_idx as f32 / 48_000.0).sin() * 0.45;
+            let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
+            let input = chord * 0.055 * pick;
+            let stable_output = stable.process(input, controls);
+            let experimental_output = experimental.process(input, controls);
+
+            if sample_idx >= 1_024 {
+                let difference = stable_output - experimental_output;
+                difference_sum += difference * difference;
+            }
+        }
+
+        assert!(
+            difference_sum < 1e-9,
+            "stable/experimental mismatch before divergence: difference={difference_sum}"
         );
     }
 

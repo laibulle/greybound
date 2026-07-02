@@ -196,6 +196,7 @@ impl Application for Desktop {
                 | Message::AudioOutputSelected(_)
                 | Message::AudioSampleRateSelected(_)
                 | Message::AudioBufferSizeSelected(_)
+                | Message::ToggleAmpImplementation
         );
         self.ui.update(message);
         if restart_audio {
@@ -307,6 +308,7 @@ struct LiveAudioEngine {
     tuner: Arc<TunerStats>,
     input_device: String,
     output_device: String,
+    amp_model: String,
     sample_rate: u32,
     period_size: u32,
 }
@@ -368,7 +370,8 @@ impl LiveAudioEngine {
         let output_controls = controls.clone();
         let output_meters = meters.clone();
         let output_name = output_device_name.clone();
-        let mut runtime = AudioRuntime::new(sample_rate as f32, consumer)?;
+        let amp_model = ui.amp_model_id();
+        let mut runtime = AudioRuntime::new(sample_rate as f32, consumer, amp_model)?;
         let output_stream = output_device.build_output_stream(
             &output_config,
             move |data: &mut [f32], _| {
@@ -399,6 +402,7 @@ impl LiveAudioEngine {
             tuner,
             input_device: input_device_name,
             output_device: output_device_name,
+            amp_model: amp_model.to_string(),
             sample_rate,
             period_size,
         })
@@ -414,8 +418,12 @@ impl LiveAudioEngine {
 
     fn status(&self) -> String {
         format!(
-            "Running: {} -> {}, {} Hz / {} samples",
-            self.input_device, self.output_device, self.sample_rate, self.period_size
+            "Running: {} -> {}, {} Hz / {} samples, amp {}",
+            self.input_device,
+            self.output_device,
+            self.sample_rate,
+            self.period_size,
+            self.amp_model
         )
     }
 }
@@ -429,8 +437,8 @@ struct AudioRuntime {
 }
 
 impl AudioRuntime {
-    fn new(sample_rate: f32, input: Consumer<f32>) -> Result<Self> {
-        let mut config = SignalChainConfig::amp_only("nox30");
+    fn new(sample_rate: f32, input: Consumer<f32>, amp_model: &str) -> Result<Self> {
+        let mut config = SignalChainConfig::amp_only(amp_model);
         config
             .pre_amp
             .push(DeviceSlotConfig::active(DeviceConfig::Minotaur));

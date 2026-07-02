@@ -319,6 +319,7 @@ pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
     ToggleCircuitView,
+    ToggleAmpImplementation,
     ToggleTuner,
     CloseTuner,
     ToggleTunerLive,
@@ -413,6 +414,28 @@ pub enum ViewMode {
     Pedals,
     Amp,
     Cab,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AmpImplementation {
+    Stable,
+    Experimental,
+}
+
+impl AmpImplementation {
+    pub fn model_id(self) -> &'static str {
+        match self {
+            Self::Stable => "nox30",
+            Self::Experimental => "nox30-experimental",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Stable => "STABLE",
+            Self::Experimental => "EXPERIMENT",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -540,6 +563,7 @@ pub struct GreyboundUi {
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub circuit_view: bool,
+    pub amp_implementation: AmpImplementation,
     pub scale: f32,
 }
 
@@ -668,6 +692,7 @@ impl Default for GreyboundUi {
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             circuit_view: false,
+            amp_implementation: AmpImplementation::Stable,
             scale: 1.0,
         }
     }
@@ -687,6 +712,13 @@ impl GreyboundUi {
             }
             Message::ToggleCircuitView => {
                 self.circuit_view = !self.circuit_view;
+            }
+            Message::ToggleAmpImplementation => {
+                self.amp_implementation = match self.amp_implementation {
+                    AmpImplementation::Stable => AmpImplementation::Experimental,
+                    AmpImplementation::Experimental => AmpImplementation::Stable,
+                };
+                self.audio_settings.status = "Restarting audio engine".to_string();
             }
             Message::ToggleTuner => {
                 self.tuner.open = !self.tuner.open;
@@ -884,7 +916,9 @@ impl GreyboundUi {
                         self.cab.master,
                         percent_readout(self.cab.master)
                     ),
-                    container("").width(Length::Fill),
+                    container(self.amp_implementation_switch())
+                        .width(Length::Fill)
+                        .center_x(),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -1007,6 +1041,21 @@ impl GreyboundUi {
         .style(iced::theme::Button::custom(TopIconButton))
         .padding(0)
         .into()
+    }
+
+    pub fn amp_model_id(&self) -> &'static str {
+        self.amp_implementation.model_id()
+    }
+
+    fn amp_implementation_switch(&self) -> Element<'_, Message> {
+        let label = format!("AMP {}", self.amp_implementation.label());
+        button(text(label).size(self.font(13.0)).style(Color::WHITE))
+            .on_press(Message::ToggleAmpImplementation)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: self.amp_implementation == AmpImplementation::Experimental,
+            }))
+            .padding([self.s(8.0), self.s(16.0)])
+            .into()
     }
 
     fn audio_settings_panel(&self) -> Element<'_, Message> {

@@ -37,7 +37,7 @@ impl AmpCore {
         match model {
             "dumbler" => Self::Dumbler(Dumbler::new(sample_rate)),
             "sheriff800" | "sheriff-800" => Self::Sheriff800(Sheriff800::new(sample_rate)),
-            "nox30" => Self::Nox30(Nox30::new(sample_rate)),
+            "nox30" | "nox30-experimental" => Self::Nox30(Nox30::new(sample_rate)),
             _ => Self::new(sample_rate),
         }
     }
