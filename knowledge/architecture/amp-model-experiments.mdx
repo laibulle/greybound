@@ -51,10 +51,37 @@ stack connection: experimental preamp processing now wraps the follower output
 in a `ComponentSignal` carrying voltage, source impedance, load impedance,
 coupling, DC offset, and headroom before calling the tone stack.
 
+For lab-only boundary experiments, `nox30-experimental` accepts query-style
+model parameters. The default form remains transparent:
+
+```json5
+amp: {
+  model: "nox30-experimental",
+}
+```
+
+The first supported parameters alter only the experimental follower-to-tone-stack
+boundary:
+
+```json5
+amp: {
+  model: "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000",
+}
+```
+
+`tone_source_ohms` changes the source impedance presented by the follower
+boundary to the Top Boost tone stack. `tone_load_ohms` changes the downstream
+load impedance used by the tone-stack solve. Values are clamped to
+`1 ohm..10 Mohm`. These parameters are intentionally not exposed in the desktop
+UX because they are hypothesis controls for lab comparison, not musical
+controls. The base desktop `AMP EXPERIMENT` path still loads plain
+`nox30-experimental`.
+
 Offline A/B uses:
 
 - `rigs/grey-nox.json5`
 - `rigs/grey-nox-experimental.json5`
+- `rigs/grey-nox-experimental-tone-load.json5`
 
 These rigs should stay identical except for `amp.model` unless the experiment is
 explicitly about topology or control settings.
@@ -215,8 +242,21 @@ target/release/greybound-cli \
   --monitor
 ```
 
-The only expected difference in the alias phase is metadata naming. Audio should
-remain equivalent until a real experimental component diverges.
+The only expected difference for plain `nox30-experimental` is metadata naming.
+Audio should remain equivalent unless a model parameter explicitly selects a
+divergent experimental hypothesis.
+
+Render a loaded tone-stack boundary hypothesis by temporarily changing the rig
+model to:
+
+```json5
+"nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000"
+```
+
+Then compare the candidate against both the stable render and plain
+`nox30-experimental`. A useful report should state whether the altered boundary
+improved tone-stack response or feel, and whether it introduced clipping,
+silence, denormals, or worse monitor health.
 
 When a component changes, compare:
 

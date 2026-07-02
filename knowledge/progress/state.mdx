@@ -171,6 +171,13 @@ description: Decisions and open questions that should steer upcoming implementat
   impedance, coupling, DC offset, and headroom. `TopBoostToneStack` can now be
   called with explicit source/load impedance while its default `process`
   preserves the historical `820 ohm -> 220 kOhm` assumptions.
+- The Nox30 experimental tone-stack boundary can now be parameterized for lab
+  A/B work through the amp model string, for example
+  `nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000`. The desktop
+  switch still uses plain `nox30-experimental`, which remains bit-equivalent to
+  stable. Parameterized experimental models remain recognized by chain and
+  circuit descriptors, and focused tests prove both transparent behavior for the
+  default alias and measurable divergence for the loaded-boundary hypothesis.
 
 ## Open Questions
 

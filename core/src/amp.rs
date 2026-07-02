@@ -333,7 +333,8 @@ impl VoxAmp {
 
     pub fn with_model(sample_rate: f32, model: &str) -> Self {
         let coefficients = half_band_coefficients();
-        let oversampled = !matches!(model, "nox30" | "nox30-experimental");
+        let model_base = model.split_once('?').map_or(model, |(base, _)| base);
+        let oversampled = !matches!(model_base, "nox30" | "nox30-experimental");
         let core_sample_rate = if oversampled {
             sample_rate * OVERSAMPLING_FACTOR
         } else {
@@ -698,6 +699,50 @@ mod tests {
         assert!(
             max_difference < 1e-7,
             "transparent tone-stack boundary path changed audio: max_difference={max_difference}"
+        );
+    }
+
+    #[test]
+    fn nox30_experimental_configured_tone_boundary_impedance_diverges_from_stable() {
+        let mut controls = controls();
+        controls.volume = 0.70;
+        controls.bass = 0.28;
+        controls.treble = 0.82;
+        controls.cut = 0.41;
+        controls.drive = 0.18;
+        controls.presence = 0.36;
+        controls.sag = 0.32;
+
+        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
+        let mut experimental = VoxAmp::with_model(
+            48_000.0,
+            "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000",
+        );
+        let mut difference_sum = 0.0_f32;
+        let mut output_energy = 0.0_f32;
+
+        for sample_idx in 0..24_000 {
+            let t = sample_idx as f32 / 48_000.0;
+            let input = (std::f32::consts::TAU * 110.0 * t).sin() * 0.035
+                + (std::f32::consts::TAU * 880.0 * t).sin() * 0.026
+                + (std::f32::consts::TAU * 3_520.0 * t).sin() * 0.016;
+            let stable_output = stable.process(input, controls);
+            let experimental_output = experimental.process(input, controls);
+            assert!(experimental_output.is_finite());
+            if sample_idx >= 4_800 {
+                let difference = stable_output - experimental_output;
+                difference_sum += difference * difference;
+                output_energy += experimental_output * experimental_output;
+            }
+        }
+
+        assert!(
+            difference_sum > 1e-5,
+            "configured tone-stack boundary did not alter the stable path: difference={difference_sum}"
+        );
+        assert!(
+            output_energy > 1e-5,
+            "configured experimental path produced suspicious silence: output_energy={output_energy}"
         );
     }
 

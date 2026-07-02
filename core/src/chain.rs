@@ -457,7 +457,8 @@ impl DeviceConfig {
 }
 
 pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
-    match model {
+    let model_base = model.split_once('?').map_or(model, |(base, _)| base);
+    match model_base {
         "nox30" => AmpModelDescriptor {
             id: "nox30",
             label: "Nox30",
@@ -1156,6 +1157,10 @@ mod tests {
         assert_eq!(
             amp_model_descriptor("nox30-experimental").label,
             "Nox30 Exp"
+        );
+        assert_eq!(
+            amp_model_descriptor("nox30-experimental?tone_source_ohms=47000").id,
+            "nox30-experimental"
         );
     }
 

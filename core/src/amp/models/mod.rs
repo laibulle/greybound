@@ -35,11 +35,14 @@ impl AmpCore {
     }
 
     pub(super) fn new_with_model(sample_rate: f32, model: &str) -> Self {
-        match model {
+        let model_base = model.split_once('?').map_or(model, |(base, _)| base);
+        match model_base {
             "dumbler" => Self::Dumbler(Dumbler::new(sample_rate)),
             "sheriff800" | "sheriff-800" => Self::Sheriff800(Sheriff800::new(sample_rate)),
             "nox30" => Self::Nox30(Nox30::new(sample_rate)),
-            "nox30-experimental" => Self::Nox30Experimental(Nox30Experimental::new(sample_rate)),
+            "nox30-experimental" => {
+                Self::Nox30Experimental(Nox30Experimental::new_with_model(sample_rate, model))
+            }
             _ => Self::new(sample_rate),
         }
     }

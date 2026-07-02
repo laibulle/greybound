@@ -103,11 +103,19 @@ pub(in crate::amp) struct Nox30PreampOutput {
 pub(in crate::amp) struct Nox30Experimental {
     stable: Nox30,
     runner: ExperimentalBoundaryRunner,
+    params: Nox30ExperimentalParams,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Nox30ExperimentalParams {
+    tone_source_impedance_ohms: f32,
+    tone_load_impedance_ohms: f32,
 }
 
 struct ExperimentalBoundaryRunner {
     last_boundaries: [ComponentBoundaryState; 11],
     tone_stack_input: ComponentSignal,
+    params: Nox30ExperimentalParams,
 }
 
 impl Nox30 {
@@ -316,10 +324,16 @@ impl AmpModel for Nox30 {
 }
 
 impl Nox30Experimental {
-    pub(super) fn new(sample_rate: f32) -> Self {
+    pub(super) fn new_with_model(sample_rate: f32, model: &str) -> Self {
+        let params = Nox30ExperimentalParams::from_model(model);
         let stable = Nox30::new(sample_rate);
-        let runner = ExperimentalBoundaryRunner::from_operating_point(stable.operating_point());
-        Self { stable, runner }
+        let runner =
+            ExperimentalBoundaryRunner::from_operating_point(stable.operating_point(), params);
+        Self {
+            stable,
+            runner,
+            params,
+        }
     }
 
     pub(super) fn operating_point(&self) -> Nox30OperatingPoint {
@@ -420,7 +434,7 @@ impl Nox30Experimental {
 
 impl AmpModel for Nox30Experimental {
     fn reset(&mut self) {
-        *self = Self::new(self.stable.sample_rate);
+        *self = Self::new_with_params(self.stable.sample_rate, self.params);
     }
 
     #[inline]
@@ -431,18 +445,74 @@ impl AmpModel for Nox30Experimental {
     }
 }
 
+impl Nox30Experimental {
+    fn new_with_params(sample_rate: f32, params: Nox30ExperimentalParams) -> Self {
+        let stable = Nox30::new(sample_rate);
+        let runner =
+            ExperimentalBoundaryRunner::from_operating_point(stable.operating_point(), params);
+        Self {
+            stable,
+            runner,
+            params,
+        }
+    }
+}
+
+impl Default for Nox30ExperimentalParams {
+    fn default() -> Self {
+        Self {
+            tone_source_impedance_ohms: 820.0,
+            tone_load_impedance_ohms: 220_000.0,
+        }
+    }
+}
+
+impl Nox30ExperimentalParams {
+    fn from_model(model: &str) -> Self {
+        let mut params = Self::default();
+        let Some((_, query)) = model.split_once('?') else {
+            return params;
+        };
+
+        for assignment in query.split('&') {
+            let Some((key, value)) = assignment.split_once('=') else {
+                continue;
+            };
+            let Ok(parsed) = value.parse::<f32>() else {
+                continue;
+            };
+            let impedance = parsed.clamp(1.0, 10_000_000.0);
+            match key {
+                "tone_source_ohms" | "tone_source_impedance_ohms" => {
+                    params.tone_source_impedance_ohms = impedance;
+                }
+                "tone_load_ohms" | "tone_load_impedance_ohms" => {
+                    params.tone_load_impedance_ohms = impedance;
+                }
+                _ => {}
+            }
+        }
+
+        params
+    }
+}
+
 impl ExperimentalBoundaryRunner {
-    fn from_operating_point(operating_point: Nox30OperatingPoint) -> Self {
+    fn from_operating_point(
+        operating_point: Nox30OperatingPoint,
+        params: Nox30ExperimentalParams,
+    ) -> Self {
         Self {
             last_boundaries: operating_point.boundary_states(),
             tone_stack_input: ComponentSignal::new(
                 0.0,
-                820.0,
-                220_000.0,
+                params.tone_source_impedance_ohms,
+                params.tone_load_impedance_ohms,
                 ComponentCoupling::Buffered,
                 0.0,
                 operating_point.preamp_voltage,
             ),
+            params,
         }
     }
 
@@ -457,8 +527,8 @@ impl ExperimentalBoundaryRunner {
     ) -> f32 {
         self.tone_stack_input = ComponentSignal::new(
             follower_voltage_v,
-            820.0,
-            220_000.0,
+            self.params.tone_source_impedance_ohms,
+            self.params.tone_load_impedance_ohms,
             ComponentCoupling::Buffered,
             0.0,
             preamp_headroom_v,

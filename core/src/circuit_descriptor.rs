@@ -130,7 +130,8 @@ pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static Circui
 }
 
 pub fn amp_circuit_descriptor(model: &str) -> Option<&'static CircuitDescriptor> {
-    match model {
+    let model_base = model.split_once('?').map_or(model, |(base, _)| base);
+    match model_base {
         "nox30" | "nox30-experimental" => Some(&NOX30_CIRCUIT),
         _ => None,
     }
@@ -972,6 +973,10 @@ mod tests {
         );
         assert_eq!(
             amp_circuit_descriptor("nox30-experimental").map(|d| d.model_id),
+            Some("nox30")
+        );
+        assert_eq!(
+            amp_circuit_descriptor("nox30-experimental?tone_source_ohms=47000").map(|d| d.model_id),
             Some("nox30")
         );
         assert!(amp_circuit_descriptor("dumbler").is_none());

@@ -571,6 +571,35 @@ mod tests {
     }
 
     #[test]
+    fn parses_grey_nox_experimental_tone_load_fixture() {
+        let rig = RigConfig::from_json5(include_str!(
+            "../../rigs/grey-nox-experimental-tone-load.json5"
+        ))
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+
+        assert_eq!(rig.name.as_deref(), Some("grey-nox-experimental-tone-load"));
+        assert_eq!(
+            chain.amp_model,
+            "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000"
+        );
+        assert_eq!(
+            chain.pre_amp,
+            vec![DeviceSlotConfig::active(DeviceConfig::Minotaur)]
+        );
+        assert_eq!(
+            chain.fx_loop,
+            vec![
+                DeviceSlotConfig::active(DeviceConfig::Springfield),
+                DeviceSlotConfig::active(DeviceConfig::StudioVerb),
+            ]
+        );
+        assert!(rig.amp_enabled());
+        assert!(rig.cab_ir_enabled());
+    }
+
+    #[test]
     fn rejects_runtime_io_fields() {
         let error = RigConfig::from_json5(
             r#"
