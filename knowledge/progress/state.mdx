@@ -160,6 +160,11 @@ description: Decisions and open questions that should steer upcoming implementat
   source/load impedance, coupling mode, headroom, nominal/peak level, and
   latency so future experimental stages can exchange explicit state without
   reaching into private stage memory.
+- `nox30-experimental` is now a separate `AmpCore` variant backed by
+  `Nox30Experimental`. It still delegates to the stable Nox30 stages for audio,
+  but it owns an `ExperimentalBoundaryRunner` that observes the latest
+  component boundary-state snapshot. Stable and experimental paths remain
+  bit-equivalent, including the Nox30 FX-loop split path.
 
 ## Open Questions
 

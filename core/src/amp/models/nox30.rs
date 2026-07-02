@@ -1,6 +1,6 @@
 use super::AmpModel;
 use crate::amp::components::{TopBoostToneStack, WdfHighpass};
-use crate::amp::{AmpControls, NeuralCellMode, Nox30OperatingPoint};
+use crate::amp::{AmpControls, ComponentBoundaryState, NeuralCellMode, Nox30OperatingPoint};
 use crate::circuit::passive::{
     BrightVolumeInputParams, BrightVolumeInputStage, CutPresenceParams, CutPresenceStage,
 };
@@ -95,6 +95,15 @@ pub(in crate::amp) struct Nox30PreampOutput {
     follower_current: f32,
     drive_current: f32,
     recovery_current: f32,
+}
+
+pub(in crate::amp) struct Nox30Experimental {
+    stable: Nox30,
+    runner: ExperimentalBoundaryRunner,
+}
+
+struct ExperimentalBoundaryRunner {
+    last_boundaries: [ComponentBoundaryState; 11],
 }
 
 impl Nox30 {
@@ -299,6 +308,74 @@ impl AmpModel for Nox30 {
         let preamp = self.process_preamp(input, controls);
         let return_voltage = preamp.send_voltage;
         self.process_power_amp(return_voltage, preamp, controls)
+    }
+}
+
+impl Nox30Experimental {
+    pub(super) fn new(sample_rate: f32) -> Self {
+        let stable = Nox30::new(sample_rate);
+        let runner = ExperimentalBoundaryRunner::from_operating_point(stable.operating_point());
+        Self { stable, runner }
+    }
+
+    pub(super) fn operating_point(&self) -> Nox30OperatingPoint {
+        self.stable.operating_point()
+    }
+
+    pub(super) fn boundary_states(&self) -> [ComponentBoundaryState; 11] {
+        self.runner.boundary_states()
+    }
+
+    #[inline]
+    pub(super) fn process_preamp(
+        &mut self,
+        input: f32,
+        controls: AmpControls,
+    ) -> Nox30PreampOutput {
+        self.stable.process_preamp(input, controls)
+    }
+
+    #[inline]
+    pub(super) fn process_power_amp(
+        &mut self,
+        return_voltage: f32,
+        preamp: Nox30PreampOutput,
+        controls: AmpControls,
+    ) -> f32 {
+        let output = self
+            .stable
+            .process_power_amp(return_voltage, preamp, controls);
+        self.runner.observe(self.stable.operating_point());
+        output
+    }
+}
+
+impl AmpModel for Nox30Experimental {
+    fn reset(&mut self) {
+        *self = Self::new(self.stable.sample_rate);
+    }
+
+    #[inline]
+    fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
+        let preamp = self.process_preamp(input, controls);
+        let return_voltage = preamp.send_voltage;
+        self.process_power_amp(return_voltage, preamp, controls)
+    }
+}
+
+impl ExperimentalBoundaryRunner {
+    fn from_operating_point(operating_point: Nox30OperatingPoint) -> Self {
+        Self {
+            last_boundaries: operating_point.boundary_states(),
+        }
+    }
+
+    fn observe(&mut self, operating_point: Nox30OperatingPoint) {
+        self.last_boundaries = operating_point.boundary_states();
+    }
+
+    fn boundary_states(&self) -> [ComponentBoundaryState; 11] {
+        self.last_boundaries
     }
 }
 

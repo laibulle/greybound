@@ -327,6 +327,10 @@ impl VoxAmp {
         self.core.nox30_operating_point()
     }
 
+    pub fn nox30_boundary_states(&self) -> Option<[ComponentBoundaryState; 11]> {
+        self.core.nox30_boundary_states()
+    }
+
     #[inline]
     pub fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
         if !self.oversampled {
@@ -587,6 +591,39 @@ mod tests {
     }
 
     #[test]
+    fn nox30_experimental_fx_loop_matches_stable_path() {
+        let mut controls = controls();
+        controls.volume = 0.56;
+        controls.bass = 0.56;
+        controls.treble = 0.58;
+        controls.cut = 0.44;
+        controls.output = 10.0_f32.powf(-9.0 / 20.0);
+        controls.drive = 0.24;
+        controls.presence = 0.34;
+        controls.sag = 0.46;
+
+        let mut stable = VoxAmp::with_model(44_100.0, "nox30");
+        let mut experimental = VoxAmp::with_model(44_100.0, "nox30-experimental");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..88_200 {
+            let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 44_100.0).sin() * 0.06
+                + (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 44_100.0).sin() * 0.03;
+            let stable_output = stable.process_with_fx_loop(input, controls, |send| send * 0.87);
+            let experimental_output =
+                experimental.process_with_fx_loop(input, controls, |send| send * 0.87);
+            if sample_idx >= 44_100 {
+                difference_sum += (stable_output - experimental_output).abs();
+            }
+        }
+
+        assert!(
+            difference_sum < 1e-6,
+            "stable/experimental FX loop mismatch: difference_sum={difference_sum}"
+        );
+    }
+
+    #[test]
     fn nox30_identity_fx_loop_matches_full_process() {
         let mut controls = controls();
         controls.volume = 0.56;
@@ -770,6 +807,36 @@ mod tests {
         assert!(states
             .iter()
             .all(|state| state.voltage_v.is_finite() && state.headroom_v.is_finite()));
+    }
+
+    #[test]
+    fn nox30_experimental_runner_exports_observed_boundary_states() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+
+        for sample_idx in 0..4_096 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            amp.process(input, controls);
+        }
+
+        let states = amp.nox30_boundary_states().unwrap();
+        let output = states
+            .iter()
+            .find(|state| state.id == "output_transformer")
+            .unwrap();
+
+        assert_eq!(output.coupling, ComponentCoupling::Transformer);
+        assert!(output.latency_samples > 0);
+        assert!(states.iter().any(|state| state.id == "supply_network"));
     }
 
     #[test]
