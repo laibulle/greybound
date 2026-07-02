@@ -2,9 +2,9 @@ pub mod components;
 
 use components::{KnobSkin, KnobSpec};
 use greybound::{
-    device_circuit_descriptor, CircuitConfidence, CircuitDescriptor, CircuitDescriptorKind,
-    CircuitNodeDescriptor, CircuitNodeKind, ComponentBoundary, DeviceConfig as CoreDeviceConfig,
-    NOX30_COMPONENT_BOUNDARIES,
+    amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitDescriptor,
+    CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
+    DeviceConfig as CoreDeviceConfig,
 };
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
@@ -2987,6 +2987,9 @@ fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
 }
 
 fn draw_amp_circuit(frame: &mut Frame, size: Size) {
+    let Some(descriptor) = amp_circuit_descriptor("nox30") else {
+        return;
+    };
     let panel_w = size.width.min(1120.0);
     let panel_h = 500.0;
     let origin = Point::new((size.width - panel_w) * 0.5, 62.0);
@@ -3010,7 +3013,7 @@ fn draw_amp_circuit(frame: &mut Frame, size: Size) {
 
     draw_text(
         frame,
-        "Nox30 circuit-informed amp",
+        descriptor.label,
         Point::new(origin.x + 34.0, origin.y + 34.0),
         22.0,
         Color::from_rgb(0.90, 0.84, 0.68),
@@ -3018,7 +3021,7 @@ fn draw_amp_circuit(frame: &mut Frame, size: Size) {
     );
     draw_text(
         frame,
-        "input / preamp / top boost / phase inverter / EL84 power / transformer",
+        circuit_descriptor_summary(descriptor),
         Point::new(origin.x + 34.0, origin.y + 62.0),
         13.0,
         Color::from_rgba(0.83, 0.78, 0.66, 0.78),
@@ -3027,97 +3030,38 @@ fn draw_amp_circuit(frame: &mut Frame, size: Size) {
     draw_circuit_kind_badge(
         frame,
         Point::new(origin.x + panel_w - 92.0, origin.y + 42.0),
-        CircuitDescriptorKind::CircuitInformed,
+        descriptor.kind,
     );
 
     let graph_origin = Point::new(origin.x + 44.0, origin.y + 116.0);
     let graph_size = Size::new(panel_w - 88.0, panel_h - 178.0);
-    let signal_ids = [
-        "input_volume",
-        "first_stage",
-        "cathode_follower",
-        "tone_stack",
-        "drive_stage",
-        "recovery_stage",
-        "phase_inverter",
-        "power_stage",
-        "output_transformer",
-    ];
-    let signal_points: Vec<Point> = signal_ids
-        .iter()
-        .enumerate()
-        .map(|(slot, _)| {
-            let x = if signal_ids.len() <= 1 {
-                0.5
+
+    let layout = layout_circuit_graph(descriptor, graph_origin, graph_size);
+
+    for edge in descriptor.edges {
+        if let (Some(from), Some(to)) = (
+            circuit_placement_by_id(&layout.placements, edge.from),
+            circuit_placement_by_id(&layout.placements, edge.to),
+        ) {
+            if edge.signal == CircuitSignalKind::RailVoltage {
+                draw_amp_supply_drop(frame, from.point, to.point);
             } else {
-                slot as f32 / (signal_ids.len() - 1) as f32
-            };
-            Point::new(
-                graph_origin.x + graph_size.width * x,
-                graph_origin.y + graph_size.height * 0.50,
-            )
-        })
-        .collect();
-
-    for points in signal_points.windows(2) {
-        draw_amp_circuit_edge(frame, points[0], points[1]);
-    }
-
-    for (id, point) in signal_ids.iter().zip(signal_points.iter()) {
-        if let Some(boundary) = nox30_boundary(id) {
-            draw_amp_circuit_stage(frame, *point, boundary);
+                draw_semantic_circuit_edge(frame, from, to, layout.direction);
+            }
         }
     }
 
-    if let Some(cut_presence) = nox30_boundary("cut_presence") {
-        let point = Point::new(
-            (signal_points[6].x + signal_points[7].x) * 0.5,
-            graph_origin.y + graph_size.height * 0.22,
-        );
-        draw_amp_circuit_stage(frame, point, cut_presence);
-        draw_amp_circuit_edge(frame, signal_points[6], point);
-        draw_amp_circuit_edge(frame, point, signal_points[7]);
-    }
-
-    if let Some(supply) = nox30_boundary("supply_network") {
-        let point = Point::new(
-            graph_origin.x + graph_size.width * 0.58,
-            graph_origin.y + graph_size.height * 0.83,
-        );
-        draw_amp_circuit_stage(frame, point, supply);
-        for target in [1usize, 4, 7] {
-            draw_amp_supply_drop(frame, point, signal_points[target]);
-        }
+    for placement in &layout.placements {
+        draw_semantic_circuit_node(frame, placement.point, placement.node);
     }
 
     draw_text(
         frame,
-        "component boundaries, not a complete PCB or SPICE netlist",
+        "component-boundary graph, not a complete PCB or SPICE netlist",
         Point::new(origin.x + panel_w * 0.5, origin.y + panel_h - 30.0),
         13.0,
         Color::from_rgba(0.84, 0.76, 0.58, 0.72),
         Horizontal::Center,
-    );
-}
-
-fn nox30_boundary(id: &str) -> Option<&'static ComponentBoundary> {
-    NOX30_COMPONENT_BOUNDARIES
-        .iter()
-        .find(|boundary| boundary.id == id)
-}
-
-fn draw_amp_circuit_edge(frame: &mut Frame, from: Point, to: Point) {
-    frame.stroke(
-        &Path::line(from, to),
-        Stroke::default()
-            .with_color(Color::from_rgba(0.86, 0.58, 0.25, 0.72))
-            .with_width(3.0),
-    );
-    frame.stroke(
-        &Path::line(from, to),
-        Stroke::default()
-            .with_color(Color::from_rgba(1.0, 0.86, 0.48, 0.18))
-            .with_width(1.0),
     );
 }
 
@@ -3132,62 +3076,6 @@ fn draw_amp_supply_drop(frame: &mut Frame, from: Point, to: Point) {
         Stroke::default()
             .with_color(Color::from_rgba(0.45, 0.78, 0.95, 0.34))
             .with_width(1.8),
-    );
-}
-
-fn draw_amp_circuit_stage(frame: &mut Frame, center: Point, boundary: &ComponentBoundary) {
-    let (label, detail, width, color) = match boundary.id {
-        "input_volume" => (
-            "Input",
-            "volume / bright",
-            84.0,
-            Color::from_rgb(0.13, 0.22, 0.23),
-        ),
-        "first_stage" => ("V1", "ECC83 gain", 74.0, Color::from_rgb(0.30, 0.20, 0.13)),
-        "cathode_follower" => ("CF", "tone driver", 82.0, Color::from_rgb(0.25, 0.20, 0.13)),
-        "tone_stack" => ("Tone", "top boost", 86.0, Color::from_rgb(0.18, 0.24, 0.19)),
-        "drive_stage" => ("Drive", "ECC83", 76.0, Color::from_rgb(0.30, 0.20, 0.13)),
-        "recovery_stage" => ("Recover", "ECC83", 88.0, Color::from_rgb(0.30, 0.20, 0.13)),
-        "phase_inverter" => ("PI", "long-tail", 74.0, Color::from_rgb(0.20, 0.22, 0.18)),
-        "cut_presence" => ("Cut", "presence", 72.0, Color::from_rgb(0.18, 0.24, 0.19)),
-        "power_stage" => ("EL84", "push-pull", 82.0, Color::from_rgb(0.34, 0.18, 0.12)),
-        "supply_network" => ("B+", "sag rail", 78.0, Color::from_rgb(0.13, 0.22, 0.28)),
-        "output_transformer" => ("OT", "flux", 66.0, Color::from_rgb(0.13, 0.22, 0.28)),
-        _ => (
-            boundary.id,
-            boundary.role,
-            86.0,
-            Color::from_rgb(0.16, 0.23, 0.18),
-        ),
-    };
-    let height = 50.0;
-    let body = rounded_rect(
-        Point::new(center.x - width * 0.5, center.y - height * 0.5),
-        Size::new(width, height),
-        9.0,
-    );
-    frame.fill(&body, color);
-    frame.stroke(
-        &body,
-        Stroke::default()
-            .with_color(Color::from_rgba(0.96, 0.78, 0.44, 0.52))
-            .with_width(1.6),
-    );
-    draw_text(
-        frame,
-        label,
-        Point::new(center.x, center.y - 7.0),
-        13.0,
-        Color::from_rgb(0.96, 0.92, 0.78),
-        Horizontal::Center,
-    );
-    draw_text(
-        frame,
-        detail,
-        Point::new(center.x, center.y + 11.0),
-        9.0,
-        Color::from_rgba(0.86, 0.82, 0.70, 0.72),
-        Horizontal::Center,
     );
 }
 
@@ -3541,6 +3429,7 @@ fn ui_circuit_descriptor(model: DeviceModel) -> Option<&'static CircuitDescripto
 
 fn circuit_descriptor_summary(descriptor: &CircuitDescriptor) -> &'static str {
     match descriptor.model_id {
+        "nox30" => "input / ECC83 / top boost / phase inverter / EL84 / B+ sag / transformer",
         "minotaur" => "buffer / clean blend / clip / presence / output",
         "springfield" => "buffer / dwell driver / spring IR / recovery / mix",
         _ => descriptor.summary,
@@ -4146,6 +4035,10 @@ fn circuit_node_size(kind: CircuitNodeKind) -> (f32, f32) {
         CircuitNodeKind::Split | CircuitNodeKind::Mixer => (44.0, 32.0),
         CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => (50.0, 36.0),
         CircuitNodeKind::ClippingCell => (42.0, 32.0),
+        CircuitNodeKind::PhaseInverter
+        | CircuitNodeKind::PowerStage
+        | CircuitNodeKind::SupplyNetwork
+        | CircuitNodeKind::Transformer => (54.0, 38.0),
         _ => (46.0, 34.0),
     }
 }
@@ -4169,6 +4062,17 @@ fn circuit_node_label(node: &CircuitNodeDescriptor) -> &'static str {
         "splash_diffusion" => "Splash",
         "recovery_tone" => "Recover",
         "wet_dry_mixer" => "Mix",
+        "input_volume" => "Input",
+        "first_stage" => "V1",
+        "cathode_follower" => "CF",
+        "tone_stack" => "Tone",
+        "recovery_stage" => "Recover",
+        "phase_inverter" => "PI",
+        "cut_presence" => "Cut",
+        "power_stage" => "EL84",
+        "supply_network" => "B+",
+        "output_transformer" => "OT",
+        "speaker_out" => "OUT",
         _ => node.label,
     }
 }
@@ -4191,6 +4095,10 @@ fn circuit_node_detail(node: &CircuitNodeDescriptor) -> &'static str {
         CircuitNodeKind::ImpulseResponse => "IR",
         CircuitNodeKind::DiffusionNetwork => "delay",
         CircuitNodeKind::Mixer => "sum",
+        CircuitNodeKind::PhaseInverter => "split",
+        CircuitNodeKind::PowerStage => "power",
+        CircuitNodeKind::SupplyNetwork => "rail",
+        CircuitNodeKind::Transformer => "flux",
     }
 }
 
@@ -4214,6 +4122,11 @@ fn circuit_node_fill(kind: CircuitNodeKind) -> Color {
         CircuitNodeKind::CleanPath | CircuitNodeKind::Split | CircuitNodeKind::Mixer => {
             Color::from_rgb(0.16, 0.23, 0.18)
         }
+        CircuitNodeKind::PhaseInverter => Color::from_rgb(0.20, 0.22, 0.18),
+        CircuitNodeKind::PowerStage => Color::from_rgb(0.34, 0.18, 0.12),
+        CircuitNodeKind::SupplyNetwork | CircuitNodeKind::Transformer => {
+            Color::from_rgb(0.13, 0.22, 0.28)
+        }
         CircuitNodeKind::LevelControl => Color::from_rgb(0.25, 0.20, 0.13),
     }
 }
@@ -4223,6 +4136,12 @@ fn circuit_node_stroke(kind: CircuitNodeKind) -> Color {
         CircuitNodeKind::ClippingCell => Color::from_rgba(1.0, 0.50, 0.44, 0.62),
         CircuitNodeKind::ImpulseResponse | CircuitNodeKind::SpringTank => {
             Color::from_rgba(0.50, 0.78, 0.95, 0.58)
+        }
+        CircuitNodeKind::SupplyNetwork | CircuitNodeKind::Transformer => {
+            Color::from_rgba(0.50, 0.78, 0.95, 0.58)
+        }
+        CircuitNodeKind::PhaseInverter | CircuitNodeKind::PowerStage => {
+            Color::from_rgba(1.0, 0.66, 0.42, 0.58)
         }
         CircuitNodeKind::Port | CircuitNodeKind::InputLoad | CircuitNodeKind::OutputDriver => {
             Color::from_rgba(0.78, 0.92, 0.86, 0.52)
@@ -4355,6 +4274,12 @@ fn control_badge_label(control_id: &str) -> &'static str {
         "dwell" => "D",
         "tone" => "T",
         "mix" => "M",
+        "volume" => "V",
+        "bass" => "B",
+        "cut" => "C",
+        "drive" => "D",
+        "presence" => "P",
+        "sag" => "S",
         _ => "CTRL",
     }
 }

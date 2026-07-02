@@ -9,7 +9,8 @@ pub mod rig;
 
 pub use amp::{
     configure_nox30_first_stage_graybox, configure_nox30_first_stage_neural, AmpControls,
-    ComponentBoundary, NeuralCellMode, Nox30OperatingPoint, NOX30_COMPONENT_BOUNDARIES,
+    ComponentBoundary, ComponentBoundaryState, ComponentCoupling, NeuralCellMode,
+    Nox30OperatingPoint, NOX30_COMPONENT_BOUNDARIES,
 };
 pub use chain::{
     amp_model_descriptor, AmpModelDescriptor, ControlDescriptor, ControlKind, DeviceConfig,
@@ -17,10 +18,10 @@ pub use chain::{
     DeviceVisualDescriptor, SignalChain, SignalChainConfig, SignalChainControls,
 };
 pub use circuit_descriptor::{
-    device_circuit_descriptor, CircuitConfidence, CircuitControlBinding, CircuitDescriptor,
-    CircuitDescriptorKind, CircuitEdgeDescriptor, CircuitGroupDescriptor, CircuitLayout,
-    CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind, CIRCUIT_DESCRIPTOR_SCHEMA,
-    MINOTAUR_CIRCUIT, SPRINGFIELD_CIRCUIT,
+    amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitControlBinding,
+    CircuitDescriptor, CircuitDescriptorKind, CircuitEdgeDescriptor, CircuitGroupDescriptor,
+    CircuitLayout, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
+    CIRCUIT_DESCRIPTOR_SCHEMA, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
 };
 pub use pedal::{
     configure_minotaur_clip_neural, configure_minotaur_tone_neural, Brigade, BrigadeControls,

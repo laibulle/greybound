@@ -75,6 +75,30 @@ pub struct ComponentBoundary {
     pub role: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ComponentCoupling {
+    DcCoupled,
+    AcCoupled,
+    Buffered,
+    Transformer,
+    SupplyRail,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ComponentBoundaryState {
+    pub id: &'static str,
+    pub voltage_v: f32,
+    pub source_impedance_ohms: f32,
+    pub load_impedance_ohms: f32,
+    pub coupling: ComponentCoupling,
+    pub dc_offset_v: f32,
+    pub headroom_v: f32,
+    pub nominal_level_v: f32,
+    pub peak_level_v: f32,
+    pub latency_samples: usize,
+}
+
 pub const NOX30_COMPONENT_BOUNDARIES: &[ComponentBoundary] = &[
     ComponentBoundary {
         id: "input_volume",
@@ -121,6 +145,148 @@ pub const NOX30_COMPONENT_BOUNDARIES: &[ComponentBoundary] = &[
         role: "Output transformer filtering and core-flux state",
     },
 ];
+
+impl Nox30OperatingPoint {
+    pub fn boundary_states(&self) -> [ComponentBoundaryState; 11] {
+        [
+            boundary_state(
+                "input_volume",
+                self.input_volume_output_v,
+                250_000.0,
+                1_000_000.0,
+                ComponentCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage * 0.35,
+                0,
+            ),
+            boundary_state(
+                "first_stage",
+                self.first_stage_output_v,
+                38_000.0,
+                1_000_000.0,
+                ComponentCoupling::AcCoupled,
+                self.first_stage_cathode_voltage,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "cathode_follower",
+                self.follower_output_v,
+                820.0,
+                220_000.0,
+                ComponentCoupling::Buffered,
+                self.follower_cathode_voltage,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "tone_stack",
+                self.tone_stack_output_v,
+                820.0,
+                220_000.0,
+                ComponentCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage * 0.5,
+                0,
+            ),
+            boundary_state(
+                "drive_stage",
+                self.preamp_send_v,
+                38_000.0,
+                1_000_000.0,
+                ComponentCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "recovery_stage",
+                self.preamp_send_v,
+                38_000.0,
+                1_000_000.0,
+                ComponentCoupling::AcCoupled,
+                0.0,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "phase_inverter",
+                self.phase_inverter_output_v,
+                44_000.0,
+                500_000.0,
+                ComponentCoupling::AcCoupled,
+                self.phase_inverter_cathode_voltage,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "cut_presence",
+                self.phase_inverter_output_v,
+                44_000.0,
+                500_000.0,
+                ComponentCoupling::AcCoupled,
+                0.0,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "power_stage",
+                self.power_stage_output_v,
+                4_000.0,
+                4_000.0,
+                ComponentCoupling::DcCoupled,
+                self.power_cathode_bias_voltage,
+                self.power_voltage,
+                0,
+            ),
+            boundary_state(
+                "supply_network",
+                self.power_voltage,
+                12_000.0,
+                0.0,
+                ComponentCoupling::SupplyRail,
+                self.power_screen_voltage,
+                self.power_voltage,
+                0,
+            ),
+            boundary_state(
+                "output_transformer",
+                self.output_transformer_output_v,
+                8.0,
+                8.0,
+                ComponentCoupling::Transformer,
+                self.transformer_core_flux,
+                self.power_voltage,
+                AMP_LATENCY,
+            ),
+        ]
+    }
+}
+
+fn boundary_state(
+    id: &'static str,
+    voltage_v: f32,
+    source_impedance_ohms: f32,
+    load_impedance_ohms: f32,
+    coupling: ComponentCoupling,
+    dc_offset_v: f32,
+    headroom_v: f32,
+    latency_samples: usize,
+) -> ComponentBoundaryState {
+    let nominal_level_v = voltage_v.abs();
+    ComponentBoundaryState {
+        id,
+        voltage_v,
+        source_impedance_ohms: source_impedance_ohms.max(0.0),
+        load_impedance_ohms: load_impedance_ohms.max(0.0),
+        coupling,
+        dc_offset_v,
+        headroom_v: headroom_v.max(0.0),
+        nominal_level_v,
+        peak_level_v: nominal_level_v,
+        latency_samples,
+    }
+}
 
 /// Oversampled facade around a dedicated amp model.
 pub struct VoxAmp {
@@ -568,6 +734,42 @@ mod tests {
         assert!(operating_point.power_positive_current.is_finite());
         assert!(operating_point.power_negative_current.is_finite());
         assert!(operating_point.transformer_core_flux.is_finite());
+    }
+
+    #[test]
+    fn nox30_operating_point_exports_component_boundary_states() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+
+        for sample_idx in 0..4_096 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            amp.process(input, controls);
+        }
+
+        let states = amp.nox30_operating_point().unwrap().boundary_states();
+        let supply = states
+            .iter()
+            .find(|state| state.id == "supply_network")
+            .unwrap();
+        let transformer = states
+            .iter()
+            .find(|state| state.id == "output_transformer")
+            .unwrap();
+
+        assert_eq!(supply.coupling, ComponentCoupling::SupplyRail);
+        assert_eq!(transformer.coupling, ComponentCoupling::Transformer);
+        assert!(states
+            .iter()
+            .all(|state| state.voltage_v.is_finite() && state.headroom_v.is_finite()));
     }
 
     #[test]

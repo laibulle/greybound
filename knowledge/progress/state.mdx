@@ -153,6 +153,13 @@ description: Decisions and open questions that should steer upcoming implementat
   experimental Nox30 implementations under the same UX while requiring explicit
   component boundary state, private stage memory boundaries, release WAV
   renders, monitor health, and lab metric comparisons before promotion.
+- Nox30 now has a runtime `CircuitDescriptor` consumed by both stable and
+  `nox30-experimental` aliases. The desktop amp circuit view renders this
+  descriptor through the same semantic graph pipeline as pedals. The Nox30
+  operating point also exposes component boundary-state snapshots for voltage,
+  source/load impedance, coupling mode, headroom, nominal/peak level, and
+  latency so future experimental stages can exchange explicit state without
+  reaching into private stage memory.
 
 ## Open Questions
 

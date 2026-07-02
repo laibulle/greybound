@@ -42,6 +42,10 @@ pub enum CircuitNodeKind {
     ImpulseResponse,
     DiffusionNetwork,
     Mixer,
+    PhaseInverter,
+    PowerStage,
+    SupplyNetwork,
+    Transformer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -55,6 +59,10 @@ pub enum CircuitSignalKind {
     VoicedAudio,
     WetAudio,
     MixedAudio,
+    PhaseSplitAudio,
+    PowerAudio,
+    RailVoltage,
+    SpeakerVoltage,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -120,6 +128,332 @@ pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static Circui
         _ => None,
     }
 }
+
+pub fn amp_circuit_descriptor(model: &str) -> Option<&'static CircuitDescriptor> {
+    match model {
+        "nox30" | "nox30-experimental" => Some(&NOX30_CIRCUIT),
+        _ => None,
+    }
+}
+
+const NOX30_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_volume", "first_stage"];
+const NOX30_TONE_GROUP_NODES: &[&str] = &["cathode_follower", "tone_stack"];
+const NOX30_PREAMP_GROUP_NODES: &[&str] = &["drive_stage", "recovery_stage"];
+const NOX30_POWER_GROUP_NODES: &[&str] = &[
+    "phase_inverter",
+    "cut_presence",
+    "power_stage",
+    "supply_network",
+    "output_transformer",
+    "speaker_out",
+];
+
+const NOX30_GROUPS: &[CircuitGroupDescriptor] = &[
+    CircuitGroupDescriptor {
+        id: "input",
+        label: "Input and first gain",
+        nodes: NOX30_INPUT_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "top_boost",
+        label: "Follower and Top Boost stack",
+        nodes: NOX30_TONE_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "preamp",
+        label: "Drive and recovery",
+        nodes: NOX30_PREAMP_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "power",
+        label: "Phase inverter, rails, and output",
+        nodes: NOX30_POWER_GROUP_NODES,
+    },
+];
+
+const NOX30_NODES: &[CircuitNodeDescriptor] = &[
+    CircuitNodeDescriptor {
+        id: "input_jack",
+        label: "Input jack",
+        kind: CircuitNodeKind::Port,
+        role: "Guitar, pedalboard, or FX return voltage enters the Nox30 boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/amp/models/nox30.rs::Nox30",
+        algorithm: "SignalChain hands audio voltage and electrical boundary context to the amp.",
+        layout: CircuitLayout { x: 0.04, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_volume",
+        label: "Input volume",
+        kind: CircuitNodeKind::LevelControl,
+        role: "Input coupling, volume attenuation, and bright bypass behavior before V1.",
+        control_id: Some("volume"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::BrightVolumeInputStage",
+        algorithm: "Frequency-dependent gain from the volume control and bright-cap approximation.",
+        layout: CircuitLayout { x: 0.14, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "first_stage",
+        label: "First ECC83",
+        kind: CircuitNodeKind::GainStage,
+        role: "First nonlinear common-cathode gain stage with cathode bypass behavior.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::CommonCathodeStage",
+        algorithm: "Circuit-informed nonlinear triode approximation with observable plate current and cathode voltage.",
+        layout: CircuitLayout { x: 0.25, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "cathode_follower",
+        label: "Cathode follower",
+        kind: CircuitNodeKind::Buffer,
+        role: "Low source impedance follower that drives the Top Boost tone network.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::CathodeFollowerStage",
+        algorithm: "Follower approximation exposes output voltage, source impedance assumption, plate current, and cathode voltage.",
+        layout: CircuitLayout { x: 0.36, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "tone_stack",
+        label: "Top Boost stack",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Passive Top Boost bass/treble network driven by the cathode follower.",
+        control_id: Some("bass"),
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/amp/components.rs::TopBoostToneStack",
+        algorithm: "Trapezoidal MNA solve with source/load assumptions.",
+        layout: CircuitLayout { x: 0.47, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "drive_stage",
+        label: "Drive stage",
+        kind: CircuitNodeKind::GainStage,
+        role: "Optional extra nonlinear preamp drive after the tone stack.",
+        control_id: Some("drive"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/nox30.rs::CommonCathodeStage",
+        algorithm: "Drive control pushes a second common-cathode approximation and blends it with the tone output.",
+        layout: CircuitLayout { x: 0.58, y: 0.39 },
+    },
+    CircuitNodeDescriptor {
+        id: "recovery_stage",
+        label: "Recovery",
+        kind: CircuitNodeKind::GainStage,
+        role: "Post-drive nonlinear recovery stage feeding the phase inverter.",
+        control_id: None,
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/nox30.rs::CommonCathodeStage",
+        algorithm: "Recovery common-cathode approximation after the drive path.",
+        layout: CircuitLayout { x: 0.58, y: 0.61 },
+    },
+    CircuitNodeDescriptor {
+        id: "phase_inverter",
+        label: "Phase inverter",
+        kind: CircuitNodeKind::PhaseInverter,
+        role: "Long-tail-pair phase inverter producing opposed power-stage drive.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::LongTailPairStage",
+        algorithm: "Opposed nonlinear phases with exposed plate currents and cathode voltage.",
+        layout: CircuitLayout { x: 0.70, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "cut_presence",
+        label: "Cut / presence",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Cut and presence shaping around the phase-inverter/power-stage boundary.",
+        control_id: Some("cut"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::CutPresenceStage",
+        algorithm: "Cut and presence filters act on the phase-inverter output before power-stage drive.",
+        layout: CircuitLayout { x: 0.78, y: 0.28 },
+    },
+    CircuitNodeDescriptor {
+        id: "power_stage",
+        label: "EL84 output",
+        kind: CircuitNodeKind::PowerStage,
+        role: "Cathode-biased push-pull EL84 power stage with screen and cathode-bias telemetry.",
+        control_id: Some("sag"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::PushPullEl84Stage",
+        algorithm: "Push-pull saturation, dynamic cathode-bias shift, screen current, and attack current.",
+        layout: CircuitLayout { x: 0.84, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "supply_network",
+        label: "B+ supply",
+        kind: CircuitNodeKind::SupplyNetwork,
+        role: "Shared rail state that consumes current demand and publishes sagging preamp, phase-inverter, and power voltages.",
+        control_id: Some("sag"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/amp/models/nox30.rs::SupplyNetwork",
+        algorithm: "B+ sag and recovery from stage current demand; shared state, not a normal audio-series block.",
+        layout: CircuitLayout { x: 0.70, y: 0.82 },
+    },
+    CircuitNodeDescriptor {
+        id: "output_transformer",
+        label: "Output transformer",
+        kind: CircuitNodeKind::Transformer,
+        role: "Transformer output filtering, core-flux state, and low-impedance speaker boundary.",
+        control_id: Some("output"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/nox30.rs::OutputTransformerStage",
+        algorithm: "Transformer high-pass/low-pass filtering, compression, and core-flux state.",
+        layout: CircuitLayout { x: 0.94, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "speaker_out",
+        label: "Speaker out",
+        kind: CircuitNodeKind::Port,
+        role: "Amp output voltage leaves the Nox30 boundary before optional cab IR convolution.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/amp.rs::VoxAmp",
+        algorithm: "The output transformer sample is handed to the chain or speaker IR boundary.",
+        layout: CircuitLayout { x: 0.99, y: 0.50 },
+    },
+];
+
+const NOX30_EDGES: &[CircuitEdgeDescriptor] = &[
+    edge(
+        "input_jack",
+        "input_volume",
+        CircuitSignalKind::AudioVoltage,
+    ),
+    edge(
+        "input_volume",
+        "first_stage",
+        CircuitSignalKind::LoadedAudioVoltage,
+    ),
+    edge(
+        "first_stage",
+        "cathode_follower",
+        CircuitSignalKind::DriveAudio,
+    ),
+    edge(
+        "cathode_follower",
+        "tone_stack",
+        CircuitSignalKind::BufferedAudio,
+    ),
+    edge("tone_stack", "drive_stage", CircuitSignalKind::VoicedAudio),
+    edge(
+        "drive_stage",
+        "recovery_stage",
+        CircuitSignalKind::DriveAudio,
+    ),
+    edge(
+        "recovery_stage",
+        "phase_inverter",
+        CircuitSignalKind::DriveAudio,
+    ),
+    edge(
+        "phase_inverter",
+        "cut_presence",
+        CircuitSignalKind::PhaseSplitAudio,
+    ),
+    edge(
+        "cut_presence",
+        "power_stage",
+        CircuitSignalKind::PhaseSplitAudio,
+    ),
+    edge(
+        "power_stage",
+        "output_transformer",
+        CircuitSignalKind::PowerAudio,
+    ),
+    edge(
+        "output_transformer",
+        "speaker_out",
+        CircuitSignalKind::SpeakerVoltage,
+    ),
+    edge(
+        "supply_network",
+        "first_stage",
+        CircuitSignalKind::RailVoltage,
+    ),
+    edge(
+        "supply_network",
+        "drive_stage",
+        CircuitSignalKind::RailVoltage,
+    ),
+    edge(
+        "supply_network",
+        "phase_inverter",
+        CircuitSignalKind::RailVoltage,
+    ),
+    edge(
+        "supply_network",
+        "power_stage",
+        CircuitSignalKind::RailVoltage,
+    ),
+];
+
+const NOX30_CONTROLS: &[CircuitControlBinding] = &[
+    CircuitControlBinding {
+        control_id: "volume",
+        node_id: "input_volume",
+        role: "Sets input gain and bright-bypass behavior.",
+    },
+    CircuitControlBinding {
+        control_id: "bass",
+        node_id: "tone_stack",
+        role: "Sets low-frequency branch of the Top Boost tone stack.",
+    },
+    CircuitControlBinding {
+        control_id: "treble",
+        node_id: "tone_stack",
+        role: "Sets high-frequency branch of the Top Boost tone stack.",
+    },
+    CircuitControlBinding {
+        control_id: "cut",
+        node_id: "cut_presence",
+        role: "Sets high-frequency cut around the phase-inverter/power boundary.",
+    },
+    CircuitControlBinding {
+        control_id: "drive",
+        node_id: "drive_stage",
+        role: "Sets the optional extra preamp drive path.",
+    },
+    CircuitControlBinding {
+        control_id: "presence",
+        node_id: "cut_presence",
+        role: "Sets presence shaping before the power stage.",
+    },
+    CircuitControlBinding {
+        control_id: "sag",
+        node_id: "supply_network",
+        role: "Scales dynamic rail sag and recovery.",
+    },
+    CircuitControlBinding {
+        control_id: "output",
+        node_id: "output_transformer",
+        role: "Sets final amp output scaling.",
+    },
+];
+
+const NOX30_NOTES: &[&str] = &[
+    "This is a runtime descriptor for the current Nox30 model and experimental alias.",
+    "The supply network is shared state: it consumes component current demand and publishes rail voltages.",
+    "The descriptor is a component-boundary graph, not a PCB layout or full SPICE netlist.",
+];
+
+pub static NOX30_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
+    schema: CIRCUIT_DESCRIPTOR_SCHEMA,
+    model_id: "nox30",
+    label: "Nox30 circuit-informed amp",
+    kind: CircuitDescriptorKind::CircuitInformed,
+    source_of_truth: "rust-model-component-boundaries",
+    implementation: "core/src/amp/models/nox30.rs::Nox30",
+    summary: "Input volume and bright bypass into ECC83 preamp, cathode follower, Top Boost MNA tone stack, drive/recovery stages, long-tail-pair phase inverter, cut/presence shaping, EL84 push-pull power stage, shared B+ sag, and output transformer.",
+    nodes: NOX30_NODES,
+    edges: NOX30_EDGES,
+    groups: NOX30_GROUPS,
+    controls: NOX30_CONTROLS,
+    notes: NOX30_NOTES,
+};
 
 const MINOTAUR_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_load", "input_coupling"];
 const MINOTAUR_BLEND_GROUP_NODES: &[&str] = &[
@@ -631,6 +965,19 @@ mod tests {
     }
 
     #[test]
+    fn exposes_descriptor_for_stable_and_experimental_nox30() {
+        assert_eq!(
+            amp_circuit_descriptor("nox30").map(|d| d.model_id),
+            Some("nox30")
+        );
+        assert_eq!(
+            amp_circuit_descriptor("nox30-experimental").map(|d| d.model_id),
+            Some("nox30")
+        );
+        assert!(amp_circuit_descriptor("dumbler").is_none());
+    }
+
+    #[test]
     fn minotaur_descriptor_binds_real_controls_to_nodes() {
         let descriptor = &MINOTAUR_CIRCUIT;
         for control_id in ["gain", "treble", "output"] {
@@ -661,8 +1008,19 @@ mod tests {
     }
 
     #[test]
+    fn nox30_descriptor_marks_supply_as_shared_rail_state() {
+        assert_eq!(NOX30_CIRCUIT.kind, CircuitDescriptorKind::CircuitInformed);
+        assert!(NOX30_CIRCUIT.nodes.iter().any(|node| {
+            node.id == "supply_network" && node.kind == CircuitNodeKind::SupplyNetwork
+        }));
+        assert!(NOX30_CIRCUIT.edges.iter().any(|edge| {
+            edge.from == "supply_network" && edge.signal == CircuitSignalKind::RailVoltage
+        }));
+    }
+
+    #[test]
     fn descriptor_edges_reference_existing_nodes() {
-        for descriptor in [&MINOTAUR_CIRCUIT, &SPRINGFIELD_CIRCUIT] {
+        for descriptor in [&MINOTAUR_CIRCUIT, &SPRINGFIELD_CIRCUIT, &NOX30_CIRCUIT] {
             for edge in descriptor.edges {
                 assert!(
                     descriptor.nodes.iter().any(|node| node.id == edge.from),
