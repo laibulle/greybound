@@ -205,6 +205,7 @@ impl Application for Desktop {
                 | Message::AudioSampleRateSelected(_)
                 | Message::AudioBufferSizeSelected(_)
                 | Message::TogglePedalImplementation
+                | Message::ToggleReverbImplementation
                 | Message::ToggleAmpImplementation
         );
         self.ui.update(message);
@@ -325,6 +326,7 @@ struct LiveAudioEngine {
     input_device: String,
     output_device: String,
     minotaur_device: String,
+    springfield_device: String,
     amp_model: String,
     sample_rate: u32,
     period_size: u32,
@@ -389,8 +391,14 @@ impl LiveAudioEngine {
         let output_name = output_device_name.clone();
         let amp_model = ui.amp_model_id();
         let minotaur_config = ui.minotaur_device_config();
-        let mut runtime =
-            AudioRuntime::new(sample_rate as f32, consumer, amp_model, minotaur_config)?;
+        let springfield_config = ui.springfield_device_config();
+        let mut runtime = AudioRuntime::new(
+            sample_rate as f32,
+            consumer,
+            amp_model,
+            minotaur_config,
+            springfield_config,
+        )?;
         let output_stream = output_device.build_output_stream(
             &output_config,
             move |data: &mut [f32], _| {
@@ -422,6 +430,7 @@ impl LiveAudioEngine {
             input_device: input_device_name,
             output_device: output_device_name,
             minotaur_device: minotaur_config.model_descriptor().label.to_string(),
+            springfield_device: springfield_config.model_descriptor().label.to_string(),
             amp_model: amp_model.to_string(),
             sample_rate,
             period_size,
@@ -438,12 +447,13 @@ impl LiveAudioEngine {
 
     fn status(&self) -> String {
         format!(
-            "Running: {} -> {}, {} Hz / {} samples, pedal {}, amp {}",
+            "Running: {} -> {}, {} Hz / {} samples, pedal {}, reverb {}, amp {}",
             self.input_device,
             self.output_device,
             self.sample_rate,
             self.period_size,
             self.minotaur_device,
+            self.springfield_device,
             self.amp_model
         )
     }
@@ -470,6 +480,7 @@ impl AudioRuntime {
         input: Consumer<f32>,
         amp_model: &str,
         minotaur_config: DeviceConfig,
+        springfield_config: DeviceConfig,
     ) -> Result<Self> {
         let mut config = SignalChainConfig::amp_only(amp_model);
         config
@@ -477,7 +488,7 @@ impl AudioRuntime {
             .push(DeviceSlotConfig::active(minotaur_config));
         config
             .post_amp
-            .push(DeviceSlotConfig::active(DeviceConfig::Springfield));
+            .push(DeviceSlotConfig::active(springfield_config));
 
         Ok(Self {
             input,

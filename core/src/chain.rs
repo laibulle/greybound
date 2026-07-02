@@ -4,8 +4,8 @@ use crate::pedal::{
     DartfordControls, ElectricalSignal, GodessOne, GodessOneControls, Jetstream, JetstreamControls,
     Load, Lumen, LumenControls, Minotaur, MinotaurControls, MinotaurExperimental, Monarch,
     MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
-    StudioVerb, StudioVerbControls, Tron, TronControls, AMP_INPUT_IMPEDANCE_OHMS,
-    GUITAR_SOURCE_IMPEDANCE_OHMS,
+    SpringfieldExperimental, StudioVerb, StudioVerbControls, Tron, TronControls,
+    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
 };
 
 const DEFAULT_CABLE_CAPACITANCE_FARADS: f32 = 470e-12;
@@ -76,6 +76,7 @@ pub enum DeviceConfig {
     Celeste,
     Brigade,
     Springfield,
+    SpringfieldExperimental,
     StudioVerb,
 }
 
@@ -454,6 +455,16 @@ impl DeviceConfig {
                 },
                 controls: SPRINGFIELD_CONTROLS,
             },
+            Self::SpringfieldExperimental => DeviceModelDescriptor {
+                id: "springfield-experimental",
+                label: "Springfield Exp",
+                category: "reverb",
+                visual: DeviceVisualDescriptor {
+                    color: "surf-green",
+                    ..STANDARD_PEDAL_VISUAL
+                },
+                controls: SPRINGFIELD_CONTROLS,
+            },
             Self::StudioVerb => DeviceModelDescriptor {
                 id: "studioverb",
                 label: "StudioVerb",
@@ -767,6 +778,7 @@ enum DeviceProcessor {
     Celeste(Celeste),
     Brigade(Brigade),
     Springfield(Springfield),
+    SpringfieldExperimental(SpringfieldExperimental),
     StudioVerb(StudioVerb),
 }
 
@@ -788,6 +800,9 @@ impl DeviceProcessor {
             DeviceConfig::Celeste => Self::Celeste(Celeste::new(sample_rate)),
             DeviceConfig::Brigade => Self::Brigade(Brigade::new(sample_rate)),
             DeviceConfig::Springfield => Self::Springfield(Springfield::new(sample_rate)),
+            DeviceConfig::SpringfieldExperimental => {
+                Self::SpringfieldExperimental(SpringfieldExperimental::new(sample_rate))
+            }
             DeviceConfig::StudioVerb => Self::StudioVerb(StudioVerb::new(sample_rate)),
         }
     }
@@ -807,6 +822,7 @@ impl DeviceProcessor {
             Self::Celeste(pedal) => pedal.reset(),
             Self::Brigade(pedal) => pedal.reset(),
             Self::Springfield(pedal) => pedal.reset(),
+            Self::SpringfieldExperimental(pedal) => pedal.reset(),
             Self::StudioVerb(pedal) => pedal.reset(),
         }
     }
@@ -826,6 +842,7 @@ impl DeviceProcessor {
             Self::Celeste(_) => Celeste::INPUT_IMPEDANCE_OHMS,
             Self::Brigade(_) => Brigade::INPUT_IMPEDANCE_OHMS,
             Self::Springfield(_) => Springfield::INPUT_IMPEDANCE_OHMS,
+            Self::SpringfieldExperimental(_) => SpringfieldExperimental::INPUT_IMPEDANCE_OHMS,
             Self::StudioVerb(_) => StudioVerb::INPUT_IMPEDANCE_OHMS,
         }
     }
@@ -1083,6 +1100,25 @@ impl DeviceProcessor {
                     DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
                 },
             ),
+            Self::SpringfieldExperimental(pedal) => pedal.process_loaded_voltage(
+                input_voltage,
+                match controls {
+                    DeviceControls::Springfield(controls) => controls,
+                    DeviceControls::Default => SpringfieldControls::default(),
+                    DeviceControls::Lumen(_) => SpringfieldControls::default(),
+                    DeviceControls::Muon(_) => SpringfieldControls::default(),
+                    DeviceControls::Muffin(_) => SpringfieldControls::default(),
+                    DeviceControls::Minotaur(_) => SpringfieldControls::default(),
+                    DeviceControls::Monarch(_) => SpringfieldControls::default(),
+                    DeviceControls::GodessOne(_) => SpringfieldControls::default(),
+                    DeviceControls::Dartford(_) => SpringfieldControls::default(),
+                    DeviceControls::Tron(_) => SpringfieldControls::default(),
+                    DeviceControls::Jetstream(_) => SpringfieldControls::default(),
+                    DeviceControls::Celeste(_) => SpringfieldControls::default(),
+                    DeviceControls::Brigade(_) => SpringfieldControls::default(),
+                    DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
+                },
+            ),
             Self::StudioVerb(pedal) => pedal.process_loaded_voltage(
                 input_voltage,
                 match controls {
@@ -1191,6 +1227,19 @@ mod tests {
         assert_eq!(
             DeviceConfig::Springfield.model_descriptor().visual.color,
             "surf-green"
+        );
+        assert_eq!(
+            DeviceConfig::SpringfieldExperimental
+                .model_descriptor()
+                .visual
+                .color,
+            "surf-green"
+        );
+        assert_eq!(
+            DeviceConfig::SpringfieldExperimental
+                .model_descriptor()
+                .label,
+            "Springfield Exp"
         );
         assert_eq!(amp_model_descriptor("nox30").visual.color, "copper");
         assert_eq!(

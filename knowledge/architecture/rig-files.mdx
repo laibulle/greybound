@@ -88,6 +88,9 @@ Supported device ids:
 - `godess-one`
 - `dartford`
 - `springfield`
+- `springfield-experimental` for lab-only A/B work against the stable
+  Springfield wrapper. It shares Springfield controls and should remain
+  topology-compatible with `springfield`.
 - `minotaur`
 - `minotaur-experimental` for lab-only A/B work against the stable Minotaur
   wrapper. It shares Minotaur controls and should remain topology-compatible
@@ -108,6 +111,9 @@ Supported device ids:
 - `rigs/grey-nox-minotaur-experimental.json5`: the same focused topology and
   controls as `grey-nox`, but the Minotaur slot uses
   `device: "minotaur-experimental"` for pedal A/B work.
+- `rigs/grey-nox-springfield-experimental.json5`: the same focused topology and
+  controls as `grey-nox`, but the Springfield slot uses
+  `device: "springfield-experimental"` for reverb A/B work.
 - `rigs/grey-nox-experimental.json5`: the same `grey-nox` topology and
   controls with `amp.model: "nox30-experimental"` for lab A/B work.
 - `rigs/grey-nox-experimental-tone-load.json5`: the same focused topology with

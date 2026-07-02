@@ -1925,6 +1925,9 @@ fn default_device_controls(device: DeviceConfig) -> DeviceControls {
         DeviceConfig::Celeste => DeviceControls::Celeste(CelesteControls::default()),
         DeviceConfig::Brigade => DeviceControls::Brigade(BrigadeControls::default()),
         DeviceConfig::Springfield => DeviceControls::Springfield(SpringfieldControls::default()),
+        DeviceConfig::SpringfieldExperimental => {
+            DeviceControls::Springfield(SpringfieldControls::default())
+        }
         DeviceConfig::StudioVerb => DeviceControls::StudioVerb(StudioVerbControls::default()),
     }
 }

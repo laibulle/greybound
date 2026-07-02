@@ -124,6 +124,48 @@ Minotaur/Nox path. A 10-second monitor render to
 near-clips, zero hard clips, output RMS about `-17.7 dBFS`, and output peak
 about `-3.9 dBFS`.
 
+## 2026-07-02 Experimental Recovery Wrapper
+
+Springfield now has a separate `springfield-experimental` device id for the
+same A/B workflow used by Nox30 and Minotaur. The stable `springfield` model is
+unchanged at the rig/control level. The experimental wrapper reuses the stable
+Springfield state and controls, exports component-boundary snapshots for the
+descriptor stages, and applies a deliberately small recovery hypothesis:
+
+- tank drive gain `1.015x`,
+- splash contribution `1.08x`,
+- recovery brightness offset `+0.035`,
+- wet makeup gain `0.985x`.
+
+This keeps the experiment focused on spring recovery/splash color rather than a
+new topology. The lab rig is
+`rigs/grey-nox-springfield-experimental.json5`, identical to `grey-nox` except
+for `device: "springfield-experimental"` in the Springfield slot.
+
+Validation:
+
+```bash
+cargo fmt --check
+cargo test -p greybound springfield -- --nocapture
+cargo test -p greybound-cli
+cargo build --release -p greybound-cli -p greybound-desktop
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-springfield-stable-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/grey-nox-springfield-stable-3s.monitor.log
+target/release/greybound-cli --rig rigs/grey-nox-springfield-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-springfield-experimental-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/grey-nox-springfield-experimental-3s.monitor.log
+```
+
+Both monitor renders were clean: zero xruns, zero near-clips, and zero hard
+clips. WAV-level summary for the 3-second guitar DI render:
+
+- stable: peak `0.636794448`, RMS `0.075814350`,
+- experimental: peak `0.636794448`, RMS `0.075800713`,
+- diff: max abs `0.000462960452`, RMS `0.000093319015`.
+
+Interpretation: this first experimental candidate is intentionally subtle and
+runtime-safe. It proves the reverb can join the stable/experimental workflow,
+but it is not yet a measured proof of a more realistic tank. The next useful
+experiment is a reverb-specific stimulus and comparison against the SMAC2023 IR
+diagnostics rather than a full rig guitar render.
+
 ## Validation Gates
 
 The model is not component-exact until:

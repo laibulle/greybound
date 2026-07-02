@@ -529,6 +529,41 @@ pub struct Springfield {
     feedback: f32,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct SpringfieldStageVoltages {
+    loaded_input: f32,
+    coupled: f32,
+    tank_drive: f32,
+    ir_tank: f32,
+    splash: f32,
+    voiced: f32,
+    wet: f32,
+    output: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SpringfieldProcessResult {
+    signal: ElectricalSignal,
+    stages: SpringfieldStageVoltages,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SpringfieldCircuitParams {
+    tank_drive_gain: f32,
+    splash_gain: f32,
+    recovery_brightness: f32,
+    wet_makeup_gain: f32,
+}
+
+pub struct SpringfieldExperimental {
+    stable: Springfield,
+    runner: SpringfieldExperimentalRunner,
+}
+
+struct SpringfieldExperimentalRunner {
+    last_boundaries: [ComponentBoundaryState; 8],
+}
+
 #[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StudioVerbAlgorithm {
@@ -642,6 +677,20 @@ impl Springfield {
         loaded_input: f32,
         controls: SpringfieldControls,
     ) -> ElectricalSignal {
+        self.process_loaded_voltage_with_stages(
+            loaded_input,
+            controls,
+            SpringfieldCircuitParams::stable(),
+        )
+        .signal
+    }
+
+    fn process_loaded_voltage_with_stages(
+        &mut self,
+        loaded_input: f32,
+        controls: SpringfieldControls,
+        params: SpringfieldCircuitParams,
+    ) -> SpringfieldProcessResult {
         let dwell = controls.dwell.clamp(0.0, 1.0);
         let tone = controls.tone.clamp(0.0, 1.0);
         let mix = controls.mix.clamp(0.0, 1.0);
@@ -649,7 +698,7 @@ impl Springfield {
         let dry = loaded_input;
         let coupled = self.input_coupling.process(loaded_input);
         let excited = coupled + self.pre_emphasis.process(coupled) * (0.12 + tone * 0.34);
-        let driver_gain = 0.30 + dwell * 0.95;
+        let driver_gain = (0.30 + dwell * 0.95) * params.tank_drive_gain;
         let driver_feedback = self.feedback * (0.04 + dwell * 0.12);
         let tank_drive = (excited * driver_gain + driver_feedback).tanh();
 
@@ -665,18 +714,119 @@ impl Springfield {
             .tank_ir
             .as_mut()
             .map_or(splash, |tank_ir| tank_ir.process(ir_drive, true));
-        let tank = ir_tank + splash * (0.18 + tone * 0.08);
+        let tank = ir_tank + splash * (0.18 + tone * 0.08) * params.splash_gain;
 
         let dark = self.tank_lowpass.process(tank);
         let bright = self.bright_highpass.process(tank);
-        let voiced = dark * (1.18 - tone * 0.42) + bright * (0.10 + tone * 0.74);
+        let brightness = (tone + params.recovery_brightness).clamp(0.0, 1.0);
+        let voiced = dark * (1.18 - brightness * 0.42) + bright * (0.10 + brightness * 0.74);
         let wet = self
             .output_lowpass
-            .process(voiced * (0.28 + dwell * 0.18))
+            .process(voiced * (0.28 + dwell * 0.18) * params.wet_makeup_gain)
             .clamp(-1.0, 1.0);
         let output = dry + wet * mix * 1.8;
 
-        ElectricalSignal::new(output.clamp(-32.0, 32.0), Self::OUTPUT_IMPEDANCE_OHMS)
+        let output = output.clamp(-32.0, 32.0);
+        SpringfieldProcessResult {
+            signal: ElectricalSignal::new(output, Self::OUTPUT_IMPEDANCE_OHMS),
+            stages: SpringfieldStageVoltages {
+                loaded_input,
+                coupled,
+                tank_drive,
+                ir_tank,
+                splash,
+                voiced,
+                wet,
+                output,
+            },
+        }
+    }
+}
+
+impl SpringfieldExperimental {
+    pub const INPUT_IMPEDANCE_OHMS: f32 = Springfield::INPUT_IMPEDANCE_OHMS;
+    pub const OUTPUT_IMPEDANCE_OHMS: f32 = Springfield::OUTPUT_IMPEDANCE_OHMS;
+
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            stable: Springfield::new(sample_rate),
+            runner: SpringfieldExperimentalRunner::new(),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.stable.reset();
+        self.runner.reset();
+    }
+
+    pub fn process(
+        &mut self,
+        input: ElectricalSignal,
+        controls: SpringfieldControls,
+    ) -> ElectricalSignal {
+        let loaded_input = self
+            .stable
+            .input_connection
+            .drive_load(input, Load::new(Self::INPUT_IMPEDANCE_OHMS));
+        self.process_loaded_voltage(loaded_input, controls)
+    }
+
+    pub fn process_loaded_voltage(
+        &mut self,
+        loaded_input: f32,
+        controls: SpringfieldControls,
+    ) -> ElectricalSignal {
+        let result = self.stable.process_loaded_voltage_with_stages(
+            loaded_input,
+            controls,
+            SpringfieldCircuitParams::experimental_recovery(),
+        );
+        self.runner.observe(result.stages);
+        result.signal
+    }
+
+    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.runner.boundary_states()
+    }
+}
+
+impl SpringfieldCircuitParams {
+    fn stable() -> Self {
+        Self {
+            tank_drive_gain: 1.0,
+            splash_gain: 1.0,
+            recovery_brightness: 0.0,
+            wet_makeup_gain: 1.0,
+        }
+    }
+
+    fn experimental_recovery() -> Self {
+        Self {
+            tank_drive_gain: 1.015,
+            splash_gain: 1.08,
+            recovery_brightness: 0.035,
+            wet_makeup_gain: 0.985,
+        }
+    }
+}
+
+impl SpringfieldExperimentalRunner {
+    fn new() -> Self {
+        Self {
+            last_boundaries: springfield_boundaries(SpringfieldStageVoltages::default()),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.last_boundaries = springfield_boundaries(SpringfieldStageVoltages::default());
+    }
+
+    fn observe(&mut self, stages: SpringfieldStageVoltages) {
+        self.last_boundaries = springfield_boundaries(stages);
+    }
+
+    fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.last_boundaries
     }
 }
 
@@ -1164,6 +1314,75 @@ fn minotaur_boundaries(stages: MinotaurStageVoltages) -> [ComponentBoundaryState
             "output_driver",
             stages.output,
             Minotaur::OUTPUT_IMPEDANCE_OHMS,
+            AMP_INPUT_IMPEDANCE_OHMS,
+            ComponentCoupling::Buffered,
+            9.0,
+        ),
+    ]
+}
+
+fn springfield_boundaries(stages: SpringfieldStageVoltages) -> [ComponentBoundaryState; 8] {
+    [
+        pedal_boundary_state(
+            "input_load",
+            stages.loaded_input,
+            AMP_INPUT_IMPEDANCE_OHMS,
+            Springfield::INPUT_IMPEDANCE_OHMS,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "input_coupling",
+            stages.coupled,
+            1_000.0,
+            470_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "dwell_driver",
+            stages.tank_drive,
+            8_200.0,
+            8.0,
+            ComponentCoupling::Buffered,
+            1.0,
+        ),
+        pedal_boundary_state(
+            "spring_ir_tank",
+            stages.ir_tank,
+            8.0,
+            600.0,
+            ComponentCoupling::AcCoupled,
+            1.0,
+        ),
+        pedal_boundary_state(
+            "splash_diffusion",
+            stages.splash,
+            22_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "recovery_tone",
+            stages.voiced,
+            47_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "wet_dry_mixer",
+            stages.wet,
+            10_000.0,
+            100_000.0,
+            ComponentCoupling::DcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "output_driver",
+            stages.output,
+            Springfield::OUTPUT_IMPEDANCE_OHMS,
             AMP_INPUT_IMPEDANCE_OHMS,
             ComponentCoupling::Buffered,
             9.0,
@@ -3163,6 +3382,72 @@ mod tests {
         }
 
         assert!(difference_sum > 0.2, "difference_sum={difference_sum}");
+    }
+
+    #[test]
+    fn springfield_experimental_recovery_diverges_from_stable() {
+        let mut stable = Springfield::new(48_000.0);
+        let mut experimental = SpringfieldExperimental::new(48_000.0);
+        let controls = SpringfieldControls {
+            dwell: 0.58,
+            tone: 0.62,
+            mix: 0.42,
+        };
+        let mut stable_sum = 0.0;
+        let mut experimental_sum = 0.0;
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..24_000 {
+            let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 48_000.0).sin() * 0.08
+                + if sample_idx % 1_507 == 0 { 0.32 } else { 0.0 };
+            let stable_output = stable.process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                controls,
+            );
+            let experimental_output = experimental.process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                controls,
+            );
+            if sample_idx > 6_000 {
+                stable_sum += stable_output.voltage.abs();
+                experimental_sum += experimental_output.voltage.abs();
+                difference_sum += (experimental_output.voltage - stable_output.voltage).abs();
+            }
+        }
+
+        assert!(stable_sum > 5.0, "stable_sum={stable_sum}");
+        assert!(
+            experimental_sum > 5.0,
+            "experimental_sum={experimental_sum}"
+        );
+        assert!(difference_sum > 0.02, "difference_sum={difference_sum}");
+    }
+
+    #[test]
+    fn springfield_experimental_exports_component_boundaries() {
+        let mut pedal = SpringfieldExperimental::new(48_000.0);
+        for sample_idx in 0..4_096 {
+            let input = if sample_idx == 0 { 0.7 } else { 0.0 };
+            let output = pedal.process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                SpringfieldControls {
+                    dwell: 0.65,
+                    tone: 0.58,
+                    mix: 0.55,
+                },
+            );
+            assert!(output.voltage.is_finite(), "output={output:?}");
+        }
+
+        let states = pedal.boundary_states();
+        assert_eq!(states[0].id, "input_load");
+        assert_eq!(states[2].id, "dwell_driver");
+        assert_eq!(states[3].id, "spring_ir_tank");
+        assert_eq!(states[7].id, "output_driver");
+        assert!(
+            states.iter().any(|state| state.nominal_level_v > 0.0),
+            "states={states:?}"
+        );
     }
 
     #[test]

@@ -124,7 +124,9 @@ pub struct CircuitDescriptor {
 pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static CircuitDescriptor> {
     match device {
         DeviceConfig::Minotaur | DeviceConfig::MinotaurExperimental => Some(&MINOTAUR_CIRCUIT),
-        DeviceConfig::Springfield => Some(&SPRINGFIELD_CIRCUIT),
+        DeviceConfig::Springfield | DeviceConfig::SpringfieldExperimental => {
+            Some(&SPRINGFIELD_CIRCUIT)
+        }
         _ => None,
     }
 }
@@ -964,6 +966,10 @@ mod tests {
         );
         assert_eq!(
             device_circuit_descriptor(DeviceConfig::Springfield).map(|d| d.model_id),
+            Some("springfield")
+        );
+        assert_eq!(
+            device_circuit_descriptor(DeviceConfig::SpringfieldExperimental).map(|d| d.model_id),
             Some("springfield")
         );
         assert!(device_circuit_descriptor(DeviceConfig::StudioVerb).is_none());

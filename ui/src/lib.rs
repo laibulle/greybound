@@ -320,6 +320,7 @@ pub enum Message {
     SelectView(ViewMode),
     ToggleCircuitView,
     TogglePedalImplementation,
+    ToggleReverbImplementation,
     ToggleAmpImplementation,
     ToggleTuner,
     CloseTuner,
@@ -429,11 +430,33 @@ pub enum PedalImplementation {
     Experimental,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReverbImplementation {
+    Stable,
+    Experimental,
+}
+
 impl PedalImplementation {
     pub fn device_config(self) -> CoreDeviceConfig {
         match self {
             Self::Stable => CoreDeviceConfig::Minotaur,
             Self::Experimental => CoreDeviceConfig::MinotaurExperimental,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Stable => "STABLE",
+            Self::Experimental => "EXPERIMENT",
+        }
+    }
+}
+
+impl ReverbImplementation {
+    pub fn device_config(self) -> CoreDeviceConfig {
+        match self {
+            Self::Stable => CoreDeviceConfig::Springfield,
+            Self::Experimental => CoreDeviceConfig::SpringfieldExperimental,
         }
     }
 
@@ -587,6 +610,7 @@ pub struct GreyboundUi {
     pub view_mode: ViewMode,
     pub circuit_view: bool,
     pub pedal_implementation: PedalImplementation,
+    pub reverb_implementation: ReverbImplementation,
     pub amp_implementation: AmpImplementation,
     pub scale: f32,
 }
@@ -717,6 +741,7 @@ impl Default for GreyboundUi {
             view_mode: ViewMode::Pedals,
             circuit_view: false,
             pedal_implementation: PedalImplementation::Stable,
+            reverb_implementation: ReverbImplementation::Stable,
             amp_implementation: AmpImplementation::Stable,
             scale: 1.0,
         }
@@ -742,6 +767,13 @@ impl GreyboundUi {
                 self.pedal_implementation = match self.pedal_implementation {
                     PedalImplementation::Stable => PedalImplementation::Experimental,
                     PedalImplementation::Experimental => PedalImplementation::Stable,
+                };
+                self.audio_settings.status = "Restarting audio engine".to_string();
+            }
+            Message::ToggleReverbImplementation => {
+                self.reverb_implementation = match self.reverb_implementation {
+                    ReverbImplementation::Stable => ReverbImplementation::Experimental,
+                    ReverbImplementation::Experimental => ReverbImplementation::Stable,
                 };
                 self.audio_settings.status = "Restarting audio engine".to_string();
             }
@@ -951,6 +983,7 @@ impl GreyboundUi {
                     container(
                         row![
                             self.pedal_implementation_switch(),
+                            self.reverb_implementation_switch(),
                             self.amp_implementation_switch()
                         ]
                         .spacing(self.s(10.0))
@@ -1090,12 +1123,27 @@ impl GreyboundUi {
         self.pedal_implementation.device_config()
     }
 
+    pub fn springfield_device_config(&self) -> CoreDeviceConfig {
+        self.reverb_implementation.device_config()
+    }
+
     fn pedal_implementation_switch(&self) -> Element<'_, Message> {
         let label = format!("PEDAL {}", self.pedal_implementation.label());
         button(text(label).size(self.font(13.0)).style(Color::WHITE))
             .on_press(Message::TogglePedalImplementation)
             .style(iced::theme::Button::custom(FooterButton {
                 selected: self.pedal_implementation == PedalImplementation::Experimental,
+            }))
+            .padding([self.s(8.0), self.s(16.0)])
+            .into()
+    }
+
+    fn reverb_implementation_switch(&self) -> Element<'_, Message> {
+        let label = format!("REVERB {}", self.reverb_implementation.label());
+        button(text(label).size(self.font(13.0)).style(Color::WHITE))
+            .on_press(Message::ToggleReverbImplementation)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: self.reverb_implementation == ReverbImplementation::Experimental,
             }))
             .padding([self.s(8.0), self.s(16.0)])
             .into()

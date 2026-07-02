@@ -192,6 +192,16 @@ description: Decisions and open questions that should steer upcoming implementat
   `0.42 V`, with `1.023x` internal output makeup. The lab A/B rig is
   `rigs/grey-nox-minotaur-experimental.json5`, and the desktop top control bar
   exposes a `PEDAL STABLE/EXPERIMENT` switch for live A/B.
+- Springfield reverb experiments now use the same stable/experimental workflow.
+  The `springfield-experimental` device id shares Springfield controls and
+  descriptor topology, exports component-boundary snapshots for input coupling,
+  dwell driver, spring IR tank, splash diffusion, recovery tone, wet/dry mixer,
+  and output driver, and applies a small recovery/splash hypothesis. The lab
+  A/B rig is `rigs/grey-nox-springfield-experimental.json5`, and the desktop
+  top control bar exposes a `REVERB STABLE/EXPERIMENT` switch. A 3-second
+  release monitor render against `grey-nox` was clean with zero xruns and zero
+  output clips; the candidate kept the same peak while changing the output by
+  RMS diff about `0.0000933`.
 
 ## Open Questions
 

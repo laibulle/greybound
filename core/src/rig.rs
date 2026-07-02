@@ -190,6 +190,9 @@ impl RigDeviceSlot {
             DeviceConfig::Celeste => DeviceControls::Celeste(self.controls.celeste()),
             DeviceConfig::Brigade => DeviceControls::Brigade(self.controls.brigade()),
             DeviceConfig::Springfield => DeviceControls::Springfield(self.controls.springfield()),
+            DeviceConfig::SpringfieldExperimental => {
+                DeviceControls::Springfield(self.controls.springfield())
+            }
             DeviceConfig::StudioVerb => DeviceControls::StudioVerb(self.controls.studioverb()),
         };
         Ok(DeviceSlotControls {
@@ -416,6 +419,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "celeste" => Ok(DeviceConfig::Celeste),
         "brigade" => Ok(DeviceConfig::Brigade),
         "springfield" => Ok(DeviceConfig::Springfield),
+        "springfield-experimental" => Ok(DeviceConfig::SpringfieldExperimental),
         "studioverb" => Ok(DeviceConfig::StudioVerb),
         _ => bail!("unknown rig device '{device}'"),
     }
@@ -946,6 +950,44 @@ mod tests {
             }) if (dwell - 0.48).abs() < 1e-6
                 && (tone - 0.62).abs() < 1e-6
                 && (mix - 0.28).abs() < 1e-6
+        ));
+    }
+
+    #[test]
+    fn parses_springfield_experimental_reverb_controls() {
+        let rig = RigConfig::from_json5(
+            r#"
+            {
+              name: 'unit-test-rig',
+              fx_loop: [{
+                id: 'spring-reverb',
+                device: 'springfield-experimental',
+                controls: { dwell: 0.52, tone: 0.66, mix: 0.31 },
+              }],
+              amp: { model: 'nox30' },
+            }
+            "#,
+        )
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+        let controls = rig.device_controls().unwrap();
+
+        assert_eq!(
+            chain.fx_loop,
+            vec![DeviceSlotConfig::active(
+                DeviceConfig::SpringfieldExperimental
+            )]
+        );
+        assert!(matches!(
+            controls[0].controls,
+            DeviceControls::Springfield(SpringfieldControls {
+                dwell,
+                tone,
+                mix,
+            }) if (dwell - 0.52).abs() < 1e-6
+                && (tone - 0.66).abs() < 1e-6
+                && (mix - 0.31).abs() < 1e-6
         ));
     }
 
