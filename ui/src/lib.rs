@@ -3221,23 +3221,19 @@ fn draw_pedal_circuit(frame: &mut Frame, origin: Point, size: Size, device: &Dev
 
     let graph_origin = Point::new(board_origin.x + 14.0, board_origin.y + 52.0);
     let graph_size = Size::new(board_size.width - 28.0, board_size.height - 110.0);
+    let layout = layout_circuit_graph(descriptor, graph_origin, graph_size);
 
     for edge in descriptor.edges {
         if let (Some(from), Some(to)) = (
-            circuit_node_by_id(descriptor, edge.from),
-            circuit_node_by_id(descriptor, edge.to),
+            circuit_placement_by_id(&layout.placements, edge.from),
+            circuit_placement_by_id(&layout.placements, edge.to),
         ) {
-            draw_semantic_circuit_edge(
-                frame,
-                circuit_node_point(graph_origin, graph_size, from),
-                circuit_node_point(graph_origin, graph_size, to),
-            );
+            draw_semantic_circuit_edge(frame, from.point, to.point, layout.direction);
         }
     }
 
-    for node in descriptor.nodes {
-        let center = circuit_node_point(graph_origin, graph_size, node);
-        draw_semantic_circuit_node(frame, center, node);
+    for placement in &layout.placements {
+        draw_semantic_circuit_node(frame, placement.point, placement.node);
     }
 
     draw_text(
@@ -3322,26 +3318,241 @@ fn draw_circuit_backplate(frame: &mut Frame, origin: Point, size: Size) {
     }
 }
 
-fn circuit_node_by_id<'a>(
+#[derive(Clone, Copy)]
+enum CircuitLayoutDirection {
+    LeftToRight,
+    TopToBottom,
+}
+
+struct CircuitGraphLayout<'a> {
+    direction: CircuitLayoutDirection,
+    placements: Vec<CircuitNodePlacement<'a>>,
+}
+
+struct CircuitNodePlacement<'a> {
+    id: &'static str,
+    node: &'a CircuitNodeDescriptor,
+    point: Point,
+}
+
+fn layout_circuit_graph<'a>(
     descriptor: &'a CircuitDescriptor,
+    origin: Point,
+    size: Size,
+) -> CircuitGraphLayout<'a> {
+    let direction = if size.height > size.width * 1.20 {
+        CircuitLayoutDirection::TopToBottom
+    } else {
+        CircuitLayoutDirection::LeftToRight
+    };
+    let node_count = descriptor.nodes.len();
+    let mut outgoing = vec![Vec::<usize>::new(); node_count];
+    let mut incoming = vec![Vec::<usize>::new(); node_count];
+    let mut indegree = vec![0usize; node_count];
+
+    for edge in descriptor.edges {
+        if let (Some(from), Some(to)) = (
+            circuit_node_index(descriptor, edge.from),
+            circuit_node_index(descriptor, edge.to),
+        ) {
+            outgoing[from].push(to);
+            incoming[to].push(from);
+            indegree[to] += 1;
+        }
+    }
+
+    let mut layers = vec![0usize; node_count];
+    let mut queue: Vec<usize> = indegree
+        .iter()
+        .enumerate()
+        .filter_map(|(index, degree)| (*degree == 0).then_some(index))
+        .collect();
+    let mut visited = 0usize;
+    let mut cursor = 0usize;
+
+    while cursor < queue.len() {
+        let current = queue[cursor];
+        cursor += 1;
+        visited += 1;
+
+        for &next in &outgoing[current] {
+            layers[next] = layers[next].max(layers[current] + 1);
+            indegree[next] = indegree[next].saturating_sub(1);
+            if indegree[next] == 0 {
+                queue.push(next);
+            }
+        }
+    }
+
+    if visited != node_count {
+        return descriptor_layout_fallback(descriptor, origin, size, direction);
+    }
+
+    let max_layer = layers.iter().copied().max().unwrap_or(0);
+    let mut layer_nodes = vec![Vec::<usize>::new(); max_layer + 1];
+    for (index, &layer) in layers.iter().enumerate() {
+        layer_nodes[layer].push(index);
+    }
+
+    for nodes in &mut layer_nodes {
+        nodes.sort_by(|&a, &b| {
+            initial_layer_order(&descriptor.nodes[a], direction)
+                .partial_cmp(&initial_layer_order(&descriptor.nodes[b], direction))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.cmp(&b))
+        });
+    }
+
+    let mut order = circuit_order_map(&layer_nodes, node_count);
+    for _ in 0..4 {
+        for layer in 1..layer_nodes.len() {
+            sort_layer_by_barycenter(&mut layer_nodes[layer], &incoming, &order);
+            order = circuit_order_map(&layer_nodes, node_count);
+        }
+        for layer in (0..layer_nodes.len().saturating_sub(1)).rev() {
+            sort_layer_by_barycenter(&mut layer_nodes[layer], &outgoing, &order);
+            order = circuit_order_map(&layer_nodes, node_count);
+        }
+    }
+
+    let x_pad = 28.0;
+    let y_pad = 22.0;
+    let usable_width = (size.width - x_pad * 2.0).max(1.0);
+    let usable_height = (size.height - y_pad * 2.0).max(1.0);
+    let layer_divisor = max_layer.max(1) as f32;
+    let mut placements = Vec::with_capacity(node_count);
+
+    for (layer, nodes) in layer_nodes.iter().enumerate() {
+        let layer_position = layer as f32 / layer_divisor;
+        for (slot, &node_index) in nodes.iter().enumerate() {
+            let cross = layer_cross_position(slot, nodes.len());
+            let point = match direction {
+                CircuitLayoutDirection::TopToBottom => Point::new(
+                    origin.x + x_pad + usable_width * cross,
+                    origin.y + y_pad + usable_height * layer_position,
+                ),
+                CircuitLayoutDirection::LeftToRight => Point::new(
+                    origin.x + x_pad + usable_width * layer_position,
+                    origin.y + y_pad + usable_height * cross,
+                ),
+            };
+            placements.push(CircuitNodePlacement {
+                id: descriptor.nodes[node_index].id,
+                node: &descriptor.nodes[node_index],
+                point,
+            });
+        }
+    }
+
+    CircuitGraphLayout {
+        direction,
+        placements,
+    }
+}
+
+fn descriptor_layout_fallback<'a>(
+    descriptor: &'a CircuitDescriptor,
+    origin: Point,
+    size: Size,
+    direction: CircuitLayoutDirection,
+) -> CircuitGraphLayout<'a> {
+    let placements = descriptor
+        .nodes
+        .iter()
+        .map(|node| CircuitNodePlacement {
+            id: node.id,
+            node,
+            point: Point::new(
+                origin.x + size.width * node.layout.x,
+                origin.y + size.height * node.layout.y,
+            ),
+        })
+        .collect();
+    CircuitGraphLayout {
+        direction,
+        placements,
+    }
+}
+
+fn circuit_node_index(descriptor: &CircuitDescriptor, id: &str) -> Option<usize> {
+    descriptor.nodes.iter().position(|node| node.id == id)
+}
+
+fn circuit_placement_by_id<'a>(
+    placements: &'a [CircuitNodePlacement<'a>],
     id: &str,
-) -> Option<&'a CircuitNodeDescriptor> {
-    descriptor.nodes.iter().find(|node| node.id == id)
+) -> Option<&'a CircuitNodePlacement<'a>> {
+    placements.iter().find(|placement| placement.id == id)
 }
 
-fn circuit_node_point(origin: Point, size: Size, node: &CircuitNodeDescriptor) -> Point {
-    Point::new(
-        origin.x + size.width * node.layout.x,
-        origin.y + size.height * node.layout.y,
-    )
+fn initial_layer_order(node: &CircuitNodeDescriptor, direction: CircuitLayoutDirection) -> f32 {
+    match direction {
+        CircuitLayoutDirection::TopToBottom => node.layout.x,
+        CircuitLayoutDirection::LeftToRight => node.layout.y,
+    }
 }
 
-fn draw_semantic_circuit_edge(frame: &mut Frame, from: Point, to: Point) {
-    let mid_x = (from.x + to.x) * 0.5;
+fn circuit_order_map(layer_nodes: &[Vec<usize>], node_count: usize) -> Vec<f32> {
+    let mut order = vec![0.0; node_count];
+    for nodes in layer_nodes {
+        for (slot, &node_index) in nodes.iter().enumerate() {
+            order[node_index] = slot as f32;
+        }
+    }
+    order
+}
+
+fn sort_layer_by_barycenter(nodes: &mut [usize], neighbors: &[Vec<usize>], neighbor_order: &[f32]) {
+    nodes.sort_by(|&a, &b| {
+        barycenter(a, neighbors, neighbor_order)
+            .partial_cmp(&barycenter(b, neighbors, neighbor_order))
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.cmp(&b))
+    });
+}
+
+fn barycenter(node_index: usize, neighbors: &[Vec<usize>], neighbor_order: &[f32]) -> f32 {
+    let related = &neighbors[node_index];
+    if related.is_empty() {
+        node_index as f32
+    } else {
+        related
+            .iter()
+            .map(|&neighbor| neighbor_order[neighbor])
+            .sum::<f32>()
+            / related.len() as f32
+    }
+}
+
+fn layer_cross_position(slot: usize, count: usize) -> f32 {
+    if count <= 1 {
+        0.5
+    } else {
+        let span = ((count - 1) as f32 * 0.32).min(0.74);
+        0.5 - span * 0.5 + span * slot as f32 / (count - 1) as f32
+    }
+}
+
+fn draw_semantic_circuit_edge(
+    frame: &mut Frame,
+    from: Point,
+    to: Point,
+    direction: CircuitLayoutDirection,
+) {
     let path = Path::new(|p| {
         p.move_to(from);
-        p.line_to(Point::new(mid_x, from.y));
-        p.line_to(Point::new(mid_x, to.y));
+        match direction {
+            CircuitLayoutDirection::LeftToRight => {
+                let mid_x = (from.x + to.x) * 0.5;
+                p.line_to(Point::new(mid_x, from.y));
+                p.line_to(Point::new(mid_x, to.y));
+            }
+            CircuitLayoutDirection::TopToBottom => {
+                let mid_y = (from.y + to.y) * 0.5;
+                p.line_to(Point::new(from.x, mid_y));
+                p.line_to(Point::new(to.x, mid_y));
+            }
+        }
         p.line_to(to);
     });
     frame.stroke(
@@ -3410,7 +3621,7 @@ fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNo
     if let Some(control) = node.control_id {
         draw_control_binding_badge(
             frame,
-            Point::new(center.x, origin.y - 13.0),
+            Point::new(center.x + width * 0.5 + 13.0, center.y),
             control_badge_label(control),
             node.confidence,
         );
@@ -3422,9 +3633,9 @@ fn draw_semantic_circuit_node(frame: &mut Frame, center: Point, node: &CircuitNo
             | CircuitNodeKind::ImpulseResponse
             | CircuitNodeKind::SpringTank
     ) {
-        draw_confidence_chip(
+        draw_confidence_dot(
             frame,
-            Point::new(center.x, origin.y - 11.0),
+            Point::new(origin.x + width - 5.0, origin.y + height - 5.0),
             node.confidence,
         );
     }
@@ -3567,9 +3778,9 @@ fn draw_control_binding_badge(
     confidence: CircuitConfidence,
 ) {
     let body = rounded_rect(
-        Point::new(center.x - 22.0, center.y - 8.0),
-        Size::new(44.0, 16.0),
-        8.0,
+        Point::new(center.x - 15.0, center.y - 7.0),
+        Size::new(30.0, 14.0),
+        7.0,
     );
     frame.fill(&body, Color::from_rgb(0.72, 0.52, 0.25));
     frame.stroke(
@@ -3582,35 +3793,11 @@ fn draw_control_binding_badge(
         frame,
         control,
         Point::new(center.x, center.y - 1.0),
-        7.4,
+        6.5,
         Color::from_rgb(0.06, 0.05, 0.035),
         Horizontal::Center,
     );
-    draw_confidence_dot(frame, Point::new(center.x + 26.0, center.y), confidence);
-}
-
-fn draw_confidence_chip(frame: &mut Frame, center: Point, confidence: CircuitConfidence) {
-    let width = 42.0;
-    let body = rounded_rect(
-        Point::new(center.x - width * 0.5, center.y - 7.0),
-        Size::new(width, 14.0),
-        7.0,
-    );
-    frame.fill(&body, Color::from_rgba(0.02, 0.025, 0.025, 0.72));
-    frame.stroke(
-        &body,
-        Stroke::default()
-            .with_color(Color::from_rgba(0.70, 0.84, 0.78, 0.24))
-            .with_width(1.0),
-    );
-    draw_text(
-        frame,
-        confidence_label(confidence),
-        Point::new(center.x, center.y - 1.0),
-        6.8,
-        Color::from_rgba(0.82, 0.90, 0.82, 0.72),
-        Horizontal::Center,
-    );
+    draw_confidence_dot(frame, Point::new(center.x + 18.0, center.y), confidence);
 }
 
 fn draw_confidence_dot(frame: &mut Frame, center: Point, confidence: CircuitConfidence) {
@@ -3660,17 +3847,6 @@ fn control_badge_label(control_id: &str) -> &'static str {
         "tone" => "TONE",
         "mix" => "MIX",
         _ => "CTRL",
-    }
-}
-
-fn confidence_label(confidence: CircuitConfidence) -> &'static str {
-    match confidence {
-        CircuitConfidence::KnownBoundary => "known",
-        CircuitConfidence::SchematicInspired => "inferred",
-        CircuitConfidence::Inferred => "infer",
-        CircuitConfidence::TunedGreybox => "tuned",
-        CircuitConfidence::ExternalReference => "ref",
-        CircuitConfidence::Algorithmic => "algo",
     }
 }
 

@@ -128,6 +128,11 @@ description: Decisions and open questions that should steer upcoming implementat
   renders Minotaur and Springfield directly from the runtime circuit
   descriptors: stage nodes, routed edges, control badges, confidence hints, and
   a greybox/IR-hybrid badge.
+- Circuit view node placement now uses a Sugiyama-style hierarchical graph
+  layout instead of descriptor-authored coordinates. Nodes are assigned to
+  layers by longest path, ordered with barycentric sweeps to reduce crossings,
+  and oriented top-to-bottom inside tall pedal surfaces so dense signal graphs
+  do not collapse horizontally.
 
 ## Open Questions
 
