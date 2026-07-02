@@ -740,9 +740,9 @@ impl Default for GreyboundUi {
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             circuit_view: false,
-            pedal_implementation: PedalImplementation::Stable,
-            reverb_implementation: ReverbImplementation::Stable,
-            amp_implementation: AmpImplementation::Stable,
+            pedal_implementation: PedalImplementation::Experimental,
+            reverb_implementation: ReverbImplementation::Experimental,
+            amp_implementation: AmpImplementation::Experimental,
             scale: 1.0,
         }
     }

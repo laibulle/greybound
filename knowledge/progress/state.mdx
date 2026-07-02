@@ -148,10 +148,10 @@ description: Decisions and open questions that should steer upcoming implementat
   amp view now also supports circuit mode by rendering Nox30 component
   boundaries from `NOX30_COMPONENT_BOUNDARIES` as a circuit-informed stage map.
 - The desktop UI now has a runtime amp-implementation switch for A/B work. The
-  stable default still loads `nox30`; the experimental option loads
-  `nox30-experimental` and restarts the live audio engine. The experimental
-  alias is intentionally bit-equivalent to stable until a focused amp-model
-  experiment diverges it, giving the lab a controlled baseline for future
+  desktop default loads `nox30-experimental`; switching back to stable loads
+  `nox30` and restarts the live audio engine. Plain `nox30-experimental`
+  remains bit-equivalent to stable unless an explicit parameterized lab
+  hypothesis is used, giving the lab a controlled baseline for future
   comparisons.
 - Amp implementation experiments now have a dedicated architecture spec in
   `knowledge/architecture/amp-model-experiments.mdx`. The spec keeps stable and
@@ -202,6 +202,11 @@ description: Decisions and open questions that should steer upcoming implementat
   release monitor render against `grey-nox` was clean with zero xruns and zero
   output clips; the candidate kept the same peak while changing the output by
   RMS diff about `0.0000933`.
+- The desktop live app now starts experimental-first for the focused rig:
+  `minotaur-experimental`, `nox30-experimental`, and
+  `springfield-experimental` are the default loaded implementations. The
+  stable `grey-nox` rig files remain the lab baseline, and the desktop switches
+  still allow one-click fallback to stable implementations.
 
 ## Open Questions
 
