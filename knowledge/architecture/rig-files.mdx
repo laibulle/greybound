@@ -89,6 +89,9 @@ Supported device ids:
 - `dartford`
 - `springfield`
 - `minotaur`
+- `minotaur-experimental` for lab-only A/B work against the stable Minotaur
+  wrapper. It shares Minotaur controls and should remain topology-compatible
+  with `minotaur`.
 - `monarch`
 - `tron`
 - `jetstream`
@@ -102,6 +105,9 @@ Supported device ids:
   implementation.
 - `rigs/grey-nox.json5`: Klon/Minotaur into Nox30. This is the default focused
   rig because those are the current real grey-box implementations.
+- `rigs/grey-nox-minotaur-experimental.json5`: the same focused topology and
+  controls as `grey-nox`, but the Minotaur slot uses
+  `device: "minotaur-experimental"` for pedal A/B work.
 - `rigs/grey-nox-experimental.json5`: the same `grey-nox` topology and
   controls with `amp.model: "nox30-experimental"` for lab A/B work.
 - `rigs/grey-nox-experimental-tone-load.json5`: the same focused topology with

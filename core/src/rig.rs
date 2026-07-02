@@ -179,6 +179,9 @@ impl RigDeviceSlot {
             DeviceConfig::Muon => DeviceControls::Muon(self.controls.muon()),
             DeviceConfig::Muffin => DeviceControls::Muffin(self.controls.muffin()),
             DeviceConfig::Minotaur => DeviceControls::Minotaur(self.controls.minotaur()),
+            DeviceConfig::MinotaurExperimental => {
+                DeviceControls::Minotaur(self.controls.minotaur())
+            }
             DeviceConfig::Monarch => DeviceControls::Monarch(self.controls.monarch()),
             DeviceConfig::GodessOne => DeviceControls::GodessOne(self.controls.godess_one()),
             DeviceConfig::Dartford => DeviceControls::Dartford(self.controls.dartford()),
@@ -404,6 +407,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "muon" => Ok(DeviceConfig::Muon),
         "muffin" => Ok(DeviceConfig::Muffin),
         "minotaur" => Ok(DeviceConfig::Minotaur),
+        "minotaur-experimental" => Ok(DeviceConfig::MinotaurExperimental),
         "monarch" => Ok(DeviceConfig::Monarch),
         "godess-one" => Ok(DeviceConfig::GodessOne),
         "dartford" => Ok(DeviceConfig::Dartford),
@@ -600,6 +604,36 @@ mod tests {
     }
 
     #[test]
+    fn parses_grey_nox_minotaur_experimental_fixture() {
+        let rig = RigConfig::from_json5(include_str!(
+            "../../rigs/grey-nox-minotaur-experimental.json5"
+        ))
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+        let controls = rig.device_controls().unwrap();
+
+        assert_eq!(rig.name.as_deref(), Some("grey-nox-minotaur-experimental"));
+        assert_eq!(
+            chain.pre_amp,
+            vec![DeviceSlotConfig::active(DeviceConfig::MinotaurExperimental)]
+        );
+        assert_eq!(
+            chain.fx_loop,
+            vec![
+                DeviceSlotConfig::active(DeviceConfig::Springfield),
+                DeviceSlotConfig::active(DeviceConfig::StudioVerb),
+            ]
+        );
+        assert!(matches!(
+            controls[0].controls,
+            DeviceControls::Minotaur(MinotaurControls { .. })
+        ));
+        assert!(rig.amp_enabled());
+        assert!(rig.cab_ir_enabled());
+    }
+
+    #[test]
     fn rejects_runtime_io_fields() {
         let error = RigConfig::from_json5(
             r#"
@@ -638,6 +672,42 @@ mod tests {
         assert_eq!(
             chain.pre_amp,
             vec![DeviceSlotConfig::active(DeviceConfig::Minotaur)]
+        );
+        assert!(matches!(
+            controls[0].controls,
+            DeviceControls::Minotaur(MinotaurControls {
+                gain,
+                treble,
+                output
+            }) if (gain - 0.42).abs() < 1e-6
+                && (treble - 0.61).abs() < 1e-6
+                && (output - 0.58).abs() < 1e-6
+        ));
+    }
+
+    #[test]
+    fn parses_minotaur_experimental_rig_controls() {
+        let rig = RigConfig::from_json5(
+            r#"
+            {
+              name: 'unit-test-rig',
+              pre_amp: [{
+                id: 'overdrive',
+                device: 'minotaur-experimental',
+                controls: { gain: 0.42, treble: 0.61, output: 0.58 },
+              }],
+              amp: { model: 'nox30' },
+            }
+            "#,
+        )
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+        let controls = rig.device_controls().unwrap();
+
+        assert_eq!(
+            chain.pre_amp,
+            vec![DeviceSlotConfig::active(DeviceConfig::MinotaurExperimental)]
         );
         assert!(matches!(
             controls[0].controls,

@@ -1,4 +1,4 @@
-use crate::amp::NeuralCellMode;
+use crate::amp::{ComponentBoundaryState, ComponentCoupling, NeuralCellMode};
 use crate::ir::SpeakerStage;
 use crate::neural_cell::{ExperimentalNeuralCell, NeuralCellRuntime};
 use std::env;
@@ -178,6 +178,39 @@ pub struct Minotaur {
     output_lowpass: OnePoleLowpass,
     clip_neural: Option<MinotaurClipNeural>,
     tone_neural: Option<MinotaurToneNeural>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MinotaurStageVoltages {
+    loaded_input: f32,
+    buffered: f32,
+    clean_feed: f32,
+    drive_stage: f32,
+    clipped: f32,
+    sum_node: f32,
+    voiced: f32,
+    output: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MinotaurProcessResult {
+    signal: ElectricalSignal,
+    stages: MinotaurStageVoltages,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MinotaurCircuitParams {
+    clip_knee_v: f32,
+    output_makeup_gain: f32,
+}
+
+pub struct MinotaurExperimental {
+    stable: Minotaur,
+    runner: MinotaurExperimentalRunner,
+}
+
+struct MinotaurExperimentalRunner {
+    last_boundaries: [ComponentBoundaryState; 8],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -899,6 +932,20 @@ impl Minotaur {
         loaded_input: f32,
         controls: MinotaurControls,
     ) -> ElectricalSignal {
+        self.process_loaded_voltage_with_stages(
+            loaded_input,
+            controls,
+            MinotaurCircuitParams::stable(),
+        )
+        .signal
+    }
+
+    fn process_loaded_voltage_with_stages(
+        &mut self,
+        loaded_input: f32,
+        controls: MinotaurControls,
+        params: MinotaurCircuitParams,
+    ) -> MinotaurProcessResult {
         let gain = controls.gain.clamp(0.0, 1.0);
         let treble = controls.treble.clamp(0.0, 1.0);
         let output = controls.output.clamp(0.0, 1.0);
@@ -914,7 +961,7 @@ impl Minotaur {
             .drive_feedback_lowpass
             .process(drive_input * feedback_gain);
         let clip_input = self.clip_coupling_highpass.process(drive_stage);
-        let analytic_clipped = diode_pair_clip(clip_input, 0.42);
+        let analytic_clipped = diode_pair_clip(clip_input, params.clip_knee_v);
         let clipped = if let Some(neural) = &mut self.clip_neural {
             neural.process(buffered, gain, treble, output, analytic_clipped)
         } else {
@@ -952,11 +999,198 @@ impl Minotaur {
             .output_lowpass
             .process(
                 self.level_highpass
-                    .process(voiced * tone_gain * dynamic_gain * level),
+                    .process(voiced * tone_gain * dynamic_gain * level * params.output_makeup_gain),
             )
             .clamp(-4.5, 4.5);
 
-        ElectricalSignal::new(final_output, Self::OUTPUT_IMPEDANCE_OHMS)
+        MinotaurProcessResult {
+            signal: ElectricalSignal::new(final_output, Self::OUTPUT_IMPEDANCE_OHMS),
+            stages: MinotaurStageVoltages {
+                loaded_input,
+                buffered,
+                clean_feed,
+                drive_stage,
+                clipped,
+                sum_node,
+                voiced,
+                output: final_output,
+            },
+        }
+    }
+}
+
+impl MinotaurExperimental {
+    pub const INPUT_IMPEDANCE_OHMS: f32 = Minotaur::INPUT_IMPEDANCE_OHMS;
+    pub const OUTPUT_IMPEDANCE_OHMS: f32 = Minotaur::OUTPUT_IMPEDANCE_OHMS;
+
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            stable: Minotaur::new(sample_rate),
+            runner: MinotaurExperimentalRunner::new(),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.stable.reset();
+        self.runner.reset();
+    }
+
+    pub fn process(
+        &mut self,
+        input: ElectricalSignal,
+        controls: MinotaurControls,
+    ) -> ElectricalSignal {
+        let loaded_input = self
+            .stable
+            .input_connection
+            .drive_load(input, Load::new(Self::INPUT_IMPEDANCE_OHMS));
+        self.process_loaded_voltage(loaded_input, controls)
+    }
+
+    pub fn process_loaded_voltage(
+        &mut self,
+        loaded_input: f32,
+        controls: MinotaurControls,
+    ) -> ElectricalSignal {
+        let result = self.stable.process_loaded_voltage_with_stages(
+            loaded_input,
+            controls,
+            MinotaurCircuitParams::experimental_soft_clip(),
+        );
+        self.runner.observe(result.stages);
+        result.signal
+    }
+
+    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.runner.boundary_states()
+    }
+}
+
+impl MinotaurCircuitParams {
+    fn stable() -> Self {
+        Self {
+            clip_knee_v: 0.42,
+            output_makeup_gain: 1.0,
+        }
+    }
+
+    fn experimental_soft_clip() -> Self {
+        Self {
+            clip_knee_v: 0.36,
+            output_makeup_gain: 1.023,
+        }
+    }
+}
+
+impl MinotaurExperimentalRunner {
+    fn new() -> Self {
+        Self {
+            last_boundaries: minotaur_boundaries(MinotaurStageVoltages::default()),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.last_boundaries = minotaur_boundaries(MinotaurStageVoltages::default());
+    }
+
+    fn observe(&mut self, stages: MinotaurStageVoltages) {
+        self.last_boundaries = minotaur_boundaries(stages);
+    }
+
+    fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.last_boundaries
+    }
+}
+
+fn minotaur_boundaries(stages: MinotaurStageVoltages) -> [ComponentBoundaryState; 8] {
+    [
+        pedal_boundary_state(
+            "input_load",
+            stages.loaded_input,
+            GUITAR_SOURCE_IMPEDANCE_OHMS,
+            Minotaur::INPUT_IMPEDANCE_OHMS,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "input_coupling",
+            stages.buffered,
+            1_000.0,
+            470_000.0,
+            ComponentCoupling::Buffered,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "clean_path",
+            stages.clean_feed,
+            10_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "drive_gain",
+            stages.drive_stage,
+            10_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "soft_clip",
+            stages.clipped,
+            1_000.0,
+            100_000.0,
+            ComponentCoupling::DcCoupled,
+            0.42,
+        ),
+        pedal_boundary_state(
+            "summing_node",
+            stages.sum_node,
+            12_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "treble_presence",
+            stages.voiced,
+            10_000.0,
+            100_000.0,
+            ComponentCoupling::AcCoupled,
+            9.0,
+        ),
+        pedal_boundary_state(
+            "output_driver",
+            stages.output,
+            Minotaur::OUTPUT_IMPEDANCE_OHMS,
+            AMP_INPUT_IMPEDANCE_OHMS,
+            ComponentCoupling::Buffered,
+            9.0,
+        ),
+    ]
+}
+
+fn pedal_boundary_state(
+    id: &'static str,
+    voltage_v: f32,
+    source_impedance_ohms: f32,
+    load_impedance_ohms: f32,
+    coupling: ComponentCoupling,
+    headroom_v: f32,
+) -> ComponentBoundaryState {
+    let nominal_level_v = voltage_v.abs();
+    ComponentBoundaryState {
+        id,
+        voltage_v,
+        source_impedance_ohms: source_impedance_ohms.max(0.0),
+        load_impedance_ohms: load_impedance_ohms.max(0.0),
+        coupling,
+        dc_offset_v: 0.0,
+        headroom_v: headroom_v.max(0.0),
+        nominal_level_v,
+        peak_level_v: nominal_level_v,
+        latency_samples: 0,
     }
 }
 
@@ -2305,6 +2539,72 @@ mod tests {
         let clipped = diode_pair_clip(1.2, 0.42);
 
         assert!((0.40..0.43).contains(&clipped), "clipped={clipped}");
+    }
+
+    #[test]
+    fn minotaur_experimental_soft_clip_diverges_from_stable() {
+        let mut stable = Minotaur::new(48_000.0);
+        let mut experimental = MinotaurExperimental::new(48_000.0);
+        let controls = MinotaurControls {
+            gain: 0.42,
+            treble: 0.70,
+            output: 0.42,
+        };
+        let mut difference_sum = 0.0_f32;
+        let mut output_energy = 0.0_f32;
+
+        for sample_idx in 0..24_000 {
+            let t = sample_idx as f32 / 48_000.0;
+            let input = (std::f32::consts::TAU * 110.0 * t).sin() * 0.055
+                + (std::f32::consts::TAU * 880.0 * t).sin() * 0.026
+                + (std::f32::consts::TAU * 3_520.0 * t).sin() * 0.012;
+            let source = ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS);
+            let stable_output = stable.process(source, controls);
+            let experimental_output = experimental.process(source, controls);
+            assert!(experimental_output.voltage.is_finite());
+            if sample_idx >= 4_800 {
+                let difference = stable_output.voltage - experimental_output.voltage;
+                difference_sum += difference * difference;
+                output_energy += experimental_output.voltage * experimental_output.voltage;
+            }
+        }
+
+        assert!(
+            difference_sum > 1e-4,
+            "experimental soft-clip did not alter stable Minotaur: difference_sum={difference_sum}"
+        );
+        assert!(
+            output_energy > 1e-5,
+            "experimental Minotaur produced suspicious silence: output_energy={output_energy}"
+        );
+    }
+
+    #[test]
+    fn minotaur_experimental_exports_component_boundary_states() {
+        let mut pedal = MinotaurExperimental::new(48_000.0);
+        for sample_idx in 0..2_400 {
+            let input = (std::f32::consts::TAU * 440.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
+            pedal.process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                MinotaurControls::default(),
+            );
+        }
+
+        let boundaries = pedal.boundary_states();
+        assert_eq!(boundaries[0].id, "input_load");
+        assert_eq!(boundaries[7].id, "output_driver");
+        assert_eq!(
+            boundaries[7].source_impedance_ohms,
+            Minotaur::OUTPUT_IMPEDANCE_OHMS
+        );
+        assert!(boundaries.iter().all(|boundary| {
+            boundary.voltage_v.is_finite()
+                && boundary.source_impedance_ohms.is_finite()
+                && boundary.load_impedance_ohms.is_finite()
+        }));
+        assert!(boundaries
+            .iter()
+            .any(|boundary| boundary.nominal_level_v > 0.0));
     }
 
     #[test]

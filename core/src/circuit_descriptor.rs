@@ -123,7 +123,7 @@ pub struct CircuitDescriptor {
 
 pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static CircuitDescriptor> {
     match device {
-        DeviceConfig::Minotaur => Some(&MINOTAUR_CIRCUIT),
+        DeviceConfig::Minotaur | DeviceConfig::MinotaurExperimental => Some(&MINOTAUR_CIRCUIT),
         DeviceConfig::Springfield => Some(&SPRINGFIELD_CIRCUIT),
         _ => None,
     }
@@ -956,6 +956,10 @@ mod tests {
     fn exposes_descriptors_for_current_greybox_pedals() {
         assert_eq!(
             device_circuit_descriptor(DeviceConfig::Minotaur).map(|d| d.model_id),
+            Some("minotaur")
+        );
+        assert_eq!(
+            device_circuit_descriptor(DeviceConfig::MinotaurExperimental).map(|d| d.model_id),
             Some("minotaur")
         );
         assert_eq!(

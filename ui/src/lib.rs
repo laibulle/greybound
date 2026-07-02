@@ -319,6 +319,7 @@ pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
     ToggleCircuitView,
+    TogglePedalImplementation,
     ToggleAmpImplementation,
     ToggleTuner,
     CloseTuner,
@@ -420,6 +421,28 @@ pub enum ViewMode {
 pub enum AmpImplementation {
     Stable,
     Experimental,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PedalImplementation {
+    Stable,
+    Experimental,
+}
+
+impl PedalImplementation {
+    pub fn device_config(self) -> CoreDeviceConfig {
+        match self {
+            Self::Stable => CoreDeviceConfig::Minotaur,
+            Self::Experimental => CoreDeviceConfig::MinotaurExperimental,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Stable => "STABLE",
+            Self::Experimental => "EXPERIMENT",
+        }
+    }
 }
 
 impl AmpImplementation {
@@ -563,6 +586,7 @@ pub struct GreyboundUi {
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub circuit_view: bool,
+    pub pedal_implementation: PedalImplementation,
     pub amp_implementation: AmpImplementation,
     pub scale: f32,
 }
@@ -692,6 +716,7 @@ impl Default for GreyboundUi {
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             circuit_view: false,
+            pedal_implementation: PedalImplementation::Stable,
             amp_implementation: AmpImplementation::Stable,
             scale: 1.0,
         }
@@ -712,6 +737,13 @@ impl GreyboundUi {
             }
             Message::ToggleCircuitView => {
                 self.circuit_view = !self.circuit_view;
+            }
+            Message::TogglePedalImplementation => {
+                self.pedal_implementation = match self.pedal_implementation {
+                    PedalImplementation::Stable => PedalImplementation::Experimental,
+                    PedalImplementation::Experimental => PedalImplementation::Stable,
+                };
+                self.audio_settings.status = "Restarting audio engine".to_string();
             }
             Message::ToggleAmpImplementation => {
                 self.amp_implementation = match self.amp_implementation {
@@ -916,9 +948,16 @@ impl GreyboundUi {
                         self.cab.master,
                         percent_readout(self.cab.master)
                     ),
-                    container(self.amp_implementation_switch())
-                        .width(Length::Fill)
-                        .center_x(),
+                    container(
+                        row![
+                            self.pedal_implementation_switch(),
+                            self.amp_implementation_switch()
+                        ]
+                        .spacing(self.s(10.0))
+                        .align_items(Alignment::Center)
+                    )
+                    .width(Length::Fill)
+                    .center_x(),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -1045,6 +1084,21 @@ impl GreyboundUi {
 
     pub fn amp_model_id(&self) -> &'static str {
         self.amp_implementation.model_id()
+    }
+
+    pub fn minotaur_device_config(&self) -> CoreDeviceConfig {
+        self.pedal_implementation.device_config()
+    }
+
+    fn pedal_implementation_switch(&self) -> Element<'_, Message> {
+        let label = format!("PEDAL {}", self.pedal_implementation.label());
+        button(text(label).size(self.font(13.0)).style(Color::WHITE))
+            .on_press(Message::TogglePedalImplementation)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: self.pedal_implementation == PedalImplementation::Experimental,
+            }))
+            .padding([self.s(8.0), self.s(16.0)])
+            .into()
     }
 
     fn amp_implementation_switch(&self) -> Element<'_, Message> {

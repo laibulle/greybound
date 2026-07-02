@@ -183,6 +183,15 @@ description: Decisions and open questions that should steer upcoming implementat
   stable. Parameterized experimental models remain recognized by chain and
   circuit descriptors, and focused tests prove both transparent behavior for the
   default alias and measurable divergence for the loaded-boundary hypothesis.
+- Minotaur pedal experiments now have a stable/experimental split. The
+  `minotaur-experimental` device id wraps the stable Minotaur topology,
+  exports component-boundary snapshots for input load, coupling, clean path,
+  drive gain, soft clip, summing, treble/presence, and output driver. Its first
+  deliberate divergence is a softer level-compensated clipping-cell
+  hypothesis: the analytic diode-pair knee is `0.36 V` instead of the stable
+  `0.42 V`, with `1.023x` internal output makeup. The lab A/B rig is
+  `rigs/grey-nox-minotaur-experimental.json5`, and the desktop top control bar
+  exposes a `PEDAL STABLE/EXPERIMENT` switch for live A/B.
 
 ## Open Questions
 

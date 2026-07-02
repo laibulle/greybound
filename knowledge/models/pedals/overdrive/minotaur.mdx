@@ -59,6 +59,71 @@ The current implementation is a scalar greybox approximation:
 
 This is not yet a component-exact op-amp/diode solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
 
+## Experimental Wrapper
+
+`minotaur-experimental` is available as a lab-only device id. It wraps the same
+stable `Minotaur` topology and controls, but it is allowed to run one focused
+cell hypothesis at a time while leaving `minotaur` untouched.
+
+The current hypothesis is a softer, level-compensated clipping cell: the
+analytic diode-pair knee is `0.36 V` instead of the stable model's `0.42 V`,
+then the experimental path applies `1.023x` internal output makeup. This is not
+a claim of component-exact Klon behavior; it is a controlled greybox experiment
+intended to test whether the drive path feels and measures better before deeper
+op-amp/diode modeling.
+
+The current experimental boundary snapshot records:
+
+- input load,
+- input coupling,
+- clean path,
+- drive gain,
+- soft clip,
+- summing node,
+- treble/presence,
+- output driver.
+
+These states use the shared `ComponentBoundaryState` vocabulary: voltage,
+source/load impedance, coupling type, headroom, nominal level, peak level, and
+latency. The values are model-level observations from the current Rust
+greybox, not measured proof of component-exact Klon hardware behavior.
+
+The maintained A/B rig is:
+
+- `rigs/grey-nox.json5`: stable Minotaur into stable Nox30.
+- `rigs/grey-nox-minotaur-experimental.json5`: same controls and topology, but
+  the Minotaur slot uses `device: "minotaur-experimental"`.
+
+The expected audio difference between those two rigs is now non-zero because
+the experimental clipping cell deliberately diverges. Any future Minotaur
+experiment should change one hypothesis at a time and add a focused lab render
+explaining what changed.
+
+The initial transparent-wrapper verification used release CLI renders:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-stable-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+target/release/greybound-cli --rig rigs/grey-nox-minotaur-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-experimental-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+Both renders produced peak `0.636794448` and RMS `0.075814350`; direct
+sample comparison reported `max_abs_diff=0.000000000000` and
+`rms_diff=0.000000000000`.
+
+The first divergent soft-clip hypothesis was checked with:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-stable-softclip-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+target/release/greybound-cli --rig rigs/grey-nox-minotaur-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-experimental-softclip-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+Stable render: peak `0.636794448`, RMS `0.075814350`.
+Experimental soft-clip-plus-makeup render: peak `0.636794448`, RMS
+`0.075699705`. Direct comparison reported `max_abs_diff=0.018015459180` and
+`rms_diff=0.001366575224`. This is a small but measurable change, now close
+enough in level for a more useful listening check. It is not a promotion
+candidate yet.
+
 ## 2026-06-11 Klon NAM Pedal-Only Iteration
 
 The current greybox Minotaur voicing was adjusted against the Klon gain-5 NAM render in
