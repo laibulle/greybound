@@ -83,6 +83,14 @@ struct Desktop {
     shutting_down: bool,
 }
 
+impl Desktop {
+    fn stop_audio(&mut self) {
+        if let Some(audio) = self.audio.take() {
+            audio.shutdown();
+        }
+    }
+}
+
 impl Application for Desktop {
     type Executor = iced::executor::Default;
     type Message = Message;
@@ -124,7 +132,7 @@ impl Application for Desktop {
     fn update(&mut self, message: Message) -> Command<Message> {
         if matches!(message, Message::ShutdownRequested) {
             self.shutting_down = true;
-            self.audio = None;
+            self.stop_audio();
             self._audio_lab_mcp = None;
             return iced::window::close();
         }
@@ -200,7 +208,7 @@ impl Application for Desktop {
         );
         self.ui.update(message);
         if restart_audio {
-            self.audio = None;
+            self.stop_audio();
             match LiveAudioEngine::start(&self.ui) {
                 Ok(engine) => {
                     self.ui.update(Message::AudioStatusChanged(engine.status()));
@@ -238,6 +246,13 @@ impl Application for Desktop {
             iced::time::every(Duration::from_millis(METER_REFRESH_MS)).map(Message::MeterProbeTick),
             tuner_subscription(self.ui.tuner.open),
         ])
+    }
+}
+
+impl Drop for Desktop {
+    fn drop(&mut self) {
+        self.stop_audio();
+        self._audio_lab_mcp = None;
     }
 }
 
@@ -425,6 +440,13 @@ impl LiveAudioEngine {
             self.period_size,
             self.amp_model
         )
+    }
+
+    fn shutdown(self) {
+        let _ = self._output_stream.pause();
+        let _ = self._input_stream.pause();
+        drop(self);
+        thread::sleep(Duration::from_millis(50));
     }
 }
 

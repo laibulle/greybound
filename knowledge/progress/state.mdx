@@ -92,6 +92,11 @@ description: Decisions and open questions that should steer upcoming implementat
   handling is disabled so `CloseRequested` can first set a shutdown state, drop
   the CPAL audio streams, drop the MCP sidecar, prevent meter ticks from
   restarting audio, and then call `iced::window::close()`.
+- Desktop audio restarts now stop the previous live engine explicitly before
+  starting the replacement. The shutdown path pauses the output stream first,
+  then the input stream, drops the runtime, and waits briefly so CoreAudio can
+  release old callbacks. This prevents amp implementation switches and audio
+  device changes from momentarily stacking two active processing graphs.
 - The desktop input VU meter now measures the post-`INPUT` gain signal entering
   the DSP chain, not the raw CoreAudio capture. Lowering the `INPUT` knob should
   lower both the actual chain drive and the displayed input level.
