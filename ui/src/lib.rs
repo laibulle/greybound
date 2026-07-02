@@ -3,7 +3,8 @@ pub mod components;
 use components::{KnobSkin, KnobSpec};
 use greybound::{
     device_circuit_descriptor, CircuitConfidence, CircuitDescriptor, CircuitDescriptorKind,
-    CircuitNodeDescriptor, CircuitNodeKind, DeviceConfig as CoreDeviceConfig,
+    CircuitNodeDescriptor, CircuitNodeKind, ComponentBoundary, DeviceConfig as CoreDeviceConfig,
+    NOX30_COMPONENT_BOUNDARIES,
 };
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
@@ -924,6 +925,7 @@ impl GreyboundUi {
                 .into(),
                 ViewMode::Amp => Canvas::new(AmpArt {
                     amp: self.amp.clone(),
+                    circuit_view: self.circuit_view,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -1684,7 +1686,7 @@ impl canvas::Program<Message> for BoardArt {
                     return (canvas::event::Status::Ignored, None);
                 };
 
-                if hit_test_board_circuit_toggle(unscale_size(bounds.size(), self.scale), position)
+                if hit_test_stage_circuit_toggle(unscale_size(bounds.size(), self.scale), position)
                 {
                     return (
                         canvas::event::Status::Captured,
@@ -1806,7 +1808,7 @@ impl canvas::Program<Message> for BoardArt {
             );
         }
 
-        draw_board_circuit_toggle(&mut frame, logical_size, self.circuit_view);
+        draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
 
         vec![frame.into_geometry()]
     }
@@ -1824,6 +1826,7 @@ impl canvas::Program<Message> for BoardArt {
 #[derive(Debug, Clone)]
 struct AmpArt {
     amp: DeviceState,
+    circuit_view: bool,
     scale: f32,
 }
 
@@ -1845,6 +1848,18 @@ impl canvas::Program<Message> for AmpArt {
                 else {
                     return (canvas::event::Status::Ignored, None);
                 };
+
+                if hit_test_stage_circuit_toggle(unscale_size(bounds.size(), self.scale), position)
+                {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::ToggleCircuitView),
+                    );
+                }
+
+                if self.circuit_view {
+                    return (canvas::event::Status::Ignored, None);
+                }
 
                 if let Some(control) =
                     hit_test_amp_knob(unscale_size(bounds.size(), self.scale), position)
@@ -1903,7 +1918,12 @@ impl canvas::Program<Message> for AmpArt {
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
         draw_stage_background(&mut frame, logical_size);
-        draw_amp_head(&mut frame, logical_size, &self.amp);
+        if self.circuit_view {
+            draw_amp_circuit(&mut frame, logical_size);
+        } else {
+            draw_amp_head(&mut frame, logical_size, &self.amp);
+        }
+        draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
         vec![frame.into_geometry()]
     }
 }
@@ -2025,12 +2045,12 @@ fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<us
     })
 }
 
-fn board_circuit_toggle_center(size: Size) -> Point {
-    Point::new(size.width * 0.5, 30.0)
+fn stage_circuit_toggle_center(size: Size) -> Point {
+    Point::new(size.width - 54.0, 32.0)
 }
 
-fn hit_test_board_circuit_toggle(size: Size, position: Point) -> bool {
-    let center = board_circuit_toggle_center(size);
+fn hit_test_stage_circuit_toggle(size: Size, position: Point) -> bool {
+    let center = stage_circuit_toggle_center(size);
     position.x >= center.x - 30.0
         && position.x <= center.x + 30.0
         && position.y >= center.y - 26.0
@@ -2274,8 +2294,8 @@ fn draw_cab_view_icon(frame: &mut Frame, center: Point, color: Color) {
     );
 }
 
-fn draw_board_circuit_toggle(frame: &mut Frame, size: Size, selected: bool) {
-    let center = board_circuit_toggle_center(size);
+fn draw_stage_circuit_toggle(frame: &mut Frame, size: Size, selected: bool) {
+    let center = stage_circuit_toggle_center(size);
     let ink = Color::from_rgba(0.09, 0.12, 0.24, if selected { 1.0 } else { 0.72 });
 
     draw_circuit_view_icon(frame, center, ink);
@@ -2914,6 +2934,211 @@ fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
         Point::new(origin.x + amp_w - 112.0, origin.y + amp_h - 52.0),
         32.0,
         Color::from_rgb(0.04, 0.025, 0.03),
+        Horizontal::Center,
+    );
+}
+
+fn draw_amp_circuit(frame: &mut Frame, size: Size) {
+    let panel_w = size.width.min(1120.0);
+    let panel_h = 500.0;
+    let origin = Point::new((size.width - panel_w) * 0.5, 62.0);
+
+    let shadow = rounded_rect(
+        Point::new(origin.x + 12.0, origin.y + 18.0),
+        Size::new(panel_w, panel_h),
+        22.0,
+    );
+    frame.fill(&shadow, Color::from_rgba(0.04, 0.04, 0.06, 0.28));
+
+    let board = rounded_rect(origin, Size::new(panel_w, panel_h), 22.0);
+    frame.fill(&board, Color::from_rgb(0.055, 0.070, 0.065));
+    frame.stroke(
+        &board,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.95, 0.80, 0.48, 0.46))
+            .with_width(2.0),
+    );
+    draw_circuit_backplate(frame, origin, Size::new(panel_w, panel_h));
+
+    draw_text(
+        frame,
+        "Nox30 circuit-informed amp",
+        Point::new(origin.x + 34.0, origin.y + 34.0),
+        22.0,
+        Color::from_rgb(0.90, 0.84, 0.68),
+        Horizontal::Left,
+    );
+    draw_text(
+        frame,
+        "input / preamp / top boost / phase inverter / EL84 power / transformer",
+        Point::new(origin.x + 34.0, origin.y + 62.0),
+        13.0,
+        Color::from_rgba(0.83, 0.78, 0.66, 0.78),
+        Horizontal::Left,
+    );
+    draw_circuit_kind_badge(
+        frame,
+        Point::new(origin.x + panel_w - 92.0, origin.y + 42.0),
+        CircuitDescriptorKind::CircuitInformed,
+    );
+
+    let graph_origin = Point::new(origin.x + 44.0, origin.y + 116.0);
+    let graph_size = Size::new(panel_w - 88.0, panel_h - 178.0);
+    let signal_ids = [
+        "input_volume",
+        "first_stage",
+        "cathode_follower",
+        "tone_stack",
+        "drive_stage",
+        "recovery_stage",
+        "phase_inverter",
+        "power_stage",
+        "output_transformer",
+    ];
+    let signal_points: Vec<Point> = signal_ids
+        .iter()
+        .enumerate()
+        .map(|(slot, _)| {
+            let x = if signal_ids.len() <= 1 {
+                0.5
+            } else {
+                slot as f32 / (signal_ids.len() - 1) as f32
+            };
+            Point::new(
+                graph_origin.x + graph_size.width * x,
+                graph_origin.y + graph_size.height * 0.50,
+            )
+        })
+        .collect();
+
+    for points in signal_points.windows(2) {
+        draw_amp_circuit_edge(frame, points[0], points[1]);
+    }
+
+    for (id, point) in signal_ids.iter().zip(signal_points.iter()) {
+        if let Some(boundary) = nox30_boundary(id) {
+            draw_amp_circuit_stage(frame, *point, boundary);
+        }
+    }
+
+    if let Some(cut_presence) = nox30_boundary("cut_presence") {
+        let point = Point::new(
+            (signal_points[6].x + signal_points[7].x) * 0.5,
+            graph_origin.y + graph_size.height * 0.22,
+        );
+        draw_amp_circuit_stage(frame, point, cut_presence);
+        draw_amp_circuit_edge(frame, signal_points[6], point);
+        draw_amp_circuit_edge(frame, point, signal_points[7]);
+    }
+
+    if let Some(supply) = nox30_boundary("supply_network") {
+        let point = Point::new(
+            graph_origin.x + graph_size.width * 0.58,
+            graph_origin.y + graph_size.height * 0.83,
+        );
+        draw_amp_circuit_stage(frame, point, supply);
+        for target in [1usize, 4, 7] {
+            draw_amp_supply_drop(frame, point, signal_points[target]);
+        }
+    }
+
+    draw_text(
+        frame,
+        "component boundaries, not a complete PCB or SPICE netlist",
+        Point::new(origin.x + panel_w * 0.5, origin.y + panel_h - 30.0),
+        13.0,
+        Color::from_rgba(0.84, 0.76, 0.58, 0.72),
+        Horizontal::Center,
+    );
+}
+
+fn nox30_boundary(id: &str) -> Option<&'static ComponentBoundary> {
+    NOX30_COMPONENT_BOUNDARIES
+        .iter()
+        .find(|boundary| boundary.id == id)
+}
+
+fn draw_amp_circuit_edge(frame: &mut Frame, from: Point, to: Point) {
+    frame.stroke(
+        &Path::line(from, to),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.86, 0.58, 0.25, 0.72))
+            .with_width(3.0),
+    );
+    frame.stroke(
+        &Path::line(from, to),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 0.86, 0.48, 0.18))
+            .with_width(1.0),
+    );
+}
+
+fn draw_amp_supply_drop(frame: &mut Frame, from: Point, to: Point) {
+    let path = Path::new(|p| {
+        p.move_to(from);
+        p.line_to(Point::new(to.x, from.y));
+        p.line_to(to);
+    });
+    frame.stroke(
+        &path,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.45, 0.78, 0.95, 0.34))
+            .with_width(1.8),
+    );
+}
+
+fn draw_amp_circuit_stage(frame: &mut Frame, center: Point, boundary: &ComponentBoundary) {
+    let (label, detail, width, color) = match boundary.id {
+        "input_volume" => (
+            "Input",
+            "volume / bright",
+            84.0,
+            Color::from_rgb(0.13, 0.22, 0.23),
+        ),
+        "first_stage" => ("V1", "ECC83 gain", 74.0, Color::from_rgb(0.30, 0.20, 0.13)),
+        "cathode_follower" => ("CF", "tone driver", 82.0, Color::from_rgb(0.25, 0.20, 0.13)),
+        "tone_stack" => ("Tone", "top boost", 86.0, Color::from_rgb(0.18, 0.24, 0.19)),
+        "drive_stage" => ("Drive", "ECC83", 76.0, Color::from_rgb(0.30, 0.20, 0.13)),
+        "recovery_stage" => ("Recover", "ECC83", 88.0, Color::from_rgb(0.30, 0.20, 0.13)),
+        "phase_inverter" => ("PI", "long-tail", 74.0, Color::from_rgb(0.20, 0.22, 0.18)),
+        "cut_presence" => ("Cut", "presence", 72.0, Color::from_rgb(0.18, 0.24, 0.19)),
+        "power_stage" => ("EL84", "push-pull", 82.0, Color::from_rgb(0.34, 0.18, 0.12)),
+        "supply_network" => ("B+", "sag rail", 78.0, Color::from_rgb(0.13, 0.22, 0.28)),
+        "output_transformer" => ("OT", "flux", 66.0, Color::from_rgb(0.13, 0.22, 0.28)),
+        _ => (
+            boundary.id,
+            boundary.role,
+            86.0,
+            Color::from_rgb(0.16, 0.23, 0.18),
+        ),
+    };
+    let height = 50.0;
+    let body = rounded_rect(
+        Point::new(center.x - width * 0.5, center.y - height * 0.5),
+        Size::new(width, height),
+        9.0,
+    );
+    frame.fill(&body, color);
+    frame.stroke(
+        &body,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.96, 0.78, 0.44, 0.52))
+            .with_width(1.6),
+    );
+    draw_text(
+        frame,
+        label,
+        Point::new(center.x, center.y - 7.0),
+        13.0,
+        Color::from_rgb(0.96, 0.92, 0.78),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        detail,
+        Point::new(center.x, center.y + 11.0),
+        9.0,
+        Color::from_rgba(0.86, 0.82, 0.70, 0.72),
         Horizontal::Center,
     );
 }
