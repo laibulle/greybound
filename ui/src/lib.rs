@@ -687,7 +687,6 @@ impl GreyboundUi {
             }
             Message::ToggleCircuitView => {
                 self.circuit_view = !self.circuit_view;
-                self.view_mode = ViewMode::Pedals;
             }
             Message::ToggleTuner => {
                 self.tuner.open = !self.tuner.open;
