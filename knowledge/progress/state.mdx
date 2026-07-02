@@ -128,20 +128,18 @@ description: Decisions and open questions that should steer upcoming implementat
   renders Minotaur and Springfield directly from the runtime circuit
   descriptors: stage nodes, routed edges, control badges, confidence hints, and
   a greybox/IR-hybrid badge.
-- Circuit view node placement now uses a Sugiyama-style hierarchical graph
-  layout instead of descriptor-authored coordinates. Nodes are assigned to
-  layers by longest path, ordered with barycentric sweeps to reduce crossings,
-  and oriented top-to-bottom inside tall pedal surfaces so dense signal graphs
-  do not collapse horizontally.
-- The circuit layout's coordinate assignment preserves descriptor-authored
-  cross-axis lanes for single-node layers and spreads multi-node branch layers
-  with a minimum gap. Edges now route from component borders instead of node
-  centers, and control bindings render as compact in-node badges to reduce
-  visual collisions.
 - For pedal-shaped tall circuit views, the renderer now first tries a
   two-terminal series-parallel graph layout before falling back to the generic
   Sugiyama-style layout. This better matches Greybound pedal descriptors with a
   signal spine, explicit split branches, a merge point, and an output path.
+  Branch subpaths are distributed horizontally when they contain multiple
+  components, so sequences such as `Drive -> Clip -> Smooth` or
+  `Dwell -> Tank IR -> Splash -> Recover` use the available pedal width instead
+  of collapsing into a vertical column. Generic fallback layers use even
+  spacing rather than descriptor-authored reference coordinates.
+- The circuit-view toggle icon now lives on the pedalboard canvas instead of
+  the top navigation. It is a local pedalboard display mode, while the top
+  navigation remains limited to first-class views: pedals, amp, and cab.
 
 ## Open Questions
 

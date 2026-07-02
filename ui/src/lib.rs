@@ -860,7 +860,6 @@ impl GreyboundUi {
                 self.view_button(ViewMode::Pedals),
                 self.view_button(ViewMode::Amp),
                 self.view_button(ViewMode::Cab),
-                self.circuit_view_button(),
             ]
             .spacing(self.s(10.0))
             .align_items(Alignment::Center),
@@ -1004,21 +1003,6 @@ impl GreyboundUi {
             .height(Length::Fixed(self.s(48.0))),
         )
         .on_press(Message::SelectView(view_mode))
-        .style(iced::theme::Button::custom(TopIconButton))
-        .padding(0)
-        .into()
-    }
-
-    fn circuit_view_button(&self) -> Element<'_, Message> {
-        button(
-            Canvas::new(CircuitIconArt {
-                selected: self.view_mode == ViewMode::Pedals && self.circuit_view,
-                scale: self.scale,
-            })
-            .width(Length::Fixed(self.s(54.0)))
-            .height(Length::Fixed(self.s(48.0))),
-        )
-        .on_press(Message::ToggleCircuitView)
         .style(iced::theme::Button::custom(TopIconButton))
         .padding(0)
         .into()
@@ -1700,6 +1684,14 @@ impl canvas::Program<Message> for BoardArt {
                     return (canvas::event::Status::Ignored, None);
                 };
 
+                if hit_test_board_circuit_toggle(unscale_size(bounds.size(), self.scale), position)
+                {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::ToggleCircuitView),
+                    );
+                }
+
                 if !self.circuit_view {
                     if let Some((index, control)) = hit_test_pedal_knob(
                         &self.devices,
@@ -1813,6 +1805,8 @@ impl canvas::Program<Message> for BoardArt {
                 self.circuit_view,
             );
         }
+
+        draw_board_circuit_toggle(&mut frame, logical_size, self.circuit_view);
 
         vec![frame.into_geometry()]
     }
@@ -2029,6 +2023,18 @@ fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<us
             && position.y >= y
             && position.y <= y + layout.pedal_h
     })
+}
+
+fn board_circuit_toggle_center(size: Size) -> Point {
+    Point::new(size.width * 0.5, 30.0)
+}
+
+fn hit_test_board_circuit_toggle(size: Size, position: Point) -> bool {
+    let center = board_circuit_toggle_center(size);
+    position.x >= center.x - 30.0
+        && position.x <= center.x + 30.0
+        && position.y >= center.y - 26.0
+        && position.y <= center.y + 32.0
 }
 
 fn unscale_point(point: Point, scale: f32) -> Point {
@@ -2268,39 +2274,17 @@ fn draw_cab_view_icon(frame: &mut Frame, center: Point, color: Color) {
     );
 }
 
-#[derive(Debug, Clone)]
-struct CircuitIconArt {
-    selected: bool,
-    scale: f32,
-}
+fn draw_board_circuit_toggle(frame: &mut Frame, size: Size, selected: bool) {
+    let center = board_circuit_toggle_center(size);
+    let ink = Color::from_rgba(0.09, 0.12, 0.24, if selected { 1.0 } else { 0.72 });
 
-impl canvas::Program<Message> for CircuitIconArt {
-    type State = ();
+    draw_circuit_view_icon(frame, center, ink);
 
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &iced::Renderer,
-        _theme: &iced::Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
-        frame.scale(self.scale);
-        let logical_size = unscale_size(bounds.size(), self.scale);
-        let center = Point::new(logical_size.width * 0.5, 20.0);
-        let ink = Color::from_rgba(0.09, 0.12, 0.24, if self.selected { 1.0 } else { 0.84 });
-
-        draw_circuit_view_icon(&mut frame, center, ink);
-
-        if self.selected {
-            frame.fill(
-                &Path::circle(Point::new(logical_size.width * 0.5, 42.0), 2.8),
-                ink,
-            );
-        }
-
-        vec![frame.into_geometry()]
+    if selected {
+        frame.fill(
+            &Path::circle(Point::new(center.x, center.y + 31.0), 2.8),
+            ink,
+        );
     }
 }
 
