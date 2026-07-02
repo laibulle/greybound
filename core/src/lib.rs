@@ -9,7 +9,7 @@ pub mod rig;
 
 pub use amp::{
     configure_nox30_first_stage_graybox, configure_nox30_first_stage_neural, AmpControls,
-    ComponentBoundary, ComponentBoundaryState, ComponentCoupling, NeuralCellMode,
+    ComponentBoundary, ComponentBoundaryState, ComponentCoupling, ComponentSignal, NeuralCellMode,
     Nox30OperatingPoint, NOX30_COMPONENT_BOUNDARIES,
 };
 pub use chain::{

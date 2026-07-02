@@ -99,6 +99,36 @@ pub struct ComponentBoundaryState {
     pub latency_samples: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ComponentSignal {
+    pub voltage_v: f32,
+    pub source_impedance_ohms: f32,
+    pub load_impedance_ohms: f32,
+    pub coupling: ComponentCoupling,
+    pub dc_offset_v: f32,
+    pub headroom_v: f32,
+}
+
+impl ComponentSignal {
+    pub fn new(
+        voltage_v: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+        coupling: ComponentCoupling,
+        dc_offset_v: f32,
+        headroom_v: f32,
+    ) -> Self {
+        Self {
+            voltage_v,
+            source_impedance_ohms: source_impedance_ohms.max(0.0),
+            load_impedance_ohms: load_impedance_ohms.max(0.0),
+            coupling,
+            dc_offset_v,
+            headroom_v: headroom_v.max(0.0),
+        }
+    }
+}
+
 pub const NOX30_COMPONENT_BOUNDARIES: &[ComponentBoundary] = &[
     ComponentBoundary {
         id: "input_volume",

@@ -165,6 +165,12 @@ description: Decisions and open questions that should steer upcoming implementat
   but it owns an `ExperimentalBoundaryRunner` that observes the latest
   component boundary-state snapshot. Stable and experimental paths remain
   bit-equivalent, including the Nox30 FX-loop split path.
+- The first transparent experimental component-boundary path is implemented:
+  `Nox30Experimental` now sends the cathode-follower output to the Top Boost
+  tone stack through a typed `ComponentSignal` carrying voltage, source/load
+  impedance, coupling, DC offset, and headroom. `TopBoostToneStack` can now be
+  called with explicit source/load impedance while its default `process`
+  preserves the historical `820 ohm -> 220 kOhm` assumptions.
 
 ## Open Questions
 

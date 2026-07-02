@@ -9,9 +9,14 @@ pub(super) struct TopBoostToneStack {
     inverse_matrix: [[f32; TONE_STACK_NODES]; TONE_STACK_NODES],
     bass: f32,
     treble: f32,
+    source_impedance_ohms: f32,
+    load_impedance_ohms: f32,
 }
 
 impl TopBoostToneStack {
+    const DEFAULT_SOURCE_IMPEDANCE_OHMS: f32 = 820.0;
+    const DEFAULT_LOAD_IMPEDANCE_OHMS: f32 = 220_000.0;
+
     pub(super) fn new(sample_rate: f32) -> Self {
         Self::new_with_caps(sample_rate, 150e-12, 22e-9, 22e-9)
     }
@@ -29,11 +34,31 @@ impl TopBoostToneStack {
             inverse_matrix: [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES],
             bass: f32::NAN,
             treble: f32::NAN,
+            source_impedance_ohms: f32::NAN,
+            load_impedance_ohms: f32::NAN,
         }
     }
 
     #[inline]
     pub(super) fn process(&mut self, input: f32, bass: f32, treble: f32) -> f32 {
+        self.process_with_boundary(
+            input,
+            bass,
+            treble,
+            Self::DEFAULT_SOURCE_IMPEDANCE_OHMS,
+            Self::DEFAULT_LOAD_IMPEDANCE_OHMS,
+        )
+    }
+
+    #[inline]
+    pub(super) fn process_with_boundary(
+        &mut self,
+        input: f32,
+        bass: f32,
+        treble: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+    ) -> f32 {
         const SOURCE: usize = 0;
         const TREBLE_TOP: usize = 1;
         const TREBLE_BOTTOM: usize = 2;
@@ -41,12 +66,18 @@ impl TopBoostToneStack {
         const BASS_WIPER: usize = 4;
         const OUTPUT: usize = 6;
 
-        if bass != self.bass || treble != self.treble {
-            self.update_matrix(bass, treble);
+        let source_impedance_ohms = source_impedance_ohms.max(1.0);
+        let load_impedance_ohms = load_impedance_ohms.max(1.0);
+        if bass != self.bass
+            || treble != self.treble
+            || source_impedance_ohms != self.source_impedance_ohms
+            || load_impedance_ohms != self.load_impedance_ohms
+        {
+            self.update_matrix(bass, treble, source_impedance_ohms, load_impedance_ohms);
         }
         let mut rhs = [0.0; TONE_STACK_NODES];
 
-        stamp_source_rhs(&mut rhs, SOURCE, 820.0, input);
+        stamp_source_rhs(&mut rhs, SOURCE, source_impedance_ohms, input);
         self.treble_capacitor
             .stamp_rhs(&mut rhs, SOURCE, TREBLE_TOP);
         self.bass_coupling_capacitor
@@ -64,7 +95,13 @@ impl TopBoostToneStack {
         voltages[OUTPUT]
     }
 
-    fn update_matrix(&mut self, bass: f32, treble: f32) {
+    fn update_matrix(
+        &mut self,
+        bass: f32,
+        treble: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+    ) {
         const SOURCE: usize = 0;
         const TREBLE_TOP: usize = 1;
         const TREBLE_BOTTOM: usize = 2;
@@ -75,8 +112,8 @@ impl TopBoostToneStack {
         const POT_OHMS: f32 = 1_000_000.0;
 
         let mut matrix = [[0.0; TONE_STACK_NODES]; TONE_STACK_NODES];
-        stamp_resistor_to_ground(&mut matrix, SOURCE, 820.0);
-        stamp_resistor_to_ground(&mut matrix, OUTPUT, 220_000.0);
+        stamp_resistor_to_ground(&mut matrix, SOURCE, source_impedance_ohms);
+        stamp_resistor_to_ground(&mut matrix, OUTPUT, load_impedance_ohms);
 
         let treble_position = 1.0 - audio_taper(treble);
         stamp_resistor(
@@ -118,6 +155,8 @@ impl TopBoostToneStack {
         self.inverse_matrix = invert_tone_stack(matrix);
         self.bass = bass;
         self.treble = treble;
+        self.source_impedance_ohms = source_impedance_ohms;
+        self.load_impedance_ohms = load_impedance_ohms;
     }
 }
 

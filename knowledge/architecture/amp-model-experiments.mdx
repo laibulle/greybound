@@ -46,6 +46,10 @@ processing to the stable Nox30 stages through an experimental boundary runner.
 It is intentionally bit-equivalent to `nox30` until a focused component
 experiment diverges it. The runner records the latest component boundary states
 so future replacements have an explicit state path before they alter sound.
+The first transparent boundary path is the cathode-follower to Top Boost tone
+stack connection: experimental preamp processing now wraps the follower output
+in a `ComponentSignal` carrying voltage, source impedance, load impedance,
+coupling, DC offset, and headroom before calling the tone stack.
 
 Offline A/B uses:
 
@@ -163,7 +167,8 @@ state.
 4. **Experimental boundary runner**
    Introduce an experimental runner that processes explicit component boundary
    states in the documented order. Initially it wraps the existing stages and
-   observes their boundary states, preserving bit-equivalence.
+   observes their boundary states, preserving bit-equivalence. The first
+   implemented boundary runner path is follower -> tone stack.
 
 5. **Selective replacement**
    Replace one component at a time with a more physical cell, starting with the

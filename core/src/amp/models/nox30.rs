@@ -1,6 +1,9 @@
 use super::AmpModel;
 use crate::amp::components::{TopBoostToneStack, WdfHighpass};
-use crate::amp::{AmpControls, ComponentBoundaryState, NeuralCellMode, Nox30OperatingPoint};
+use crate::amp::{
+    AmpControls, ComponentBoundaryState, ComponentCoupling, ComponentSignal, NeuralCellMode,
+    Nox30OperatingPoint,
+};
 use crate::circuit::passive::{
     BrightVolumeInputParams, BrightVolumeInputStage, CutPresenceParams, CutPresenceStage,
 };
@@ -104,6 +107,7 @@ pub(in crate::amp) struct Nox30Experimental {
 
 struct ExperimentalBoundaryRunner {
     last_boundaries: [ComponentBoundaryState; 11],
+    tone_stack_input: ComponentSignal,
 }
 
 impl Nox30 {
@@ -332,7 +336,71 @@ impl Nox30Experimental {
         input: f32,
         controls: AmpControls,
     ) -> Nox30PreampOutput {
-        self.stable.process_preamp(input, controls)
+        let rails = self.stable.supply.operating_point();
+        let preamp_voltage = rails.preamp_voltage / 280.0;
+        let phase_inverter_voltage = rails.phase_inverter_voltage / 300.0;
+        let volume_output = self.stable.input_volume.process(input, controls.volume);
+        self.stable.input_volume_output_v = volume_output;
+
+        let analytic_first_stage = self.stable.first_stage.process(volume_output);
+        let mut first_stage = analytic_first_stage;
+        if let Some(neural) = &mut self.stable.first_stage_neural {
+            let neural_output = neural.cell.process_sample(volume_output);
+            self.stable.first_stage_shadow_output_v = Some(neural_output);
+            self.stable.first_stage_shadow_error_v = Some(neural_output - analytic_first_stage);
+            if neural.mode == NeuralCellMode::Replace {
+                first_stage = neural_output;
+            }
+        } else {
+            self.stable.first_stage_shadow_output_v = None;
+            self.stable.first_stage_shadow_error_v = None;
+        }
+        self.stable.first_stage_output_v = first_stage;
+        let first_stage_current = self.stable.first_stage.operating_point().plate_current;
+
+        let follower_drive = self.stable.follower.process(first_stage * preamp_voltage);
+        self.stable.follower_output_v = follower_drive;
+        let follower_current = self.stable.follower.operating_point().plate_current;
+        let tone_stack_output = self.runner.process_tone_stack_boundary(
+            &mut self.stable.tone_stack,
+            follower_drive,
+            controls.bass,
+            controls.treble,
+            rails.preamp_voltage,
+        );
+        self.stable.tone_stack_output_v = tone_stack_output;
+        let toned = tone_stack_output;
+        let nox30_drive = controls.drive.clamp(0.0, 1.0);
+        let (driven_tone, drive_current, recovery_current) = if nox30_drive > 0.0 {
+            let hot_stage = self
+                .stable
+                .drive_stage
+                .process(toned * (0.35 + nox30_drive * 1.85));
+            let drive_current = self.stable.drive_stage.operating_point().plate_current;
+            let recovered = self
+                .stable
+                .recovery_stage
+                .process(hot_stage * (0.45 + nox30_drive * 1.35));
+            let recovery_current = self.stable.recovery_stage.operating_point().plate_current;
+            (
+                toned * (1.0 - nox30_drive * 0.45) + recovered * nox30_drive * 1.15,
+                drive_current,
+                recovery_current,
+            )
+        } else {
+            (toned, 0.0, 0.0)
+        };
+
+        let send_voltage = driven_tone * 5.0 * preamp_voltage * phase_inverter_voltage;
+        self.stable.preamp_send_v = send_voltage;
+
+        Nox30PreampOutput {
+            send_voltage,
+            first_stage_current,
+            follower_current,
+            drive_current,
+            recovery_current,
+        }
     }
 
     #[inline]
@@ -367,7 +435,41 @@ impl ExperimentalBoundaryRunner {
     fn from_operating_point(operating_point: Nox30OperatingPoint) -> Self {
         Self {
             last_boundaries: operating_point.boundary_states(),
+            tone_stack_input: ComponentSignal::new(
+                0.0,
+                820.0,
+                220_000.0,
+                ComponentCoupling::Buffered,
+                0.0,
+                operating_point.preamp_voltage,
+            ),
         }
+    }
+
+    #[inline]
+    fn process_tone_stack_boundary(
+        &mut self,
+        tone_stack: &mut TopBoostToneStack,
+        follower_voltage_v: f32,
+        bass: f32,
+        treble: f32,
+        preamp_headroom_v: f32,
+    ) -> f32 {
+        self.tone_stack_input = ComponentSignal::new(
+            follower_voltage_v,
+            820.0,
+            220_000.0,
+            ComponentCoupling::Buffered,
+            0.0,
+            preamp_headroom_v,
+        );
+        tone_stack.process_with_boundary(
+            self.tone_stack_input.voltage_v,
+            bass,
+            treble,
+            self.tone_stack_input.source_impedance_ohms,
+            self.tone_stack_input.load_impedance_ohms,
+        )
     }
 
     fn observe(&mut self, operating_point: Nox30OperatingPoint) {
