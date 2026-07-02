@@ -435,12 +435,28 @@ mod tests {
     }
 
     fn tone_stack_rms(frequency: f32, bass: f32, treble: f32) -> f32 {
+        tone_stack_rms_with_boundary(frequency, bass, treble, 820.0, 220_000.0)
+    }
+
+    fn tone_stack_rms_with_boundary(
+        frequency: f32,
+        bass: f32,
+        treble: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+    ) -> f32 {
         let sample_rate = 96_000.0;
         let mut stack = TopBoostToneStack::new(sample_rate);
         let mut sum = 0.0;
         for sample_idx in 0..19_200 {
             let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / sample_rate).sin();
-            let output = stack.process(input, bass, treble);
+            let output = stack.process_with_boundary(
+                input,
+                bass,
+                treble,
+                source_impedance_ohms,
+                load_impedance_ohms,
+            );
             if sample_idx >= 9_600 {
                 sum += output * output;
             }
@@ -1083,6 +1099,23 @@ mod tests {
         assert!(
             (bass_effect_with_low_treble - bass_effect_with_high_treble).abs() > 0.1,
             "bass effects: low treble={bass_effect_with_low_treble}, high treble={bass_effect_with_high_treble}"
+        );
+    }
+
+    #[test]
+    fn tone_stack_boundary_impedance_changes_response() {
+        let normal = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 220_000.0);
+        let loaded_source =
+            tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 50_000.0, 220_000.0);
+        let heavy_load = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 47_000.0);
+
+        assert!(
+            (normal - loaded_source).abs() > normal * 0.05,
+            "normal={normal}, loaded_source={loaded_source}"
+        );
+        assert!(
+            (normal - heavy_load).abs() > normal * 0.05,
+            "normal={normal}, heavy_load={heavy_load}"
         );
     }
 
