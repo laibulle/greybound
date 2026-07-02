@@ -8,7 +8,7 @@ use greybound::{
 };
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text};
-use iced::widget::{button, column, container, pick_list, row, text};
+use iced::widget::{button, column, container, pick_list, row, text, Space};
 use iced::{mouse, Alignment, Background, Color, Element, Length, Point, Rectangle, Size, Vector};
 use std::rc::Rc;
 
@@ -319,9 +319,6 @@ pub enum Message {
     SelectDevice(usize),
     SelectView(ViewMode),
     ToggleCircuitView,
-    TogglePedalImplementation,
-    ToggleReverbImplementation,
-    ToggleAmpImplementation,
     ToggleTuner,
     CloseTuner,
     ToggleTunerLive,
@@ -416,72 +413,6 @@ pub enum ViewMode {
     Pedals,
     Amp,
     Cab,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AmpImplementation {
-    Stable,
-    Experimental,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PedalImplementation {
-    Stable,
-    Experimental,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReverbImplementation {
-    Stable,
-    Experimental,
-}
-
-impl PedalImplementation {
-    pub fn device_config(self) -> CoreDeviceConfig {
-        match self {
-            Self::Stable => CoreDeviceConfig::Minotaur,
-            Self::Experimental => CoreDeviceConfig::MinotaurExperimental,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::Stable => "STABLE",
-            Self::Experimental => "EXPERIMENT",
-        }
-    }
-}
-
-impl ReverbImplementation {
-    pub fn device_config(self) -> CoreDeviceConfig {
-        match self {
-            Self::Stable => CoreDeviceConfig::Springfield,
-            Self::Experimental => CoreDeviceConfig::SpringfieldExperimental,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::Stable => "STABLE",
-            Self::Experimental => "EXPERIMENT",
-        }
-    }
-}
-
-impl AmpImplementation {
-    pub fn model_id(self) -> &'static str {
-        match self {
-            Self::Stable => "nox30",
-            Self::Experimental => "nox30-experimental",
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::Stable => "STABLE",
-            Self::Experimental => "EXPERIMENT",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -609,9 +540,6 @@ pub struct GreyboundUi {
     pub selected_index: usize,
     pub view_mode: ViewMode,
     pub circuit_view: bool,
-    pub pedal_implementation: PedalImplementation,
-    pub reverb_implementation: ReverbImplementation,
-    pub amp_implementation: AmpImplementation,
     pub scale: f32,
 }
 
@@ -740,9 +668,6 @@ impl Default for GreyboundUi {
             selected_index: 0,
             view_mode: ViewMode::Pedals,
             circuit_view: false,
-            pedal_implementation: PedalImplementation::Experimental,
-            reverb_implementation: ReverbImplementation::Experimental,
-            amp_implementation: AmpImplementation::Experimental,
             scale: 1.0,
         }
     }
@@ -762,27 +687,6 @@ impl GreyboundUi {
             }
             Message::ToggleCircuitView => {
                 self.circuit_view = !self.circuit_view;
-            }
-            Message::TogglePedalImplementation => {
-                self.pedal_implementation = match self.pedal_implementation {
-                    PedalImplementation::Stable => PedalImplementation::Experimental,
-                    PedalImplementation::Experimental => PedalImplementation::Stable,
-                };
-                self.audio_settings.status = "Restarting audio engine".to_string();
-            }
-            Message::ToggleReverbImplementation => {
-                self.reverb_implementation = match self.reverb_implementation {
-                    ReverbImplementation::Stable => ReverbImplementation::Experimental,
-                    ReverbImplementation::Experimental => ReverbImplementation::Stable,
-                };
-                self.audio_settings.status = "Restarting audio engine".to_string();
-            }
-            Message::ToggleAmpImplementation => {
-                self.amp_implementation = match self.amp_implementation {
-                    AmpImplementation::Stable => AmpImplementation::Experimental,
-                    AmpImplementation::Experimental => AmpImplementation::Stable,
-                };
-                self.audio_settings.status = "Restarting audio engine".to_string();
             }
             Message::ToggleTuner => {
                 self.tuner.open = !self.tuner.open;
@@ -980,17 +884,7 @@ impl GreyboundUi {
                         self.cab.master,
                         percent_readout(self.cab.master)
                     ),
-                    container(
-                        row![
-                            self.pedal_implementation_switch(),
-                            self.reverb_implementation_switch(),
-                            self.amp_implementation_switch()
-                        ]
-                        .spacing(self.s(10.0))
-                        .align_items(Alignment::Center)
-                    )
-                    .width(Length::Fill)
-                    .center_x(),
+                    Space::with_width(Length::Fill),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -1116,48 +1010,15 @@ impl GreyboundUi {
     }
 
     pub fn amp_model_id(&self) -> &'static str {
-        self.amp_implementation.model_id()
+        "nox30"
     }
 
     pub fn minotaur_device_config(&self) -> CoreDeviceConfig {
-        self.pedal_implementation.device_config()
+        CoreDeviceConfig::Minotaur
     }
 
     pub fn springfield_device_config(&self) -> CoreDeviceConfig {
-        self.reverb_implementation.device_config()
-    }
-
-    fn pedal_implementation_switch(&self) -> Element<'_, Message> {
-        let label = format!("PEDAL {}", self.pedal_implementation.label());
-        button(text(label).size(self.font(13.0)).style(Color::WHITE))
-            .on_press(Message::TogglePedalImplementation)
-            .style(iced::theme::Button::custom(FooterButton {
-                selected: self.pedal_implementation == PedalImplementation::Experimental,
-            }))
-            .padding([self.s(8.0), self.s(16.0)])
-            .into()
-    }
-
-    fn reverb_implementation_switch(&self) -> Element<'_, Message> {
-        let label = format!("REVERB {}", self.reverb_implementation.label());
-        button(text(label).size(self.font(13.0)).style(Color::WHITE))
-            .on_press(Message::ToggleReverbImplementation)
-            .style(iced::theme::Button::custom(FooterButton {
-                selected: self.reverb_implementation == ReverbImplementation::Experimental,
-            }))
-            .padding([self.s(8.0), self.s(16.0)])
-            .into()
-    }
-
-    fn amp_implementation_switch(&self) -> Element<'_, Message> {
-        let label = format!("AMP {}", self.amp_implementation.label());
-        button(text(label).size(self.font(13.0)).style(Color::WHITE))
-            .on_press(Message::ToggleAmpImplementation)
-            .style(iced::theme::Button::custom(FooterButton {
-                selected: self.amp_implementation == AmpImplementation::Experimental,
-            }))
-            .padding([self.s(8.0), self.s(16.0)])
-            .into()
+        CoreDeviceConfig::Springfield
     }
 
     fn audio_settings_panel(&self) -> Element<'_, Message> {

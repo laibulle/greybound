@@ -100,22 +100,22 @@ pub(in crate::amp) struct Nox30PreampOutput {
     recovery_current: f32,
 }
 
-pub(in crate::amp) struct Nox30Experimental {
-    stable: Nox30,
-    runner: ExperimentalBoundaryRunner,
-    params: Nox30ExperimentalParams,
+pub(in crate::amp) struct Nox30Current {
+    stages: Nox30,
+    runner: BoundaryRunner,
+    params: Nox30BoundaryParams,
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Nox30ExperimentalParams {
+struct Nox30BoundaryParams {
     tone_source_impedance_ohms: f32,
     tone_load_impedance_ohms: f32,
 }
 
-struct ExperimentalBoundaryRunner {
+struct BoundaryRunner {
     last_boundaries: [ComponentBoundaryState; 11],
     tone_stack_input: ComponentSignal,
-    params: Nox30ExperimentalParams,
+    params: Nox30BoundaryParams,
 }
 
 impl Nox30 {
@@ -323,21 +323,20 @@ impl AmpModel for Nox30 {
     }
 }
 
-impl Nox30Experimental {
+impl Nox30Current {
     pub(super) fn new_with_model(sample_rate: f32, model: &str) -> Self {
-        let params = Nox30ExperimentalParams::from_model(model);
-        let stable = Nox30::new(sample_rate);
-        let runner =
-            ExperimentalBoundaryRunner::from_operating_point(stable.operating_point(), params);
+        let params = Nox30BoundaryParams::from_model(model);
+        let stages = Nox30::new(sample_rate);
+        let runner = BoundaryRunner::from_operating_point(stages.operating_point(), params);
         Self {
-            stable,
+            stages,
             runner,
             params,
         }
     }
 
     pub(super) fn operating_point(&self) -> Nox30OperatingPoint {
-        self.stable.operating_point()
+        self.stages.operating_point()
     }
 
     pub(super) fn boundary_states(&self) -> [ComponentBoundaryState; 11] {
@@ -350,52 +349,52 @@ impl Nox30Experimental {
         input: f32,
         controls: AmpControls,
     ) -> Nox30PreampOutput {
-        let rails = self.stable.supply.operating_point();
+        let rails = self.stages.supply.operating_point();
         let preamp_voltage = rails.preamp_voltage / 280.0;
         let phase_inverter_voltage = rails.phase_inverter_voltage / 300.0;
-        let volume_output = self.stable.input_volume.process(input, controls.volume);
-        self.stable.input_volume_output_v = volume_output;
+        let volume_output = self.stages.input_volume.process(input, controls.volume);
+        self.stages.input_volume_output_v = volume_output;
 
-        let analytic_first_stage = self.stable.first_stage.process(volume_output);
+        let analytic_first_stage = self.stages.first_stage.process(volume_output);
         let mut first_stage = analytic_first_stage;
-        if let Some(neural) = &mut self.stable.first_stage_neural {
+        if let Some(neural) = &mut self.stages.first_stage_neural {
             let neural_output = neural.cell.process_sample(volume_output);
-            self.stable.first_stage_shadow_output_v = Some(neural_output);
-            self.stable.first_stage_shadow_error_v = Some(neural_output - analytic_first_stage);
+            self.stages.first_stage_shadow_output_v = Some(neural_output);
+            self.stages.first_stage_shadow_error_v = Some(neural_output - analytic_first_stage);
             if neural.mode == NeuralCellMode::Replace {
                 first_stage = neural_output;
             }
         } else {
-            self.stable.first_stage_shadow_output_v = None;
-            self.stable.first_stage_shadow_error_v = None;
+            self.stages.first_stage_shadow_output_v = None;
+            self.stages.first_stage_shadow_error_v = None;
         }
-        self.stable.first_stage_output_v = first_stage;
-        let first_stage_current = self.stable.first_stage.operating_point().plate_current;
+        self.stages.first_stage_output_v = first_stage;
+        let first_stage_current = self.stages.first_stage.operating_point().plate_current;
 
-        let follower_drive = self.stable.follower.process(first_stage * preamp_voltage);
-        self.stable.follower_output_v = follower_drive;
-        let follower_current = self.stable.follower.operating_point().plate_current;
+        let follower_drive = self.stages.follower.process(first_stage * preamp_voltage);
+        self.stages.follower_output_v = follower_drive;
+        let follower_current = self.stages.follower.operating_point().plate_current;
         let tone_stack_output = self.runner.process_tone_stack_boundary(
-            &mut self.stable.tone_stack,
+            &mut self.stages.tone_stack,
             follower_drive,
             controls.bass,
             controls.treble,
             rails.preamp_voltage,
         );
-        self.stable.tone_stack_output_v = tone_stack_output;
+        self.stages.tone_stack_output_v = tone_stack_output;
         let toned = tone_stack_output;
         let nox30_drive = controls.drive.clamp(0.0, 1.0);
         let (driven_tone, drive_current, recovery_current) = if nox30_drive > 0.0 {
             let hot_stage = self
-                .stable
+                .stages
                 .drive_stage
                 .process(toned * (0.35 + nox30_drive * 1.85));
-            let drive_current = self.stable.drive_stage.operating_point().plate_current;
+            let drive_current = self.stages.drive_stage.operating_point().plate_current;
             let recovered = self
-                .stable
+                .stages
                 .recovery_stage
                 .process(hot_stage * (0.45 + nox30_drive * 1.35));
-            let recovery_current = self.stable.recovery_stage.operating_point().plate_current;
+            let recovery_current = self.stages.recovery_stage.operating_point().plate_current;
             (
                 toned * (1.0 - nox30_drive * 0.45) + recovered * nox30_drive * 1.15,
                 drive_current,
@@ -406,7 +405,7 @@ impl Nox30Experimental {
         };
 
         let send_voltage = driven_tone * 5.0 * preamp_voltage * phase_inverter_voltage;
-        self.stable.preamp_send_v = send_voltage;
+        self.stages.preamp_send_v = send_voltage;
 
         Nox30PreampOutput {
             send_voltage,
@@ -425,16 +424,16 @@ impl Nox30Experimental {
         controls: AmpControls,
     ) -> f32 {
         let output = self
-            .stable
+            .stages
             .process_power_amp(return_voltage, preamp, controls);
-        self.runner.observe(self.stable.operating_point());
+        self.runner.observe(self.stages.operating_point());
         output
     }
 }
 
-impl AmpModel for Nox30Experimental {
+impl AmpModel for Nox30Current {
     fn reset(&mut self) {
-        *self = Self::new_with_params(self.stable.sample_rate, self.params);
+        *self = Self::new_with_params(self.stages.sample_rate, self.params);
     }
 
     #[inline]
@@ -445,20 +444,19 @@ impl AmpModel for Nox30Experimental {
     }
 }
 
-impl Nox30Experimental {
-    fn new_with_params(sample_rate: f32, params: Nox30ExperimentalParams) -> Self {
-        let stable = Nox30::new(sample_rate);
-        let runner =
-            ExperimentalBoundaryRunner::from_operating_point(stable.operating_point(), params);
+impl Nox30Current {
+    fn new_with_params(sample_rate: f32, params: Nox30BoundaryParams) -> Self {
+        let stages = Nox30::new(sample_rate);
+        let runner = BoundaryRunner::from_operating_point(stages.operating_point(), params);
         Self {
-            stable,
+            stages,
             runner,
             params,
         }
     }
 }
 
-impl Default for Nox30ExperimentalParams {
+impl Default for Nox30BoundaryParams {
     fn default() -> Self {
         Self {
             tone_source_impedance_ohms: 820.0,
@@ -467,7 +465,7 @@ impl Default for Nox30ExperimentalParams {
     }
 }
 
-impl Nox30ExperimentalParams {
+impl Nox30BoundaryParams {
     fn from_model(model: &str) -> Self {
         let mut params = Self::default();
         let Some((_, query)) = model.split_once('?') else {
@@ -497,10 +495,10 @@ impl Nox30ExperimentalParams {
     }
 }
 
-impl ExperimentalBoundaryRunner {
+impl BoundaryRunner {
     fn from_operating_point(
         operating_point: Nox30OperatingPoint,
-        params: Nox30ExperimentalParams,
+        params: Nox30BoundaryParams,
     ) -> Self {
         Self {
             last_boundaries: operating_point.boundary_states(),

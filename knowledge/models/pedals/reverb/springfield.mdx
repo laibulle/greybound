@@ -5,7 +5,9 @@ description: Spring-tank-inspired reverb engineering baseline for Greybound FX-l
 
 Springfield is Greybound's first reverb model. It targets the musical behavior of a guitar spring reverb: a driven transducer feel, short metallic diffusion, bright splash, and a controllable wet/dry blend.
 
-The first implementation is a stable graybox model, not a component-exact spring tank simulation. It is intended to be useful in the rig now while leaving room for a later tank/transducer model.
+The current implementation is a graybox/IR hybrid, not a component-exact spring
+tank simulation. It is intended to be useful in the rig now while leaving room
+for a later measured or transducer-level tank model.
 
 ## Circuit Descriptor
 
@@ -124,23 +126,24 @@ Minotaur/Nox path. A 10-second monitor render to
 near-clips, zero hard clips, output RMS about `-17.7 dBFS`, and output peak
 about `-3.9 dBFS`.
 
-## 2026-07-02 Experimental Recovery Wrapper
+## 2026-07-02 Current Recovery Promotion
 
-Springfield now has a separate `springfield-experimental` device id for the
-same A/B workflow used by Nox30 and Minotaur. The stable `springfield` model is
-unchanged at the rig/control level. The experimental wrapper reuses the stable
-Springfield state and controls, exports component-boundary snapshots for the
-descriptor stages, and applies a deliberately small recovery hypothesis:
+The former `springfield-experimental` recovery hypothesis is now the canonical
+Springfield behavior. The single maintained Springfield path exports
+component-boundary snapshots for the descriptor stages and applies the promoted
+recovery/splash shaping:
 
 - tank drive gain `1.015x`,
 - splash contribution `1.08x`,
 - recovery brightness offset `+0.035`,
 - wet makeup gain `0.985x`.
 
-This keeps the experiment focused on spring recovery/splash color rather than a
-new topology. The lab rig is
-`rigs/grey-nox-springfield-experimental.json5`, identical to `grey-nox` except
-for `device: "springfield-experimental"` in the Springfield slot.
+This keeps the model focused on spring recovery/splash color rather than a new
+topology. `springfield-experimental` remains accepted by rig parsing as a
+legacy alias for `springfield`, but it no longer selects a separate DSP
+implementation. The historical
+`rigs/grey-nox-springfield-experimental.json5` fixture is now a compatibility
+fixture for that alias.
 
 Validation:
 
@@ -156,15 +159,15 @@ target/release/greybound-cli --rig rigs/grey-nox-springfield-experimental.json5 
 Both monitor renders were clean: zero xruns, zero near-clips, and zero hard
 clips. WAV-level summary for the 3-second guitar DI render:
 
-- stable: peak `0.636794448`, RMS `0.075814350`,
-- experimental: peak `0.636794448`, RMS `0.075800713`,
+- former baseline: peak `0.636794448`, RMS `0.075814350`,
+- promoted recovery candidate: peak `0.636794448`, RMS `0.075800713`,
 - diff: max abs `0.000462960452`, RMS `0.000093319015`.
 
-Interpretation: this first experimental candidate is intentionally subtle and
-runtime-safe. It proves the reverb can join the stable/experimental workflow,
-but it is not yet a measured proof of a more realistic tank. The next useful
-experiment is a reverb-specific stimulus and comparison against the SMAC2023 IR
-diagnostics rather than a full rig guitar render.
+Interpretation: this candidate is intentionally subtle and runtime-safe. It is
+the current canonical desktop path, but it is still not measured proof of a more
+realistic tank. The next useful experiment is a reverb-specific stimulus and
+comparison against the SMAC2023 IR diagnostics rather than a full rig guitar
+render.
 
 ## Validation Gates
 

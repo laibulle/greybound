@@ -178,6 +178,7 @@ pub struct Minotaur {
     output_lowpass: OnePoleLowpass,
     clip_neural: Option<MinotaurClipNeural>,
     tone_neural: Option<MinotaurToneNeural>,
+    last_boundary_states: [ComponentBoundaryState; 8],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -202,15 +203,6 @@ struct MinotaurProcessResult {
 struct MinotaurCircuitParams {
     clip_knee_v: f32,
     output_makeup_gain: f32,
-}
-
-pub struct MinotaurExperimental {
-    stable: Minotaur,
-    runner: MinotaurExperimentalRunner,
-}
-
-struct MinotaurExperimentalRunner {
-    last_boundaries: [ComponentBoundaryState; 8],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -527,6 +519,7 @@ pub struct Springfield {
     delays: [SpringDelay; 4],
     tank_ir: Option<SpeakerStage>,
     feedback: f32,
+    last_boundary_states: [ComponentBoundaryState; 8],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -553,15 +546,6 @@ struct SpringfieldCircuitParams {
     splash_gain: f32,
     recovery_brightness: f32,
     wet_makeup_gain: f32,
-}
-
-pub struct SpringfieldExperimental {
-    stable: Springfield,
-    runner: SpringfieldExperimentalRunner,
-}
-
-struct SpringfieldExperimentalRunner {
-    last_boundaries: [ComponentBoundaryState; 8],
 }
 
 #[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
@@ -642,6 +626,7 @@ impl Springfield {
             ],
             tank_ir,
             feedback: 0.0,
+            last_boundary_states: springfield_boundaries(SpringfieldStageVoltages::default()),
         }
     }
 
@@ -659,6 +644,7 @@ impl Springfield {
             tank_ir.reset();
         }
         self.feedback = 0.0;
+        self.last_boundary_states = springfield_boundaries(SpringfieldStageVoltages::default());
     }
 
     pub fn process(
@@ -677,12 +663,17 @@ impl Springfield {
         loaded_input: f32,
         controls: SpringfieldControls,
     ) -> ElectricalSignal {
-        self.process_loaded_voltage_with_stages(
+        let result = self.process_loaded_voltage_with_stages(
             loaded_input,
             controls,
-            SpringfieldCircuitParams::stable(),
-        )
-        .signal
+            SpringfieldCircuitParams::current(),
+        );
+        self.last_boundary_states = springfield_boundaries(result.stages);
+        result.signal
+    }
+
+    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.last_boundary_states
     }
 
     fn process_loaded_voltage_with_stages(
@@ -743,90 +734,14 @@ impl Springfield {
     }
 }
 
-impl SpringfieldExperimental {
-    pub const INPUT_IMPEDANCE_OHMS: f32 = Springfield::INPUT_IMPEDANCE_OHMS;
-    pub const OUTPUT_IMPEDANCE_OHMS: f32 = Springfield::OUTPUT_IMPEDANCE_OHMS;
-
-    pub fn new(sample_rate: f32) -> Self {
-        Self {
-            stable: Springfield::new(sample_rate),
-            runner: SpringfieldExperimentalRunner::new(),
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.stable.reset();
-        self.runner.reset();
-    }
-
-    pub fn process(
-        &mut self,
-        input: ElectricalSignal,
-        controls: SpringfieldControls,
-    ) -> ElectricalSignal {
-        let loaded_input = self
-            .stable
-            .input_connection
-            .drive_load(input, Load::new(Self::INPUT_IMPEDANCE_OHMS));
-        self.process_loaded_voltage(loaded_input, controls)
-    }
-
-    pub fn process_loaded_voltage(
-        &mut self,
-        loaded_input: f32,
-        controls: SpringfieldControls,
-    ) -> ElectricalSignal {
-        let result = self.stable.process_loaded_voltage_with_stages(
-            loaded_input,
-            controls,
-            SpringfieldCircuitParams::experimental_recovery(),
-        );
-        self.runner.observe(result.stages);
-        result.signal
-    }
-
-    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
-        self.runner.boundary_states()
-    }
-}
-
 impl SpringfieldCircuitParams {
-    fn stable() -> Self {
-        Self {
-            tank_drive_gain: 1.0,
-            splash_gain: 1.0,
-            recovery_brightness: 0.0,
-            wet_makeup_gain: 1.0,
-        }
-    }
-
-    fn experimental_recovery() -> Self {
+    fn current() -> Self {
         Self {
             tank_drive_gain: 1.015,
             splash_gain: 1.08,
             recovery_brightness: 0.035,
             wet_makeup_gain: 0.985,
         }
-    }
-}
-
-impl SpringfieldExperimentalRunner {
-    fn new() -> Self {
-        Self {
-            last_boundaries: springfield_boundaries(SpringfieldStageVoltages::default()),
-        }
-    }
-
-    fn reset(&mut self) {
-        self.last_boundaries = springfield_boundaries(SpringfieldStageVoltages::default());
-    }
-
-    fn observe(&mut self, stages: SpringfieldStageVoltages) {
-        self.last_boundaries = springfield_boundaries(stages);
-    }
-
-    fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
-        self.last_boundaries
     }
 }
 
@@ -1039,6 +954,7 @@ impl Minotaur {
             output_lowpass: OnePoleLowpass::new(sample_rate, 18_000.0),
             clip_neural: minotaur_clip_neural(),
             tone_neural: minotaur_tone_neural(),
+            last_boundary_states: minotaur_boundaries(MinotaurStageVoltages::default()),
         }
     }
 
@@ -1064,6 +980,7 @@ impl Minotaur {
         if let Some(neural) = &mut self.tone_neural {
             neural.reset();
         }
+        self.last_boundary_states = minotaur_boundaries(MinotaurStageVoltages::default());
     }
 
     pub fn process(
@@ -1082,12 +999,17 @@ impl Minotaur {
         loaded_input: f32,
         controls: MinotaurControls,
     ) -> ElectricalSignal {
-        self.process_loaded_voltage_with_stages(
+        let result = self.process_loaded_voltage_with_stages(
             loaded_input,
             controls,
-            MinotaurCircuitParams::stable(),
-        )
-        .signal
+            MinotaurCircuitParams::current(),
+        );
+        self.last_boundary_states = minotaur_boundaries(result.stages);
+        result.signal
+    }
+
+    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
+        self.last_boundary_states
     }
 
     fn process_loaded_voltage_with_stages(
@@ -1169,86 +1091,12 @@ impl Minotaur {
     }
 }
 
-impl MinotaurExperimental {
-    pub const INPUT_IMPEDANCE_OHMS: f32 = Minotaur::INPUT_IMPEDANCE_OHMS;
-    pub const OUTPUT_IMPEDANCE_OHMS: f32 = Minotaur::OUTPUT_IMPEDANCE_OHMS;
-
-    pub fn new(sample_rate: f32) -> Self {
-        Self {
-            stable: Minotaur::new(sample_rate),
-            runner: MinotaurExperimentalRunner::new(),
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.stable.reset();
-        self.runner.reset();
-    }
-
-    pub fn process(
-        &mut self,
-        input: ElectricalSignal,
-        controls: MinotaurControls,
-    ) -> ElectricalSignal {
-        let loaded_input = self
-            .stable
-            .input_connection
-            .drive_load(input, Load::new(Self::INPUT_IMPEDANCE_OHMS));
-        self.process_loaded_voltage(loaded_input, controls)
-    }
-
-    pub fn process_loaded_voltage(
-        &mut self,
-        loaded_input: f32,
-        controls: MinotaurControls,
-    ) -> ElectricalSignal {
-        let result = self.stable.process_loaded_voltage_with_stages(
-            loaded_input,
-            controls,
-            MinotaurCircuitParams::experimental_soft_clip(),
-        );
-        self.runner.observe(result.stages);
-        result.signal
-    }
-
-    pub fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
-        self.runner.boundary_states()
-    }
-}
-
 impl MinotaurCircuitParams {
-    fn stable() -> Self {
-        Self {
-            clip_knee_v: 0.42,
-            output_makeup_gain: 1.0,
-        }
-    }
-
-    fn experimental_soft_clip() -> Self {
+    fn current() -> Self {
         Self {
             clip_knee_v: 0.36,
             output_makeup_gain: 1.023,
         }
-    }
-}
-
-impl MinotaurExperimentalRunner {
-    fn new() -> Self {
-        Self {
-            last_boundaries: minotaur_boundaries(MinotaurStageVoltages::default()),
-        }
-    }
-
-    fn reset(&mut self) {
-        self.last_boundaries = minotaur_boundaries(MinotaurStageVoltages::default());
-    }
-
-    fn observe(&mut self, stages: MinotaurStageVoltages) {
-        self.last_boundaries = minotaur_boundaries(stages);
-    }
-
-    fn boundary_states(&self) -> [ComponentBoundaryState; 8] {
-        self.last_boundaries
     }
 }
 
@@ -2754,22 +2602,20 @@ mod tests {
     }
 
     #[test]
-    fn minotaur_germanium_clip_knee_stays_below_silicon_range() {
-        let clipped = diode_pair_clip(1.2, 0.42);
+    fn minotaur_current_clip_knee_stays_below_silicon_range() {
+        let clipped = diode_pair_clip(1.2, MinotaurCircuitParams::current().clip_knee_v);
 
-        assert!((0.40..0.43).contains(&clipped), "clipped={clipped}");
+        assert!((0.34..0.37).contains(&clipped), "clipped={clipped}");
     }
 
     #[test]
-    fn minotaur_experimental_soft_clip_diverges_from_stable() {
-        let mut stable = Minotaur::new(48_000.0);
-        let mut experimental = MinotaurExperimental::new(48_000.0);
+    fn minotaur_current_soft_clip_candidate_is_finite_and_audible() {
+        let mut pedal = Minotaur::new(48_000.0);
         let controls = MinotaurControls {
             gain: 0.42,
             treble: 0.70,
             output: 0.42,
         };
-        let mut difference_sum = 0.0_f32;
         let mut output_energy = 0.0_f32;
 
         for sample_idx in 0..24_000 {
@@ -2778,38 +2624,39 @@ mod tests {
                 + (std::f32::consts::TAU * 880.0 * t).sin() * 0.026
                 + (std::f32::consts::TAU * 3_520.0 * t).sin() * 0.012;
             let source = ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS);
-            let stable_output = stable.process(source, controls);
-            let experimental_output = experimental.process(source, controls);
-            assert!(experimental_output.voltage.is_finite());
+            let output = pedal.process(source, controls);
+            assert!(output.voltage.is_finite());
             if sample_idx >= 4_800 {
-                let difference = stable_output.voltage - experimental_output.voltage;
-                difference_sum += difference * difference;
-                output_energy += experimental_output.voltage * experimental_output.voltage;
+                output_energy += output.voltage * output.voltage;
             }
         }
 
         assert!(
-            difference_sum > 1e-4,
-            "experimental soft-clip did not alter stable Minotaur: difference_sum={difference_sum}"
-        );
-        assert!(
             output_energy > 1e-5,
-            "experimental Minotaur produced suspicious silence: output_energy={output_energy}"
+            "current Minotaur produced suspicious silence: output_energy={output_energy}"
         );
     }
 
     #[test]
-    fn minotaur_experimental_exports_component_boundary_states() {
-        let mut pedal = MinotaurExperimental::new(48_000.0);
+    fn minotaur_current_path_exports_component_boundary_states() {
+        let mut pedal = Minotaur::new(48_000.0);
+        let mut stages = MinotaurStageVoltages::default();
         for sample_idx in 0..2_400 {
             let input = (std::f32::consts::TAU * 440.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
-            pedal.process(
+            let loaded_input = pedal.input_connection.drive_load(
                 ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
-                MinotaurControls::default(),
+                Load::new(Minotaur::INPUT_IMPEDANCE_OHMS),
             );
+            stages = pedal
+                .process_loaded_voltage_with_stages(
+                    loaded_input,
+                    MinotaurControls::default(),
+                    MinotaurCircuitParams::current(),
+                )
+                .stages;
         }
 
-        let boundaries = pedal.boundary_states();
+        let boundaries = minotaur_boundaries(stages);
         assert_eq!(boundaries[0].id, "input_load");
         assert_eq!(boundaries[7].id, "output_driver");
         assert_eq!(
@@ -3385,61 +3232,59 @@ mod tests {
     }
 
     #[test]
-    fn springfield_experimental_recovery_diverges_from_stable() {
-        let mut stable = Springfield::new(48_000.0);
-        let mut experimental = SpringfieldExperimental::new(48_000.0);
+    fn springfield_current_recovery_is_finite_and_audible() {
+        let mut pedal = Springfield::new(48_000.0);
         let controls = SpringfieldControls {
             dwell: 0.58,
             tone: 0.62,
             mix: 0.42,
         };
-        let mut stable_sum = 0.0;
-        let mut experimental_sum = 0.0;
-        let mut difference_sum = 0.0;
+        let mut output_sum = 0.0;
 
         for sample_idx in 0..24_000 {
             let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 48_000.0).sin() * 0.08
                 + if sample_idx % 1_507 == 0 { 0.32 } else { 0.0 };
-            let stable_output = stable.process(
+            let output = pedal.process(
                 ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
                 controls,
             );
-            let experimental_output = experimental.process(
-                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
-                controls,
-            );
+            assert!(output.voltage.is_finite());
             if sample_idx > 6_000 {
-                stable_sum += stable_output.voltage.abs();
-                experimental_sum += experimental_output.voltage.abs();
-                difference_sum += (experimental_output.voltage - stable_output.voltage).abs();
+                output_sum += output.voltage.abs();
             }
         }
 
-        assert!(stable_sum > 5.0, "stable_sum={stable_sum}");
-        assert!(
-            experimental_sum > 5.0,
-            "experimental_sum={experimental_sum}"
-        );
-        assert!(difference_sum > 0.02, "difference_sum={difference_sum}");
+        assert!(output_sum > 5.0, "output_sum={output_sum}");
     }
 
     #[test]
-    fn springfield_experimental_exports_component_boundaries() {
-        let mut pedal = SpringfieldExperimental::new(48_000.0);
+    fn springfield_current_path_exports_component_boundaries() {
+        let mut pedal = Springfield::new(48_000.0);
+        let mut stages = SpringfieldStageVoltages::default();
         for sample_idx in 0..4_096 {
             let input = if sample_idx == 0 { 0.7 } else { 0.0 };
-            let output = pedal.process(
+            let loaded_input = pedal.input_connection.drive_load(
                 ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                Load::new(Springfield::INPUT_IMPEDANCE_OHMS),
+            );
+            let result = pedal.process_loaded_voltage_with_stages(
+                loaded_input,
                 SpringfieldControls {
                     dwell: 0.65,
                     tone: 0.58,
                     mix: 0.55,
                 },
+                SpringfieldCircuitParams::current(),
             );
-            assert!(output.voltage.is_finite(), "output={output:?}");
+            assert!(
+                result.signal.voltage.is_finite(),
+                "output={:?}",
+                result.signal
+            );
+            stages = result.stages;
         }
 
-        let states = pedal.boundary_states();
+        let states = springfield_boundaries(stages);
         assert_eq!(states[0].id, "input_load");
         assert_eq!(states[2].id, "dwell_driver");
         assert_eq!(states[3].id, "spring_ir_tank");

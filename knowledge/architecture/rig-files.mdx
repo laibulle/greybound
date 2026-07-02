@@ -71,9 +71,11 @@ Rig files use JSON5 so they can keep JSON-like structure while supporting commen
 - `fx_loop`: ordered devices between the amp preamp send and return/power section. Nox30 has an explicit split here; other amp models currently use the compatible chain API until their internals are split.
 - `post_amp`: ordered devices after the amp, currently available in the data model.
 - `*.bypassed`: explicit activation state for pedal slots, `amp`, and `cab`. Use `false` for active and `true` for bypassed.
-- `amp.model`: `nox30`, `nox30-experimental`, `dumbler`, or `sheriff800`.
-  Lab-only Nox30 development rigs may suffix `nox30-experimental` with explicit
-  model parameters such as
+- `amp.model`: `nox30`, `dumbler`, or `sheriff800`. The legacy
+  `nox30-experimental` id is still accepted as an alias for `nox30` so
+  historical rigs continue to parse.
+  Lab-only Nox30 development rigs may suffix `nox30` with explicit model
+  parameters such as
   `?tone_source_ohms=47000&tone_load_ohms=47000`; these are implementation
   hypotheses for A/B renders, not user-facing runtime settings.
 - `amp.controls`: normalized `0.0..1.0` amp controls.
@@ -88,13 +90,9 @@ Supported device ids:
 - `godess-one`
 - `dartford`
 - `springfield`
-- `springfield-experimental` for lab-only A/B work against the stable
-  Springfield wrapper. It shares Springfield controls and should remain
-  topology-compatible with `springfield`.
+- `springfield-experimental` as a legacy alias for `springfield`.
 - `minotaur`
-- `minotaur-experimental` for lab-only A/B work against the stable Minotaur
-  wrapper. It shares Minotaur controls and should remain topology-compatible
-  with `minotaur`.
+- `minotaur-experimental` as a legacy alias for `minotaur`.
 - `monarch`
 - `tron`
 - `jetstream`
@@ -108,16 +106,15 @@ Supported device ids:
   implementation.
 - `rigs/grey-nox.json5`: Klon/Minotaur into Nox30. This is the default focused
   rig because those are the current real grey-box implementations.
-- `rigs/grey-nox-minotaur-experimental.json5`: the same focused topology and
-  controls as `grey-nox`, but the Minotaur slot uses
-  `device: "minotaur-experimental"` for pedal A/B work.
-- `rigs/grey-nox-springfield-experimental.json5`: the same focused topology and
-  controls as `grey-nox`, but the Springfield slot uses
-  `device: "springfield-experimental"` for reverb A/B work.
-- `rigs/grey-nox-experimental.json5`: the same `grey-nox` topology and
-  controls with `amp.model: "nox30-experimental"` for lab A/B work.
+- `rigs/grey-nox-minotaur-experimental.json5`: historical compatibility
+  fixture proving `device: "minotaur-experimental"` still aliases to Minotaur.
+- `rigs/grey-nox-springfield-experimental.json5`: historical compatibility
+  fixture proving `device: "springfield-experimental"` still aliases to
+  Springfield.
+- `rigs/grey-nox-experimental.json5`: historical compatibility fixture proving
+  `amp.model: "nox30-experimental"` still aliases to Nox30.
 - `rigs/grey-nox-experimental-tone-load.json5`: the same focused topology with
-  the experimental Nox30 follower-to-tone-stack boundary loaded to
+  the Nox30 follower-to-tone-stack boundary loaded to
   `47 kOhm -> 47 kOhm` for lab hypothesis renders.
 
 ## Boundaries

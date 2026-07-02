@@ -1,7 +1,7 @@
 {
-  // Lab hypothesis rig: same musical topology and controls as grey-nox, but the
-  // experimental Nox30 tone-stack boundary uses an intentionally loaded
-  // follower/source impedance pair for A/B renders.
+  // Lab hypothesis rig: same musical topology and controls as grey-nox, but
+  // the Nox30 tone-stack boundary uses an intentionally loaded
+  // follower/source impedance pair for comparison renders.
   name: "grey-nox-experimental-tone-load",
 
   chain: {
@@ -51,7 +51,7 @@
   ],
 
   amp: {
-    model: "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000",
+    model: "nox30?tone_source_ohms=47000&tone_load_ohms=47000",
     bypassed: false,
     controls: {
       volume: 0.58,

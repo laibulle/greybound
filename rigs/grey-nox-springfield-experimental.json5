@@ -1,6 +1,6 @@
 {
-  // Lab A/B rig: same musical topology and controls as grey-nox, but the
-  // Springfield slot points at the experimental recovery wrapper.
+  // Legacy compatibility fixture: same musical topology and controls as
+  // grey-nox, but the Springfield slot uses the old experimental alias.
   name: "grey-nox-springfield-experimental",
 
   chain: {

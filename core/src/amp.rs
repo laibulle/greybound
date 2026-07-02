@@ -602,7 +602,7 @@ mod tests {
     }
 
     #[test]
-    fn nox30_experimental_alias_starts_bit_equivalent_to_stable() {
+    fn nox30_legacy_experimental_alias_matches_canonical_model() {
         let mut controls = controls();
         controls.volume = 0.76;
         controls.bass = 0.52;
@@ -612,8 +612,8 @@ mod tests {
         controls.presence = 0.44;
         controls.sag = 0.70;
 
-        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
-        let mut experimental = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(48_000.0, "nox30-experimental");
         let mut difference_sum = 0.0;
 
         for sample_idx in 0..6_144 {
@@ -622,23 +622,23 @@ mod tests {
                 + (std::f32::consts::TAU * 330.0 * sample_idx as f32 / 48_000.0).sin() * 0.45;
             let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
             let input = chord * 0.055 * pick;
-            let stable_output = stable.process(input, controls);
-            let experimental_output = experimental.process(input, controls);
+            let canonical_output = canonical.process(input, controls);
+            let alias_output = legacy_alias.process(input, controls);
 
             if sample_idx >= 1_024 {
-                let difference = stable_output - experimental_output;
+                let difference = canonical_output - alias_output;
                 difference_sum += difference * difference;
             }
         }
 
         assert!(
             difference_sum < 1e-9,
-            "stable/experimental mismatch before divergence: difference={difference_sum}"
+            "canonical/legacy alias mismatch: difference={difference_sum}"
         );
     }
 
     #[test]
-    fn nox30_experimental_fx_loop_matches_stable_path() {
+    fn nox30_legacy_experimental_alias_fx_loop_matches_canonical_path() {
         let mut controls = controls();
         controls.volume = 0.56;
         controls.bass = 0.56;
@@ -649,29 +649,30 @@ mod tests {
         controls.presence = 0.34;
         controls.sag = 0.46;
 
-        let mut stable = VoxAmp::with_model(44_100.0, "nox30");
-        let mut experimental = VoxAmp::with_model(44_100.0, "nox30-experimental");
+        let mut canonical = VoxAmp::with_model(44_100.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(44_100.0, "nox30-experimental");
         let mut difference_sum = 0.0;
 
         for sample_idx in 0..88_200 {
             let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 44_100.0).sin() * 0.06
                 + (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 44_100.0).sin() * 0.03;
-            let stable_output = stable.process_with_fx_loop(input, controls, |send| send * 0.87);
-            let experimental_output =
-                experimental.process_with_fx_loop(input, controls, |send| send * 0.87);
+            let canonical_output =
+                canonical.process_with_fx_loop(input, controls, |send| send * 0.87);
+            let alias_output =
+                legacy_alias.process_with_fx_loop(input, controls, |send| send * 0.87);
             if sample_idx >= 44_100 {
-                difference_sum += (stable_output - experimental_output).abs();
+                difference_sum += (canonical_output - alias_output).abs();
             }
         }
 
         assert!(
             difference_sum < 1e-6,
-            "stable/experimental FX loop mismatch: difference_sum={difference_sum}"
+            "canonical/legacy alias FX loop mismatch: difference_sum={difference_sum}"
         );
     }
 
     #[test]
-    fn nox30_experimental_tone_stack_boundary_path_stays_transparent() {
+    fn nox30_default_tone_stack_boundary_path_stays_transparent() {
         let mut controls = controls();
         controls.volume = 0.64;
         controls.bass = 0.22;
@@ -680,8 +681,8 @@ mod tests {
         controls.drive = 0.0;
         controls.sag = 0.30;
 
-        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
-        let mut experimental = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(48_000.0, "nox30-experimental");
         let mut max_difference = 0.0_f32;
 
         for sample_idx in 0..24_000 {
@@ -689,10 +690,10 @@ mod tests {
             let input = (std::f32::consts::TAU * 82.0 * t).sin() * 0.04
                 + (std::f32::consts::TAU * 997.0 * t).sin() * 0.025
                 + (std::f32::consts::TAU * 5_200.0 * t).sin() * 0.012;
-            let stable_output = stable.process(input, controls);
-            let experimental_output = experimental.process(input, controls);
+            let canonical_output = canonical.process(input, controls);
+            let alias_output = legacy_alias.process(input, controls);
             if sample_idx >= 4_800 {
-                max_difference = max_difference.max((stable_output - experimental_output).abs());
+                max_difference = max_difference.max((canonical_output - alias_output).abs());
             }
         }
 
@@ -703,7 +704,7 @@ mod tests {
     }
 
     #[test]
-    fn nox30_experimental_configured_tone_boundary_impedance_diverges_from_stable() {
+    fn nox30_configured_tone_boundary_impedance_changes_canonical_response() {
         let mut controls = controls();
         controls.volume = 0.70;
         controls.bass = 0.28;
@@ -713,10 +714,10 @@ mod tests {
         controls.presence = 0.36;
         controls.sag = 0.32;
 
-        let mut stable = VoxAmp::with_model(48_000.0, "nox30");
-        let mut experimental = VoxAmp::with_model(
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut configured = VoxAmp::with_model(
             48_000.0,
-            "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000",
+            "nox30?tone_source_ohms=47000&tone_load_ohms=47000",
         );
         let mut difference_sum = 0.0_f32;
         let mut output_energy = 0.0_f32;
@@ -726,23 +727,23 @@ mod tests {
             let input = (std::f32::consts::TAU * 110.0 * t).sin() * 0.035
                 + (std::f32::consts::TAU * 880.0 * t).sin() * 0.026
                 + (std::f32::consts::TAU * 3_520.0 * t).sin() * 0.016;
-            let stable_output = stable.process(input, controls);
-            let experimental_output = experimental.process(input, controls);
-            assert!(experimental_output.is_finite());
+            let canonical_output = canonical.process(input, controls);
+            let configured_output = configured.process(input, controls);
+            assert!(configured_output.is_finite());
             if sample_idx >= 4_800 {
-                let difference = stable_output - experimental_output;
+                let difference = canonical_output - configured_output;
                 difference_sum += difference * difference;
-                output_energy += experimental_output * experimental_output;
+                output_energy += configured_output * configured_output;
             }
         }
 
         assert!(
             difference_sum > 1e-5,
-            "configured tone-stack boundary did not alter the stable path: difference={difference_sum}"
+            "configured tone-stack boundary did not alter the canonical path: difference={difference_sum}"
         );
         assert!(
             output_energy > 1e-5,
-            "configured experimental path produced suspicious silence: output_energy={output_energy}"
+            "configured tone-stack boundary path produced suspicious silence: output_energy={output_energy}"
         );
     }
 
@@ -933,8 +934,8 @@ mod tests {
     }
 
     #[test]
-    fn nox30_experimental_runner_exports_observed_boundary_states() {
-        let mut amp = VoxAmp::with_model(48_000.0, "nox30-experimental");
+    fn nox30_current_path_exports_observed_boundary_states() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
         let controls = AmpControls {
             volume: 0.76,
             bass: 0.52,

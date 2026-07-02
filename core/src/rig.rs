@@ -179,9 +179,6 @@ impl RigDeviceSlot {
             DeviceConfig::Muon => DeviceControls::Muon(self.controls.muon()),
             DeviceConfig::Muffin => DeviceControls::Muffin(self.controls.muffin()),
             DeviceConfig::Minotaur => DeviceControls::Minotaur(self.controls.minotaur()),
-            DeviceConfig::MinotaurExperimental => {
-                DeviceControls::Minotaur(self.controls.minotaur())
-            }
             DeviceConfig::Monarch => DeviceControls::Monarch(self.controls.monarch()),
             DeviceConfig::GodessOne => DeviceControls::GodessOne(self.controls.godess_one()),
             DeviceConfig::Dartford => DeviceControls::Dartford(self.controls.dartford()),
@@ -190,9 +187,6 @@ impl RigDeviceSlot {
             DeviceConfig::Celeste => DeviceControls::Celeste(self.controls.celeste()),
             DeviceConfig::Brigade => DeviceControls::Brigade(self.controls.brigade()),
             DeviceConfig::Springfield => DeviceControls::Springfield(self.controls.springfield()),
-            DeviceConfig::SpringfieldExperimental => {
-                DeviceControls::Springfield(self.controls.springfield())
-            }
             DeviceConfig::StudioVerb => DeviceControls::StudioVerb(self.controls.studioverb()),
         };
         Ok(DeviceSlotControls {
@@ -409,8 +403,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "lumen" => Ok(DeviceConfig::Lumen),
         "muon" => Ok(DeviceConfig::Muon),
         "muffin" => Ok(DeviceConfig::Muffin),
-        "minotaur" => Ok(DeviceConfig::Minotaur),
-        "minotaur-experimental" => Ok(DeviceConfig::MinotaurExperimental),
+        "minotaur" | "minotaur-experimental" => Ok(DeviceConfig::Minotaur),
         "monarch" => Ok(DeviceConfig::Monarch),
         "godess-one" => Ok(DeviceConfig::GodessOne),
         "dartford" => Ok(DeviceConfig::Dartford),
@@ -418,8 +411,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "jetstream" => Ok(DeviceConfig::Jetstream),
         "celeste" => Ok(DeviceConfig::Celeste),
         "brigade" => Ok(DeviceConfig::Brigade),
-        "springfield" => Ok(DeviceConfig::Springfield),
-        "springfield-experimental" => Ok(DeviceConfig::SpringfieldExperimental),
+        "springfield" | "springfield-experimental" => Ok(DeviceConfig::Springfield),
         "studioverb" => Ok(DeviceConfig::StudioVerb),
         _ => bail!("unknown rig device '{device}'"),
     }
@@ -590,7 +582,7 @@ mod tests {
         assert_eq!(rig.name.as_deref(), Some("grey-nox-experimental-tone-load"));
         assert_eq!(
             chain.amp_model,
-            "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000"
+            "nox30?tone_source_ohms=47000&tone_load_ohms=47000"
         );
         assert_eq!(
             chain.pre_amp,
@@ -620,7 +612,7 @@ mod tests {
         assert_eq!(rig.name.as_deref(), Some("grey-nox-minotaur-experimental"));
         assert_eq!(
             chain.pre_amp,
-            vec![DeviceSlotConfig::active(DeviceConfig::MinotaurExperimental)]
+            vec![DeviceSlotConfig::active(DeviceConfig::Minotaur)]
         );
         assert_eq!(
             chain.fx_loop,
@@ -711,7 +703,7 @@ mod tests {
 
         assert_eq!(
             chain.pre_amp,
-            vec![DeviceSlotConfig::active(DeviceConfig::MinotaurExperimental)]
+            vec![DeviceSlotConfig::active(DeviceConfig::Minotaur)]
         );
         assert!(matches!(
             controls[0].controls,
@@ -975,9 +967,7 @@ mod tests {
 
         assert_eq!(
             chain.fx_loop,
-            vec![DeviceSlotConfig::active(
-                DeviceConfig::SpringfieldExperimental
-            )]
+            vec![DeviceSlotConfig::active(DeviceConfig::Springfield)]
         );
         assert!(matches!(
             controls[0].controls,

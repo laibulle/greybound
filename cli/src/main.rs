@@ -1916,7 +1916,6 @@ fn default_device_controls(device: DeviceConfig) -> DeviceControls {
         DeviceConfig::Muon => DeviceControls::Muon(MuonControls::default()),
         DeviceConfig::Muffin => DeviceControls::Muffin(MuffinControls::default()),
         DeviceConfig::Minotaur => DeviceControls::Minotaur(MinotaurControls::default()),
-        DeviceConfig::MinotaurExperimental => DeviceControls::Minotaur(MinotaurControls::default()),
         DeviceConfig::Monarch => DeviceControls::Monarch(MonarchControls::default()),
         DeviceConfig::GodessOne => DeviceControls::GodessOne(GodessOneControls::default()),
         DeviceConfig::Dartford => DeviceControls::Dartford(DartfordControls::default()),
@@ -1925,9 +1924,6 @@ fn default_device_controls(device: DeviceConfig) -> DeviceControls {
         DeviceConfig::Celeste => DeviceControls::Celeste(CelesteControls::default()),
         DeviceConfig::Brigade => DeviceControls::Brigade(BrigadeControls::default()),
         DeviceConfig::Springfield => DeviceControls::Springfield(SpringfieldControls::default()),
-        DeviceConfig::SpringfieldExperimental => {
-            DeviceControls::Springfield(SpringfieldControls::default())
-        }
         DeviceConfig::StudioVerb => DeviceControls::StudioVerb(StudioVerbControls::default()),
     }
 }

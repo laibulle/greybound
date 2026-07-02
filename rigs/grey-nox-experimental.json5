@@ -1,6 +1,6 @@
 {
-  // Lab A/B rig: same musical topology and controls as grey-nox, but the amp
-  // implementation points at the experimental Nox30 alias.
+  // Legacy compatibility fixture: same musical topology and controls as
+  // grey-nox, but the amp model uses the old Nox30 experimental alias.
   name: "grey-nox-experimental",
 
   chain: {

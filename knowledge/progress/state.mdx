@@ -95,8 +95,8 @@ description: Decisions and open questions that should steer upcoming implementat
 - Desktop audio restarts now stop the previous live engine explicitly before
   starting the replacement. The shutdown path pauses the output stream first,
   then the input stream, drops the runtime, and waits briefly so CoreAudio can
-  release old callbacks. This prevents amp implementation switches and audio
-  device changes from momentarily stacking two active processing graphs.
+  release old callbacks. This prevents runtime restarts and audio device
+  changes from momentarily stacking two active processing graphs.
 - The desktop input VU meter now measures the post-`INPUT` gain signal entering
   the DSP chain, not the raw CoreAudio capture. Lowering the `INPUT` knob should
   lower both the actual chain drive and the displayed input level.
@@ -147,66 +147,46 @@ description: Decisions and open questions that should steer upcoming implementat
   navigation remains limited to first-class views: pedals, amp, and cab. The
   amp view now also supports circuit mode by rendering Nox30 component
   boundaries from `NOX30_COMPONENT_BOUNDARIES` as a circuit-informed stage map.
-- The desktop UI now has a runtime amp-implementation switch for A/B work. The
-  desktop default loads `nox30-experimental`; switching back to stable loads
-  `nox30` and restarts the live audio engine. Plain `nox30-experimental`
-  remains bit-equivalent to stable unless an explicit parameterized lab
-  hypothesis is used, giving the lab a controlled baseline for future
-  comparisons.
-- Amp implementation experiments now have a dedicated architecture spec in
-  `knowledge/architecture/amp-model-experiments.mdx`. The spec keeps stable and
-  experimental Nox30 implementations under the same UX while requiring explicit
-  component boundary state, private stage memory boundaries, release WAV
-  renders, monitor health, and lab metric comparisons before promotion.
-- Nox30 now has a runtime `CircuitDescriptor` consumed by both stable and
-  `nox30-experimental` aliases. The desktop amp circuit view renders this
-  descriptor through the same semantic graph pipeline as pedals. The Nox30
-  operating point also exposes component boundary-state snapshots for voltage,
-  source/load impedance, coupling mode, headroom, nominal/peak level, and
-  latency so future experimental stages can exchange explicit state without
-  reaching into private stage memory.
-- `nox30-experimental` is now a separate `AmpCore` variant backed by
-  `Nox30Experimental`. It still delegates to the stable Nox30 stages for audio,
-  but it owns an `ExperimentalBoundaryRunner` that observes the latest
-  component boundary-state snapshot. Stable and experimental paths remain
-  bit-equivalent, including the Nox30 FX-loop split path.
-- The first transparent experimental component-boundary path is implemented:
-  `Nox30Experimental` now sends the cathode-follower output to the Top Boost
-  tone stack through a typed `ComponentSignal` carrying voltage, source/load
-  impedance, coupling, DC offset, and headroom. `TopBoostToneStack` can now be
-  called with explicit source/load impedance while its default `process`
-  preserves the historical `820 ohm -> 220 kOhm` assumptions.
-- The Nox30 experimental tone-stack boundary can now be parameterized for lab
-  A/B work through the amp model string, for example
-  `nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000`. The desktop
-  switch still uses plain `nox30-experimental`, which remains bit-equivalent to
-  stable. Parameterized experimental models remain recognized by chain and
-  circuit descriptors, and focused tests prove both transparent behavior for the
-  default alias and measurable divergence for the loaded-boundary hypothesis.
-- Minotaur pedal experiments now have a stable/experimental split. The
-  `minotaur-experimental` device id wraps the stable Minotaur topology,
-  exports component-boundary snapshots for input load, coupling, clean path,
-  drive gain, soft clip, summing, treble/presence, and output driver. Its first
-  deliberate divergence is a softer level-compensated clipping-cell
-  hypothesis: the analytic diode-pair knee is `0.36 V` instead of the stable
-  `0.42 V`, with `1.023x` internal output makeup. The lab A/B rig is
-  `rigs/grey-nox-minotaur-experimental.json5`, and the desktop top control bar
-  exposes a `PEDAL STABLE/EXPERIMENT` switch for live A/B.
-- Springfield reverb experiments now use the same stable/experimental workflow.
-  The `springfield-experimental` device id shares Springfield controls and
-  descriptor topology, exports component-boundary snapshots for input coupling,
+- The former stable/experimental split has been collapsed into one canonical
+  runtime path. `nox30`, `minotaur`, and `springfield` now use the promoted
+  component-boundary/greybox candidates by default. The desktop no longer
+  exposes implementation-switch controls, so live audio cannot stack old and
+  new implementations by toggling A/B state.
+- Legacy ids remain parser aliases only:
+  `nox30-experimental -> nox30`,
+  `minotaur-experimental -> minotaur`, and
+  `springfield-experimental -> springfield`. Historical `*-experimental`
+  rig files are compatibility fixtures, not separate maintained models.
+- Nox30 now has a single `Nox30Current` amp core. It owns the Nox30 stages plus
+  a boundary runner that records component boundary-state snapshots and routes
+  the cathode-follower output into the Top Boost tone stack through a typed
+  `ComponentSignal` carrying voltage, source/load impedance, coupling, DC
+  offset, and headroom. Parameterized lab hypotheses now use canonical model
+  strings such as `nox30?tone_source_ohms=47000&tone_load_ohms=47000`.
+- Minotaur now uses the formerly experimental soft-clip hypothesis as the
+  current cell: diode-pair knee `0.36 V` with `1.023x` internal output makeup.
+  The canonical pedal stores the latest component-boundary snapshot for input
+  load, coupling, clean path, drive gain, soft clip, summing,
+  treble/presence, and output driver.
+- Springfield now uses the formerly experimental recovery/splash hypothesis as
+  the current path: tank drive gain `1.015x`, splash contribution `1.08x`,
+  recovery brightness offset `+0.035`, and wet makeup `0.985x`. The canonical
+  pedal stores the latest component-boundary snapshot for input coupling,
   dwell driver, spring IR tank, splash diffusion, recovery tone, wet/dry mixer,
-  and output driver, and applies a small recovery/splash hypothesis. The lab
-  A/B rig is `rigs/grey-nox-springfield-experimental.json5`, and the desktop
-  top control bar exposes a `REVERB STABLE/EXPERIMENT` switch. A 3-second
-  release monitor render against `grey-nox` was clean with zero xruns and zero
-  output clips; the candidate kept the same peak while changing the output by
-  RMS diff about `0.0000933`.
-- The desktop live app now starts experimental-first for the focused rig:
-  `minotaur-experimental`, `nox30-experimental`, and
-  `springfield-experimental` are the default loaded implementations. The
-  stable `grey-nox` rig files remain the lab baseline, and the desktop switches
-  still allow one-click fallback to stable implementations.
+  and output driver.
+- 2026-07-02 promotion validation passed:
+  `cargo fmt --check`, `cargo check -p greybound-ui`,
+  `cargo test -p greybound minotaur -- --nocapture`,
+  `cargo test -p greybound springfield -- --nocapture`,
+  `cargo test -p greybound nox30 -- --nocapture`,
+  `cargo test -p greybound-cli`, and
+  `cargo build --release -p greybound-cli -p greybound-desktop`.
+  The release monitor render
+  `target/grey-nox-canonical-3s.wav` using `rigs/grey-nox.json5`,
+  `Brit - Guitar.wav`, 48 kHz, period size 32, and the Celestion IR produced
+  peak `0.636794448`, RMS `0.075686652`, 12 monitor windows, zero input/output
+  xruns, zero near-clips, and zero hard clips. The monitor log is
+  `target/grey-nox-canonical-3s.monitor.log`.
 
 ## Open Questions
 

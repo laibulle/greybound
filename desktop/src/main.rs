@@ -204,9 +204,6 @@ impl Application for Desktop {
                 | Message::AudioOutputSelected(_)
                 | Message::AudioSampleRateSelected(_)
                 | Message::AudioBufferSizeSelected(_)
-                | Message::TogglePedalImplementation
-                | Message::ToggleReverbImplementation
-                | Message::ToggleAmpImplementation
         );
         self.ui.update(message);
         if restart_audio {

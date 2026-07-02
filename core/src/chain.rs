@@ -2,10 +2,9 @@ use crate::amp::{AmpControls, VoxAmp};
 use crate::pedal::{
     Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,
     DartfordControls, ElectricalSignal, GodessOne, GodessOneControls, Jetstream, JetstreamControls,
-    Load, Lumen, LumenControls, Minotaur, MinotaurControls, MinotaurExperimental, Monarch,
-    MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
-    SpringfieldExperimental, StudioVerb, StudioVerbControls, Tron, TronControls,
-    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
+    Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch, MonarchControls, Muffin,
+    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, StudioVerb,
+    StudioVerbControls, Tron, TronControls, AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
 };
 
 const DEFAULT_CABLE_CAPACITANCE_FARADS: f32 = 470e-12;
@@ -67,7 +66,6 @@ pub enum DeviceConfig {
     Muon,
     Muffin,
     Minotaur,
-    MinotaurExperimental,
     Monarch,
     GodessOne,
     Dartford,
@@ -76,7 +74,6 @@ pub enum DeviceConfig {
     Celeste,
     Brigade,
     Springfield,
-    SpringfieldExperimental,
     StudioVerb,
 }
 
@@ -365,16 +362,6 @@ impl DeviceConfig {
                 },
                 controls: MINOTAUR_CONTROLS,
             },
-            Self::MinotaurExperimental => DeviceModelDescriptor {
-                id: "minotaur-experimental",
-                label: "Minotaur Exp",
-                category: "overdrive",
-                visual: DeviceVisualDescriptor {
-                    color: "gold",
-                    ..STANDARD_PEDAL_VISUAL
-                },
-                controls: MINOTAUR_CONTROLS,
-            },
             Self::Monarch => DeviceModelDescriptor {
                 id: "monarch",
                 label: "Monarch",
@@ -455,16 +442,6 @@ impl DeviceConfig {
                 },
                 controls: SPRINGFIELD_CONTROLS,
             },
-            Self::SpringfieldExperimental => DeviceModelDescriptor {
-                id: "springfield-experimental",
-                label: "Springfield Exp",
-                category: "reverb",
-                visual: DeviceVisualDescriptor {
-                    color: "surf-green",
-                    ..STANDARD_PEDAL_VISUAL
-                },
-                controls: SPRINGFIELD_CONTROLS,
-            },
             Self::StudioVerb => DeviceModelDescriptor {
                 id: "studioverb",
                 label: "StudioVerb",
@@ -482,17 +459,9 @@ impl DeviceConfig {
 pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
     let model_base = model.split_once('?').map_or(model, |(base, _)| base);
     match model_base {
-        "nox30" => AmpModelDescriptor {
+        "nox30" | "nox30-experimental" => AmpModelDescriptor {
             id: "nox30",
             label: "Nox30",
-            visual: DeviceVisualDescriptor {
-                color: "copper",
-                ..STANDARD_AMP_VISUAL
-            },
-        },
-        "nox30-experimental" => AmpModelDescriptor {
-            id: "nox30-experimental",
-            label: "Nox30 Exp",
             visual: DeviceVisualDescriptor {
                 color: "copper",
                 ..STANDARD_AMP_VISUAL
@@ -769,7 +738,6 @@ enum DeviceProcessor {
     Muon(Muon),
     Muffin(Muffin),
     Minotaur(Minotaur),
-    MinotaurExperimental(MinotaurExperimental),
     Monarch(Monarch),
     GodessOne(GodessOne),
     Dartford(Dartford),
@@ -778,7 +746,6 @@ enum DeviceProcessor {
     Celeste(Celeste),
     Brigade(Brigade),
     Springfield(Springfield),
-    SpringfieldExperimental(SpringfieldExperimental),
     StudioVerb(StudioVerb),
 }
 
@@ -789,9 +756,6 @@ impl DeviceProcessor {
             DeviceConfig::Muon => Self::Muon(Muon::new(sample_rate)),
             DeviceConfig::Muffin => Self::Muffin(Muffin::new(sample_rate)),
             DeviceConfig::Minotaur => Self::Minotaur(Minotaur::new(sample_rate)),
-            DeviceConfig::MinotaurExperimental => {
-                Self::MinotaurExperimental(MinotaurExperimental::new(sample_rate))
-            }
             DeviceConfig::Monarch => Self::Monarch(Monarch::new(sample_rate)),
             DeviceConfig::GodessOne => Self::GodessOne(GodessOne::new(sample_rate)),
             DeviceConfig::Dartford => Self::Dartford(Dartford::new(sample_rate)),
@@ -800,9 +764,6 @@ impl DeviceProcessor {
             DeviceConfig::Celeste => Self::Celeste(Celeste::new(sample_rate)),
             DeviceConfig::Brigade => Self::Brigade(Brigade::new(sample_rate)),
             DeviceConfig::Springfield => Self::Springfield(Springfield::new(sample_rate)),
-            DeviceConfig::SpringfieldExperimental => {
-                Self::SpringfieldExperimental(SpringfieldExperimental::new(sample_rate))
-            }
             DeviceConfig::StudioVerb => Self::StudioVerb(StudioVerb::new(sample_rate)),
         }
     }
@@ -813,7 +774,6 @@ impl DeviceProcessor {
             Self::Muon(pedal) => pedal.reset(),
             Self::Muffin(pedal) => pedal.reset(),
             Self::Minotaur(pedal) => pedal.reset(),
-            Self::MinotaurExperimental(pedal) => pedal.reset(),
             Self::Monarch(pedal) => pedal.reset(),
             Self::GodessOne(pedal) => pedal.reset(),
             Self::Dartford(pedal) => pedal.reset(),
@@ -822,7 +782,6 @@ impl DeviceProcessor {
             Self::Celeste(pedal) => pedal.reset(),
             Self::Brigade(pedal) => pedal.reset(),
             Self::Springfield(pedal) => pedal.reset(),
-            Self::SpringfieldExperimental(pedal) => pedal.reset(),
             Self::StudioVerb(pedal) => pedal.reset(),
         }
     }
@@ -833,7 +792,6 @@ impl DeviceProcessor {
             Self::Muon(_) => Muon::INPUT_IMPEDANCE_OHMS,
             Self::Muffin(_) => Muffin::INPUT_IMPEDANCE_OHMS,
             Self::Minotaur(_) => Minotaur::INPUT_IMPEDANCE_OHMS,
-            Self::MinotaurExperimental(_) => MinotaurExperimental::INPUT_IMPEDANCE_OHMS,
             Self::Monarch(_) => Monarch::INPUT_IMPEDANCE_OHMS,
             Self::GodessOne(_) => GodessOne::INPUT_IMPEDANCE_OHMS,
             Self::Dartford(_) => Dartford::INPUT_IMPEDANCE_OHMS,
@@ -842,7 +800,6 @@ impl DeviceProcessor {
             Self::Celeste(_) => Celeste::INPUT_IMPEDANCE_OHMS,
             Self::Brigade(_) => Brigade::INPUT_IMPEDANCE_OHMS,
             Self::Springfield(_) => Springfield::INPUT_IMPEDANCE_OHMS,
-            Self::SpringfieldExperimental(_) => SpringfieldExperimental::INPUT_IMPEDANCE_OHMS,
             Self::StudioVerb(_) => StudioVerb::INPUT_IMPEDANCE_OHMS,
         }
     }
@@ -911,25 +868,6 @@ impl DeviceProcessor {
                 },
             ),
             Self::Minotaur(pedal) => pedal.process_loaded_voltage(
-                input_voltage,
-                match controls {
-                    DeviceControls::Minotaur(controls) => controls,
-                    DeviceControls::Default => MinotaurControls::default(),
-                    DeviceControls::Lumen(_) => MinotaurControls::default(),
-                    DeviceControls::Muon(_) => MinotaurControls::default(),
-                    DeviceControls::Muffin(_) => MinotaurControls::default(),
-                    DeviceControls::Monarch(_) => MinotaurControls::default(),
-                    DeviceControls::GodessOne(_) => MinotaurControls::default(),
-                    DeviceControls::Dartford(_) => MinotaurControls::default(),
-                    DeviceControls::Tron(_) => MinotaurControls::default(),
-                    DeviceControls::Jetstream(_) => MinotaurControls::default(),
-                    DeviceControls::Celeste(_) => MinotaurControls::default(),
-                    DeviceControls::Brigade(_) => MinotaurControls::default(),
-                    DeviceControls::Springfield(_) => MinotaurControls::default(),
-                    DeviceControls::StudioVerb(_) => MinotaurControls::default(),
-                },
-            ),
-            Self::MinotaurExperimental(pedal) => pedal.process_loaded_voltage(
                 input_voltage,
                 match controls {
                     DeviceControls::Minotaur(controls) => controls,
@@ -1100,25 +1038,6 @@ impl DeviceProcessor {
                     DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
                 },
             ),
-            Self::SpringfieldExperimental(pedal) => pedal.process_loaded_voltage(
-                input_voltage,
-                match controls {
-                    DeviceControls::Springfield(controls) => controls,
-                    DeviceControls::Default => SpringfieldControls::default(),
-                    DeviceControls::Lumen(_) => SpringfieldControls::default(),
-                    DeviceControls::Muon(_) => SpringfieldControls::default(),
-                    DeviceControls::Muffin(_) => SpringfieldControls::default(),
-                    DeviceControls::Minotaur(_) => SpringfieldControls::default(),
-                    DeviceControls::Monarch(_) => SpringfieldControls::default(),
-                    DeviceControls::GodessOne(_) => SpringfieldControls::default(),
-                    DeviceControls::Dartford(_) => SpringfieldControls::default(),
-                    DeviceControls::Tron(_) => SpringfieldControls::default(),
-                    DeviceControls::Jetstream(_) => SpringfieldControls::default(),
-                    DeviceControls::Celeste(_) => SpringfieldControls::default(),
-                    DeviceControls::Brigade(_) => SpringfieldControls::default(),
-                    DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
-                },
-            ),
             Self::StudioVerb(pedal) => pedal.process_loaded_voltage(
                 input_voltage,
                 match controls {
@@ -1186,17 +1105,6 @@ mod tests {
             "gold"
         );
         assert_eq!(
-            DeviceConfig::MinotaurExperimental
-                .model_descriptor()
-                .visual
-                .color,
-            "gold"
-        );
-        assert_eq!(
-            DeviceConfig::MinotaurExperimental.model_descriptor().label,
-            "Minotaur Exp"
-        );
-        assert_eq!(
             DeviceConfig::Monarch.model_descriptor().visual.color,
             "royal-purple"
         );
@@ -1228,36 +1136,17 @@ mod tests {
             DeviceConfig::Springfield.model_descriptor().visual.color,
             "surf-green"
         );
-        assert_eq!(
-            DeviceConfig::SpringfieldExperimental
-                .model_descriptor()
-                .visual
-                .color,
-            "surf-green"
-        );
-        assert_eq!(
-            DeviceConfig::SpringfieldExperimental
-                .model_descriptor()
-                .label,
-            "Springfield Exp"
-        );
         assert_eq!(amp_model_descriptor("nox30").visual.color, "copper");
         assert_eq!(
             amp_model_descriptor("sheriff800").visual.color,
             "black-gold"
         );
         assert_eq!(amp_model_descriptor("dumbler").visual.color, "tan");
-        assert_eq!(
-            amp_model_descriptor("nox30-experimental").id,
-            "nox30-experimental"
-        );
-        assert_eq!(
-            amp_model_descriptor("nox30-experimental").label,
-            "Nox30 Exp"
-        );
+        assert_eq!(amp_model_descriptor("nox30-experimental").id, "nox30");
+        assert_eq!(amp_model_descriptor("nox30-experimental").label, "Nox30");
         assert_eq!(
             amp_model_descriptor("nox30-experimental?tone_source_ohms=47000").id,
-            "nox30-experimental"
+            "nox30"
         );
     }
 

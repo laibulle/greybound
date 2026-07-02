@@ -3,21 +3,27 @@ title: Amp Model Experiments
 description: How stable and experimental amp implementations coexist for desktop A/B testing and lab validation.
 ---
 
-Greybound can carry more than one implementation of the same amp while keeping a
-single musical UX. This is the intended workflow for moving Nox30 toward more
-circuit-derived behavior without risking the desktop feel that currently works.
+This page records the temporary A/B workflow that was used to move Nox30 toward
+explicit component-boundary behavior. As of 2026-07-02, the formerly
+experimental Nox30 path is the canonical implementation. `nox30-experimental`
+is retained only as a legacy rig alias.
+
+Future experiments can still use the pattern below, but they should be
+introduced as short-lived named hypotheses and promoted or removed after lab
+evidence, rather than kept as a permanent product-facing stable/experimental
+split.
 
 ## Goals
 
-- Keep `nox30` as the stable, playable reference.
-- Add `nox30-experimental` as the development target for circuit-description,
+- Keep `nox30` as the playable reference while a candidate is being evaluated.
+- Let a short-lived development target carry circuit-description,
   component-boundary, and shared-state experiments.
-- Let the desktop switch implementations without changing controls, pedals,
-  cab, audio devices, or the visible UX.
+- If a desktop switch is useful, make it a temporary development control that
+  does not alter controls, pedals, cab, audio devices, or the visible UX.
 - Let the lab render both implementations with fixed conditions and compare
   runtime health, WAV metrics, and listening notes.
-- Make the experiment reversible: if the experimental model is worse, the stable
-  desktop path remains untouched.
+- Make the experiment reversible until promotion; after promotion, remove the
+  alternate implementation and keep only compatibility aliases when needed.
 
 ## Non-Goals
 
@@ -31,32 +37,21 @@ circuit-derived behavior without risking the desktop feel that currently works.
 
 ## Current Implementation
 
-The desktop top bar exposes a runtime switch:
+There is no desktop amp implementation switch in the promoted path. `nox30`
+loads `Nox30Current`, which owns the normal Nox30 stages plus a boundary runner
+that records component state and routes the cathode-follower to Top Boost tone
+stack through an explicit `ComponentSignal`.
 
-- `AMP STABLE` loads `nox30`.
-- `AMP EXPERIMENT` loads `nox30-experimental`.
+`nox30-experimental` still parses as a legacy alias and maps to the same
+`Nox30Current` implementation. It exists to keep older rigs and comparison
+artifacts readable, not to select a separate audio path.
 
-Switching implementations restarts the live audio engine because the amp core
-owns stateful filters, nonlinear solvers, sag memory, and transformer memory.
-Controls, selected devices, cab mix, metronome state, tuner state, and audio
-device selection stay in the UI state and are copied into the new runtime.
-
-`nox30-experimental` is a distinct core variant that currently delegates audio
-processing to the stable Nox30 stages through an experimental boundary runner.
-It is intentionally bit-equivalent to `nox30` until a focused component
-experiment diverges it. The runner records the latest component boundary states
-so future replacements have an explicit state path before they alter sound.
-The first transparent boundary path is the cathode-follower to Top Boost tone
-stack connection: experimental preamp processing now wraps the follower output
-in a `ComponentSignal` carrying voltage, source impedance, load impedance,
-coupling, DC offset, and headroom before calling the tone stack.
-
-For lab-only boundary experiments, `nox30-experimental` accepts query-style
-model parameters. The default form remains transparent:
+For lab-only boundary experiments, canonical `nox30` accepts query-style model
+parameters. The default form remains:
 
 ```json5
 amp: {
-  model: "nox30-experimental",
+  model: "nox30",
 }
 ```
 
@@ -65,7 +60,7 @@ boundary:
 
 ```json5
 amp: {
-  model: "nox30-experimental?tone_source_ohms=47000&tone_load_ohms=47000",
+  model: "nox30?tone_source_ohms=47000&tone_load_ohms=47000",
 }
 ```
 
@@ -74,8 +69,7 @@ boundary to the Top Boost tone stack. `tone_load_ohms` changes the downstream
 load impedance used by the tone-stack solve. Values are clamped to
 `1 ohm..10 Mohm`. These parameters are intentionally not exposed in the desktop
 UX because they are hypothesis controls for lab comparison, not musical
-controls. The base desktop `AMP EXPERIMENT` path still loads plain
-`nox30-experimental`.
+controls.
 
 Offline A/B uses:
 
@@ -83,8 +77,9 @@ Offline A/B uses:
 - `rigs/grey-nox-experimental.json5`
 - `rigs/grey-nox-experimental-tone-load.json5`
 
-These rigs should stay identical except for `amp.model` unless the experiment is
-explicitly about topology or control settings.
+Historical `*-experimental` rigs are now compatibility fixtures. New
+experiments should get explicit hypothesis names and should stay identical to
+their baseline except for the parameter under test.
 
 ## Source-Of-Truth Levels
 
@@ -97,13 +92,13 @@ Greybound should separate three layers that are easy to confuse:
 
 2. **Executable amp implementation**
    Rust DSP code that turns audio and controls into audio. This owns private
-   stage memory and produces telemetry. The stable implementation may remain
-   hand-structured while the experimental implementation becomes more
-   descriptor-driven.
+   stage memory and produces telemetry. The current implementation may remain
+   hand-structured while a short-lived candidate becomes more descriptor-driven
+   during evaluation.
 
 3. **Validation artifacts**
    Monitor logs, WAV renders, comparison reports, SPICE fixtures, and measured
-   references. These decide whether the experimental implementation is useful.
+   references. These decide whether a candidate is useful enough to promote.
 
 The circuit description can become the orchestration source of truth before it
 becomes a physical netlist. That means it can say which stages exist, how they
@@ -179,7 +174,7 @@ state.
 ## Migration Plan
 
 1. **Alias baseline**
-   `nox30-experimental` maps to the same implementation as `nox30`, with a test
+   A candidate id maps to the same implementation as `nox30`, with a test
    proving bit-equivalence.
 
 2. **Descriptor mirror**
@@ -187,9 +182,9 @@ state.
    boundaries. UI and lab inspection read this descriptor; DSP remains unchanged.
 
 3. **Boundary telemetry**
-   Make the stable model expose per-boundary telemetry using the shared-state
-   vocabulary where possible. The telemetry is observational and must not alter
-   audio.
+   Make the current model expose per-boundary telemetry using the shared-state
+   vocabulary where possible. The telemetry is observational unless the
+   experiment explicitly targets that boundary.
 
 4. **Experimental boundary runner**
    Introduce an experimental runner that processes explicit component boundary

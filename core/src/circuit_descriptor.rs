@@ -123,10 +123,8 @@ pub struct CircuitDescriptor {
 
 pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static CircuitDescriptor> {
     match device {
-        DeviceConfig::Minotaur | DeviceConfig::MinotaurExperimental => Some(&MINOTAUR_CIRCUIT),
-        DeviceConfig::Springfield | DeviceConfig::SpringfieldExperimental => {
-            Some(&SPRINGFIELD_CIRCUIT)
-        }
+        DeviceConfig::Minotaur => Some(&MINOTAUR_CIRCUIT),
+        DeviceConfig::Springfield => Some(&SPRINGFIELD_CIRCUIT),
         _ => None,
     }
 }
@@ -438,7 +436,7 @@ const NOX30_CONTROLS: &[CircuitControlBinding] = &[
 ];
 
 const NOX30_NOTES: &[&str] = &[
-    "This is a runtime descriptor for the current Nox30 model and experimental alias.",
+    "This is a runtime descriptor for the current Nox30 model; nox30-experimental is a legacy alias.",
     "The supply network is shared state: it consumes component current demand and publishes rail voltages.",
     "The descriptor is a component-boundary graph, not a PCB layout or full SPICE netlist.",
 ];
@@ -961,22 +959,14 @@ mod tests {
             Some("minotaur")
         );
         assert_eq!(
-            device_circuit_descriptor(DeviceConfig::MinotaurExperimental).map(|d| d.model_id),
-            Some("minotaur")
-        );
-        assert_eq!(
             device_circuit_descriptor(DeviceConfig::Springfield).map(|d| d.model_id),
-            Some("springfield")
-        );
-        assert_eq!(
-            device_circuit_descriptor(DeviceConfig::SpringfieldExperimental).map(|d| d.model_id),
             Some("springfield")
         );
         assert!(device_circuit_descriptor(DeviceConfig::StudioVerb).is_none());
     }
 
     #[test]
-    fn exposes_descriptor_for_stable_and_experimental_nox30() {
+    fn exposes_descriptor_for_nox30_and_legacy_experimental_alias() {
         assert_eq!(
             amp_circuit_descriptor("nox30").map(|d| d.model_id),
             Some("nox30")
