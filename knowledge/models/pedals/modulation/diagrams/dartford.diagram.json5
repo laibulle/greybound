@@ -1,0 +1,285 @@
+{
+  schema: "greybound.circuit-diagram.v1",
+  model: "dartford",
+  title: "Dartford Vox/Jennings-inspired tremolo documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1300,
+    preferredHeight: 650,
+  },
+
+  groups: [
+    {
+      id: "audio",
+      label: "Audio path",
+      nodes: [
+        "input_jack",
+        "input_load",
+        "band_motion",
+        "gain_cell",
+        "bias_memory",
+        "output_smoothing",
+        "output_source",
+      ],
+    },
+    {
+      id: "modulator",
+      label: "Vib/Trem control",
+      nodes: ["lfo_phase", "wave_shape", "lfo_smoothing", "depth_level"],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_jack",
+      label: "Input jack",
+      kind: "connector",
+      ports: ["out"],
+      hardware: {
+        role: "amp FX send, previous FX-loop device, guitar, or previous pedal input",
+        confidence: "high",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "voltage plus source impedance enters the effect",
+      },
+      spice: null,
+      layout: { x: 40, y: 300 },
+    },
+    {
+      id: "input_load",
+      label: "Buffered input / coupling",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "high input impedance buffer plus AC coupling",
+        value: "about 1 MOhm input impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        library: ["ConnectionState", "Load"],
+        library: ["ConnectionState", "Load", "OnePoleHighpass"],
+        state: ["input_connection", "input_coupling"],
+        algorithm: "source/load division with cable capacitance memory, then 16 Hz input coupling before modulation",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rin",
+        nodes: ["in", "0"],
+        value: "1Meg",
+      },
+      layout: { x: 220, y: 300 },
+    },
+    {
+      id: "band_motion",
+      label: "Subtle band motion",
+      kind: "filter",
+      ports: ["in", "control", "out"],
+      hardware: {
+        role: "phase-shift tremolo/vibrato lineage approximation",
+        parts: ["Vib/Trem phase-shift network"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        library: ["OnePoleLowpass", "OnePoleHighpass"],
+        state: ["low_band", "high_band"],
+        algorithm: "split around 690 Hz and apply small opposite low/high motion from quadrature LFO",
+      },
+      spice: null,
+      layout: { x: 440, y: 300 },
+    },
+    {
+      id: "gain_cell",
+      label: "Rounded gain cell",
+      kind: "vca",
+      ports: ["in", "control", "out"],
+      hardware: {
+        role: "time-varying tremolo amplitude control",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        algorithm: "intensity = depth^0.75; gain = 1 - intensity * 0.72 * (1 - pulse)^1.25",
+      },
+      spice: null,
+      layout: { x: 660, y: 300 },
+    },
+    {
+      id: "bias_memory",
+      label: "Bias memory",
+      kind: "nonlinear",
+      ports: ["in", "out"],
+      hardware: {
+        role: "tube-like recovery feel at deeper settings",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        library: ["OnePoleLowpass"],
+        state: ["bias_memory"],
+        algorithm: "short envelope memory compresses deep pulses",
+      },
+      spice: null,
+      layout: { x: 860, y: 300 },
+    },
+    {
+      id: "output_smoothing",
+      label: "Output smoothing",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "wideband output smoothing",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        library: ["OnePoleLowpass"],
+        state: ["output_lowpass"],
+        algorithm: "16.5 kHz one-pole low-pass after modulation",
+      },
+      spice: null,
+      layout: { x: 1060, y: 300 },
+    },
+    {
+      id: "output_source",
+      label: "Output source",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "low impedance output driver",
+        value: "about 1 kOhm output impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "emit voltage with Dartford::OUTPUT_IMPEDANCE_OHMS",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rout",
+        nodes: ["out", "out_src"],
+        value: "1k",
+      },
+      layout: { x: 1240, y: 300 },
+    },
+    {
+      id: "lfo_phase",
+      label: "LFO phase",
+      kind: "oscillator",
+      ports: ["out"],
+      hardware: {
+        role: "phase-shift oscillator control state",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        state: ["phase"],
+        algorithm: "phase += rate_hz / sample_rate",
+      },
+      spice: null,
+      layout: { x: 260, y: 120 },
+    },
+    {
+      id: "wave_shape",
+      label: "Wave shape",
+      kind: "waveshaper",
+      ports: ["in", "out"],
+      hardware: {
+        role: "LFO waveform selection",
+        parts: ["wave switch"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::DartfordWave",
+        algorithm: "sine, triangle, or square LFO",
+      },
+      spice: null,
+      layout: { x: 480, y: 120 },
+    },
+    {
+      id: "lfo_smoothing",
+      label: "Rounded asymmetry",
+      kind: "waveshaper",
+      ports: ["in", "out"],
+      hardware: {
+        role: "rounded Vox-like oscillator feel",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::Dartford",
+        library: ["OnePoleLowpass"],
+        state: ["lfo_smoother"],
+        algorithm: "asymmetric LFO shaping followed by 18 Hz smoothing",
+      },
+      spice: null,
+      layout: { x: 700, y: 120 },
+    },
+    {
+      id: "depth_level",
+      label: "Depth / level",
+      kind: "control",
+      ports: ["in", "out"],
+      hardware: {
+        role: "modulation depth and output trim controls",
+        parts: ["depth potentiometer", "level potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::DartfordControls",
+        algorithm: "musical depth taper scales LFO influence; level trims final amplitude",
+      },
+      spice: null,
+      layout: { x: 920, y: 120 },
+    },
+  ],
+
+  edges: [
+    {
+      from: "input_jack.out",
+      to: "input_load.in",
+      signal: "audio_voltage",
+      spiceNet: "in",
+    },
+    {
+      from: "input_load.out",
+      to: "band_motion.in",
+      signal: "loaded_audio_voltage",
+    },
+    { from: "band_motion.out", to: "gain_cell.in", signal: "voiced_audio" },
+    { from: "lfo_phase.out", to: "wave_shape.in", signal: "phase" },
+    { from: "wave_shape.out", to: "lfo_smoothing.in", signal: "raw_lfo" },
+    { from: "lfo_smoothing.out", to: "depth_level.in", signal: "rounded_lfo" },
+    {
+      from: "depth_level.out",
+      to: "band_motion.control",
+      signal: "quadrature_motion",
+    },
+    {
+      from: "depth_level.out",
+      to: "gain_cell.control",
+      signal: "modulation_gain",
+    },
+    { from: "gain_cell.out", to: "bias_memory.in", signal: "modulated_audio" },
+    {
+      from: "bias_memory.out",
+      to: "output_smoothing.in",
+      signal: "recovered_audio",
+    },
+    {
+      from: "output_smoothing.out",
+      to: "output_source.in",
+      signal: "smoothed_audio",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "This is an algorithmic Vox/Jennings-inspired tremolo graph, not a component-exact AC30 Vib/Trem schematic.",
+    },
+  ],
+}

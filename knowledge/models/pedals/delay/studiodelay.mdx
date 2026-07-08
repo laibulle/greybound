@@ -1,0 +1,41 @@
+---
+title: StudioDelay
+description: Original algorithmic studio delay model for Greybound.
+---
+
+StudioDelay is Greybound's clean algorithmic delay for the desktop FX Loop. It
+is not a greybox circuit model and should not have a circuit descriptor. The
+goal is a practical studio-style delay that is predictable, stable, and easy to
+play.
+
+## Intended Role
+
+- Default placement is post-amp / FX Loop, before reverb.
+- Default desktop state is bypassed, so it is available without changing the
+  base sound.
+- Brigade remains the character/BBD-style delay target; StudioDelay is the
+  clean utility delay.
+
+## Controls
+
+- `time_ms`: delay time, clamped to `40..1200 ms`.
+- `feedback`: repeat amount, clamped below runaway.
+- `tone`: repeat brightness.
+- `mod_depth`: subtle delay-time modulation.
+- `mix`: wet/dry blend.
+
+The desktop V1 exposes `Time`, `Feedback`, and `Mix`; `tone` and `mod_depth`
+use conservative defaults.
+
+## DSP Mapping
+
+- high-impedance input boundary using `ConnectionState`,
+- DC-blocked input coupling,
+- fractional delay line,
+- filtered feedback path,
+- subtle slow modulation,
+- wet/dry blend,
+- low output source impedance.
+
+Validation should focus on runtime health, repeat timing, feedback stability,
+and musical integration rather than circuit-level operating points.

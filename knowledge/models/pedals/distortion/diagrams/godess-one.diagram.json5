@@ -1,0 +1,357 @@
+{
+  schema: "greybound.circuit-diagram.v1",
+  model: "godess-one",
+  title: "Godess One distortion documentation graph",
+  status: "documentation",
+  sourceOfTruth: "rust-model",
+
+  renderer: {
+    layout: "left-to-right",
+    preferredWidth: 1540,
+    preferredHeight: 760,
+  },
+
+  groups: [
+    {
+      id: "input",
+      label: "Input and emphasis",
+      nodes: [
+        "input_jack",
+        "input_load",
+        "input_coupling",
+        "pre_emphasis",
+        "preclip_filter",
+      ],
+    },
+    {
+      id: "clip",
+      label: "Distortion core",
+      nodes: ["drive_gain", "diode_clip", "hard_clip_blend", "postclip_filter"],
+    },
+    {
+      id: "voice",
+      label: "Tone and output",
+      nodes: ["mode_voice", "tone_blend", "output_level", "output_source"],
+    },
+  ],
+
+  nodes: [
+    {
+      id: "input_jack",
+      label: "Input jack",
+      kind: "connector",
+      ports: ["out"],
+      hardware: {
+        role: "guitar or previous pedal input",
+        confidence: "high",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "voltage plus source impedance enters the pedal",
+      },
+      spice: null,
+      layout: { x: 40, y: 330 },
+    },
+    {
+      id: "input_load",
+      label: "Buffered input load",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "high input impedance input buffer and bias network",
+        parts: ["input buffer", "bias network"],
+        value: "about 1 MOhm input impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["ConnectionState", "Load"],
+        state: ["input_connection"],
+        algorithm: "source/load division with cable capacitance memory",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rin",
+        nodes: ["in", "0"],
+        value: "1Meg",
+      },
+      layout: { x: 210, y: 300 },
+    },
+    {
+      id: "input_coupling",
+      label: "Input coupling",
+      kind: "highpass",
+      ports: ["in", "out"],
+      hardware: {
+        role: "DC blocking before distortion stages",
+        parts: ["coupling capacitor", "bias/load resistance"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["OnePoleHighpass"],
+        state: ["input_highpass"],
+        algorithm: "35 Hz one-pole high-pass",
+      },
+      spice: null,
+      layout: { x: 390, y: 300 },
+    },
+    {
+      id: "pre_emphasis",
+      label: "Pre-emphasis",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "brightens signal before clipping",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["OnePoleHighpass"],
+        state: ["pre_emphasis"],
+        algorithm: "720 Hz high-pass edge path mixed with mode-dependent body",
+      },
+      spice: null,
+      layout: { x: 570, y: 300 },
+    },
+    {
+      id: "preclip_filter",
+      label: "Pre-clip filter",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "limits brittle high-frequency content before clipping",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["OnePoleLowpass"],
+        state: ["preclip_lowpass"],
+        algorithm: "6.8 kHz one-pole low-pass",
+      },
+      spice: null,
+      layout: { x: 740, y: 300 },
+    },
+    {
+      id: "drive_gain",
+      label: "Distortion gain",
+      kind: "gain_stage",
+      ports: ["in", "out"],
+      hardware: {
+        role: "distortion-controlled clipping amplifier",
+        parts: ["gain network", "distortion potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        algorithm: "mode-dependent gain from distortion control",
+      },
+      spice: null,
+      layout: { x: 920, y: 300 },
+    },
+    {
+      id: "diode_clip",
+      label: "Diode clipping",
+      kind: "diode_pair",
+      ports: ["in", "out"],
+      hardware: {
+        role: "symmetrical distortion clipping",
+        parts: ["diode pair"],
+        value: "0.48 V standard knee, 0.58 V custom knee target",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::diode_pair_clip",
+        algorithm: "knee_voltage * tanh(input / knee_voltage)",
+      },
+      spice: {
+        primitive: "DPAIR",
+        name: "Dclip",
+        nodes: ["drive", "drive_clipped"],
+        model: "silicon_distortion_clip",
+        params: { vf_standard: 0.48, vf_custom: 0.58 },
+      },
+      layout: { x: 1090, y: 240 },
+    },
+    {
+      id: "hard_clip_blend",
+      label: "Hard clip blend",
+      kind: "clipper",
+      ports: ["in", "out"],
+      hardware: {
+        role: "harder clipping contribution for sharper distortion edge",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::hard_clip",
+        algorithm: "blend a bounded hard clip contribution into the diode-pair path",
+      },
+      spice: null,
+      layout: { x: 1090, y: 420 },
+    },
+    {
+      id: "postclip_filter",
+      label: "Post-clip smoothing",
+      kind: "filter",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-distortion high-frequency shaping",
+        confidence: "low",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["OnePoleLowpass"],
+        state: ["postclip_lowpass"],
+        algorithm: "4.8 kHz one-pole low-pass after clipping",
+      },
+      spice: null,
+      layout: { x: 1260, y: 300 },
+    },
+    {
+      id: "mode_voice",
+      label: "Mode voice",
+      kind: "switch",
+      ports: ["in", "out"],
+      hardware: {
+        role: "Standard / Custom voicing switch",
+        parts: ["mode switch"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOneMode",
+        algorithm: "standard is tighter/brighter; custom raises gain, body, and mid fill",
+      },
+      spice: null,
+      layout: { x: 1430, y: 220 },
+    },
+    {
+      id: "tone_blend",
+      label: "Tone blend",
+      kind: "tone_control",
+      ports: ["in", "out"],
+      hardware: {
+        role: "post-clip body/edge tone network",
+        parts: ["tone potentiometer", "filter network"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        library: ["OnePoleLowpass", "OnePoleHighpass"],
+        state: ["body_lowpass", "edge_highpass"],
+        algorithm: "blend 620 Hz low-pass body and 1.15 kHz high-pass edge with mode-dependent mid fill",
+      },
+      spice: null,
+      layout: { x: 1430, y: 390 },
+    },
+    {
+      id: "output_level",
+      label: "Output level",
+      kind: "potentiometer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "final level control",
+        parts: ["level potentiometer"],
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::GodessOne",
+        algorithm: "mode-dependent output gain from level control",
+      },
+      spice: null,
+      layout: { x: 1600, y: 330 },
+    },
+    {
+      id: "output_source",
+      label: "Output source",
+      kind: "buffer",
+      ports: ["in", "out"],
+      hardware: {
+        role: "low impedance output driver",
+        value: "about 1 kOhm output impedance",
+        confidence: "medium",
+      },
+      emulation: {
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "emit voltage with GodessOne::OUTPUT_IMPEDANCE_OHMS",
+      },
+      spice: {
+        primitive: "R",
+        name: "Rout",
+        nodes: ["out", "out_src"],
+        value: "1k",
+      },
+      layout: { x: 1760, y: 330 },
+    },
+  ],
+
+  edges: [
+    {
+      from: "input_jack.out",
+      to: "input_load.in",
+      signal: "audio_voltage",
+      spiceNet: "in",
+    },
+    {
+      from: "input_load.out",
+      to: "input_coupling.in",
+      signal: "loaded_audio_voltage",
+    },
+    {
+      from: "input_coupling.out",
+      to: "pre_emphasis.in",
+      signal: "coupled_audio",
+    },
+    {
+      from: "pre_emphasis.out",
+      to: "preclip_filter.in",
+      signal: "emphasized_audio",
+    },
+    {
+      from: "preclip_filter.out",
+      to: "drive_gain.in",
+      signal: "filtered_audio",
+    },
+    { from: "drive_gain.out", to: "diode_clip.in", signal: "amplified_drive" },
+    {
+      from: "drive_gain.out",
+      to: "hard_clip_blend.in",
+      signal: "amplified_drive",
+    },
+    {
+      from: "diode_clip.out",
+      to: "postclip_filter.in",
+      signal: "soft_clipped_drive",
+    },
+    {
+      from: "hard_clip_blend.out",
+      to: "postclip_filter.in",
+      signal: "hard_clip_contribution",
+    },
+    {
+      from: "postclip_filter.out",
+      to: "mode_voice.in",
+      signal: "smoothed_distortion",
+    },
+    {
+      from: "mode_voice.out",
+      to: "tone_blend.in",
+      signal: "mode_voiced_distortion",
+    },
+    {
+      from: "tone_blend.out",
+      to: "output_level.in",
+      signal: "tone_shaped_audio",
+    },
+    {
+      from: "output_level.out",
+      to: "output_source.in",
+      signal: "level_trimmed_audio",
+    },
+  ],
+
+  annotations: [
+    {
+      text: "SPICE export is partial: only explicit impedance and diode placeholders are exportable today.",
+    },
+  ],
+}

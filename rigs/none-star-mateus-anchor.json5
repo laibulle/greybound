@@ -1,0 +1,36 @@
+{
+  // Rig-only NAM calibration anchor for the local Tone3000 Mateus Asato full-rig
+  // reference. Runtime input/output, sample rate, monitor, and render duration
+  // stay outside the rig.
+  name: "none-star-mateus-anchor",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [],
+
+  // Keep the NAM comparison dry here: the reference is already a captured
+  // amp+cab/full-rig model and should not be compared against Greybound spring.
+  fx_loop: [],
+
+  amp: {
+    model: "none-star",
+    bypassed: false,
+    controls: {
+      volume: 0.35,
+      bass: 0.42,
+      // Temporary mid control until shared amp controls expose `mid`.
+      cut: 0.55,
+      treble: 1.0,
+      drive: 0.05,
+      presence: 1.0,
+      sag: 0.20,
+    },
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/mesa.wav",
+    bypassed: false,
+  },
+}

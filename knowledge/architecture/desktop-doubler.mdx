@@ -1,0 +1,61 @@
+---
+title: Desktop Doubler
+description: Runtime stereo doubler behavior for the Greybound desktop app.
+---
+
+The desktop doubler is a runtime output utility, not a rig device. It belongs
+after the guitar DSP chain, cab blend, and output gain, and before metronome
+mixing, final output protection, and L/R meters.
+
+## Goals
+
+- Provide a Neural-style global `DOUBLER` control in the top bar.
+- Turn the current mono guitar path into a stereo L/R signal.
+- Keep the first implementation realtime-safe: no allocation, locks, or file
+  I/O in the CPAL callback.
+- Keep the control simple: enable/disable plus delay in milliseconds.
+
+## Non-Goals
+
+- Do not add the doubler to `rigs/*.json5`.
+- Do not route the doubler through pedals, amp, Springfield, or cab IR.
+- Do not implement full pitch-shift ADT in V1.
+- Do not alter metronome timing or tuner input analysis.
+
+## Runtime Boundary
+
+Recommended callback order:
+
+1. Pop input sample.
+2. Apply `INPUT` gain.
+3. Process Minotaur, Nox30, Springfield, and cab mix.
+4. Apply `OUTPUT` gain.
+5. Process guitar through the doubler, producing L/R.
+6. Generate metronome L/R and add it after the doubler.
+7. Apply final DAC protection and record stereo output meters.
+
+## V1 Algorithm
+
+The V1 doubler is a Haas/ADT-style stereo widening stage:
+
+- left channel is mostly direct guitar,
+- right channel is mostly a delayed copy,
+- a small crossfeed keeps the image from becoming hard-split,
+- delay is linearly interpolated from a circular buffer,
+- a very slow sub-millisecond modulation decorrelates the delayed side.
+
+Default UI delay is `7.15 ms`, matching the reference-style control. The user
+range is `0..20 ms`.
+
+## Validation Notes
+
+Initial implementation checks:
+
+```bash
+cargo test -p greybound-free doubler
+cargo check -p greybound-free
+```
+
+Live validation still needs to verify the perceived width through the user's
+CoreAudio output device and that mono summing remains acceptable at useful
+delay values.

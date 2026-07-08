@@ -1,0 +1,40 @@
+---
+title: Circuit Validation
+description: Shared validation gates for component-level circuit models.
+---
+
+Circuit-level work needs validation before it is treated as a trustworthy model. Public references are useful, but measured hardware, SPICE, and deterministic Rust fixtures are what make a model auditable.
+
+## Minimum Evidence
+
+- Component values have a source and confidence level.
+- Stateful capacitors map to explicit model state.
+- External connections expose voltage and impedance.
+- Controls have measured, documented, or deliberately assumed taper behavior.
+- No stage relies on unexplained magic gain constants.
+
+## Hardware Measurements
+
+When safe and available, capture:
+
+- supply voltage and current draw,
+- input impedance across frequency,
+- output impedance across control positions,
+- key internal node waveforms,
+- bypass behavior,
+- potentiometer resistance and taper.
+
+## SPICE References
+
+For each reusable circuit cell:
+
+- verify DC operating point,
+- run AC sweeps,
+- run transient tests at realistic amplitudes,
+- export reference curves for Rust comparison.
+
+Rust tests should compare operating points, RMS levels, harmonic magnitudes, and fixed-frequency tone-stack response.
+
+## Audio Regression
+
+For full models, keep rendered WAV fixtures and monitor logs around representative settings. Automated checks should prefer direct `target/release/greybound-cli --input-wav ... --output-wav ... --render-seconds ...` commands because they exit by themselves.

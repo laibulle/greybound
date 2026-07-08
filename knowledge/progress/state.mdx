@@ -1,0 +1,371 @@
+---
+title: State Ledger
+description: Decisions and open questions that should steer upcoming implementation.
+---
+
+## Decisions
+
+- Fumadocs is the project memory for implementation state, analysis, and contributor context.
+- The chain must be flexible and configured externally, not hardcoded to a Muffin or any single pedal.
+- Pedals and amps keep private DSP memory private.
+- Shared electrical behavior is passed through an explicit chain state.
+- Monitor tests should render to WAV rather than only writing to a null output.
+- WAV comparisons should have a notebook view for visual inspection of
+  alignment, residual energy, spectra, envelopes, and segment band errors.
+- Time-based effects are split by validation type: Springfield remains the spring
+  graybox/IR hybrid for rigs/lab work, while StudioVerb is the original digital
+  room/plate FDN effect now preferred by the desktop live app. StudioDelay is
+  the clean algorithmic delay companion; Brigade remains the character/BBD-style
+  delay target.
+- The desktop frontend remains Rust-native with `iced`; premium plugin-style
+  visuals should be built as custom-painted canvas scenes/components rather
+  than standard widgets with light styling. The first direction check compiles
+  with `cargo check -p greybound-free`.
+- The `greybound-free` crate is split by runtime responsibility instead of
+  keeping the whole app in `desktop/src/main.rs`: `main.rs` owns the iced
+  application shell, `audio.rs` owns the live audio runtime and runtime utility
+  processors, `audio_devices.rs` owns CPAL device/config selection,
+  `mcp_sidecar.rs` owns the audio-lab MCP child process, and `windowing.rs`
+  owns fixed-aspect window correction. This refactor is intended to preserve
+  behavior while making future realtime/UI work easier to review.
+- The desktop UI's first premium scene should default to the focused
+  `grey-nox` truth set: Minotaur, Nox30, Springfield, and the configured cab IR.
+  Do not present broad integration-board placeholders such as compressor/OD/mod
+  slots, and do not present StudioVerb in "greybox only" mode because it is an
+  original digital reverb rather than a circuit graybox reference.
+- The desktop UI should not present the Nox30 amp as a pedalboard slot. The
+  amp is a first-class top-menu view with its own large control panel; the
+  pedalboard view contains only pedal/effect slots.
+- The desktop UI now separates front-of-amp pedals from post-amp effects:
+  `PEDALS` renders `DeviceKind::Pedal` devices, while the new `FX LOOP` top
+  menu renders `DeviceKind::FxLoop` devices. Springfield has moved visually out
+  of the pedalboard into `FX LOOP`, matching its existing post-amp runtime
+  placement. The V1 spec lives in
+  `knowledge/architecture/desktop-fx-loop.mdx`.
+- The desktop UI should not show the legacy bottom slider control strip or the
+  old white chain legend icons. Pedal, amp, and cab controls belong directly on
+  the skeuomorphic device surfaces, with mouse dragging handled by the canvas
+  hit targets.
+- Desktop visual controls are moving into a reusable component library. The
+  first extracted component is a configurable knob renderer with label,
+  normalized value, min/max, step, and skin; surrounding amp or pedal background
+  color is intentionally owned by the parent visual surface, not the knob.
+- Desktop layout should behave like a plugin panel, not a responsive app: use a
+  fixed `1600x900` design surface and apply one uniform scale factor based on
+  the window size, preserving control positions and proportions. The desktop
+  shell corrects resize events back to the design aspect ratio so arbitrary
+  window ratios do not create blank margins around the plugin surface.
+- Desktop input/output VU meters are connected to live CPAL/CoreAudio telemetry
+  in the desktop app. The runtime opens selected input and output devices,
+  streams input channel 1 through the focused `grey-nox` chain
+  (Minotaur -> Nox30 -> Springfield -> embedded Celestion IR), writes mono to
+  output channels 1 and 2, and publishes RMS-derived meter levels back to the
+  UI at about 30 Hz.
+- The desktop Settings button now opens a functional Audio Settings panel with
+  discovered CoreAudio input/output devices, selectable sample rate and buffer
+  size down to 32 samples, channel choices, and runtime status. Changing input,
+  output, sample rate, or buffer size restarts the live audio engine with the
+  selected runtime configuration; unsupported low-latency buffers surface as
+  runtime status errors rather than being silently coerced.
+- Audio Settings is rendered inside a reusable dark modal component with a
+  dedicated title bar, body area, separator line, and top-right close button.
+  Future modal panels should reuse that component instead of hand-building
+  standalone cards.
+- Modal details should stay plugin-like: compact title bars, rounded outer
+  corners owned by the modal shell, and no nested borders around select fields.
+- The desktop footer is a full-width bar, not a floating pill. It should use a
+  square-edged footer container rather than the generic rounded ghost container.
+- The root plugin panel is also a full-bleed fixed surface and should use a
+  square-edged app panel container. Rounded containers are reserved for real
+  overlays, devices, fields, and controls.
+- The top global control bar is a structural band like the footer, so it should
+  also use a square-edged container rather than the rounded ghost container.
+- The pedalboard stage should not draw a surrounding container/frame. Device
+  visuals sit directly on the main panel background.
+- On startup, the desktop app now treats `48 kHz / 32 samples / f32` support as
+  the low-latency device heuristic. It scores compatible devices and prefers
+  known pro/external audio interfaces such as Scarlett/Focusrite over integrated
+  MacBook devices, then falls back to the system default if no low-latency
+  candidate is available.
+- The audio lab now has a first Rust MCP sidecar,
+  `greybound-audio-lab-mcp`, using stdio JSON-RPC. The desktop starts it when
+  the binary is available, routes sidecar stderr to
+  `target/greybound-mcp/audio-lab-mcp.stderr.log`, and keeps live CPAL audio
+  separate. Implemented tools can list assets, inspect rigs, render bounded
+  WAVs with temporary control overrides, parse monitor/WAV health, call the lab
+  comparison workflow, and summarize run metadata.
+- The desktop top control bar no longer exposes `cable` or a duplicate
+  `SPRING` mix as user controls. Cable capacitance remains a rig/lab parameter,
+  and Springfield mix belongs on the Springfield pedal surface. The visible
+  global controls are plugged into live audio: `INPUT` applies pre-chain gain,
+  `OUTPUT` applies post-chain gain, and `IR MIX` blends between dry amp output
+  and the cabinet IR convolution.
+- Desktop pedal footswitches are direct bypass hit targets. Clicking a
+  pedalboard footswitch selects that pedal and toggles its bypass state, which is
+  then copied into the live `SignalChain` runtime controls.
+- The desktop app handles window close explicitly. Iced's automatic close
+  handling is disabled so `CloseRequested` can first set a shutdown state, drop
+  the CPAL audio streams, drop the MCP sidecar, prevent meter ticks from
+  restarting audio, and then call `iced::window::close()`.
+- Desktop audio restarts now stop the previous live engine explicitly before
+  starting the replacement. The shutdown path pauses the output stream first,
+  then the input stream, drops the runtime, and waits briefly so CoreAudio can
+  release old callbacks. This prevents runtime restarts and audio device
+  changes from momentarily stacking two active processing graphs.
+- The desktop input VU meter now measures the post-`INPUT` gain signal entering
+  the DSP chain, not the raw CoreAudio capture. Lowering the `INPUT` knob should
+  lower both the actual chain drive and the displayed input level.
+- The desktop output path is currently dual-mono on output channels 1 and 2, but
+  the output VU is now represented as stereo L/R with separate meter
+  accumulators so the UI matches the physical stereo output layout and can
+  support future true-stereo processing.
+- The desktop metronome should be specified and implemented as a runtime utility
+  mixed into the live output after the guitar DSP chain. It does not belong in
+  rig files or signal-chain topology. The V1 spec lives in
+  `knowledge/architecture/desktop-metronome.mdx`.
+- Desktop metronome V1 is implemented in the live app. The footer opens a shared
+  modal with play/stop, BPM step, volume, and pan controls. The CPAL output
+  callback owns a sample-clock metronome generator and mixes its stereo click
+  after guitar DSP/output gain, so pan appears on the stereo output VU meters.
+- The desktop FX Loop default keeps StudioDelay and Springfield present but
+  bypassed, with StudioVerb active. The Rust desktop UI exposes `STUDIO DELAY`,
+  `SPRING`, and `STUDIO VERB`; delay/spring can be re-enabled for comparison or
+  creative playing, while the normal playing path stays on the cleaner studio
+  reverb. The live CPAL chain instantiates post-amp devices in order: bypassed
+  StudioDelay, bypassed Springfield, then active StudioVerb.
+- Desktop doubler V1 is a runtime output utility, not a rig device. The top bar
+  exposes a `DOUBLER` toggle and delay control, defaulting to `7.15 ms`; the
+  CPAL callback processes the post-chain guitar signal through a realtime-safe
+  Haas/ADT-style delay line to produce L/R before metronome mixing and stereo
+  output metering. The V1 spec lives in
+  `knowledge/architecture/desktop-doubler.mdx`.
+- Desktop graphic EQ V1 is a runtime output utility, not a rig device. The top
+  menu now has a dedicated EQ view with nine Neural-style graphic bands from
+  `65 Hz` to `16 kHz`, each mapped to `-12 dB..+12 dB`. The CPAL callback
+  processes the post-cab/IR mono guitar signal through lock-free biquad bands
+  before global output gain, doubler, metronome mixing, and stereo meters. The
+  HPF/LPF side controls are drawn as `OFF` reference visuals but are not yet
+  interactive. The V1 spec lives in
+  `knowledge/architecture/desktop-eq.mdx`.
+- The desktop tuner should be specified and implemented as a runtime utility,
+  not a rig device. It should analyze a clean input-side signal rather than the
+  processed output, so pedals, amp, Springfield, cab IR, and metronome playback
+  cannot affect pitch detection. The V1 spec lives in
+  `knowledge/architecture/desktop-tuner.mdx`.
+- Desktop tuner V1 is implemented in the live app. The footer opens a modal
+  with cents/Hz display, live/hold, output mute, and reference pitch stepping.
+  A dedicated worker consumes a duplicated input-side ring buffer and publishes
+  normalized-autocorrelation pitch readings through atomics; mute gates only the
+  final desktop output bus.
+- Circuit visualization now has a runtime semantic source of truth in
+  `core/src/circuit_descriptor.rs`. Minotaur and Springfield expose
+  descriptor graphs with stages, edges, control bindings, implementation
+  references, and confidence labels. These descriptors are model-level circuit
+  explanations, not PCB artwork or full SPICE netlists, and the desktop circuit
+  view should consume them before the next visual rendering pass.
+- The desktop pedal circuit view no longer draws an invented decorative PCB.
+  `greybound-ui` now depends on `greybound` with default features disabled and
+  renders Minotaur and Springfield directly from the runtime circuit
+  descriptors: stage nodes, routed edges, control badges, confidence hints, and
+  a greybox/IR-hybrid badge.
+- For pedal-shaped tall circuit views, the renderer now first tries a
+  two-terminal series-parallel graph layout before falling back to the generic
+  Sugiyama-style layout. This better matches Greybound pedal descriptors with a
+  signal spine, explicit split branches, a merge point, and an output path.
+  Branch subpaths are distributed horizontally when they contain multiple
+  components, so sequences such as `Drive -> Clip -> Smooth` or
+  `Dwell -> Tank IR -> Splash -> Recover` use the available pedal width instead
+  of collapsing into a vertical column. Generic fallback layers use even
+  spacing rather than descriptor-authored reference coordinates.
+- The circuit-view toggle icon now lives at the top-right of the stage canvas
+  instead of the top navigation. It is a local display mode, while the top
+  navigation remains limited to first-class views: pedals, amp, and cab. The
+  amp view now also supports circuit mode by rendering Nox30 component
+  boundaries from `NOX30_STAGE_BOUNDARIES` as a circuit-informed stage map.
+- The former stable/experimental split has been collapsed into one canonical
+  runtime path. `nox30`, `minotaur`, and `springfield` now use the promoted
+  stage-boundary/greybox candidates by default. The desktop no longer
+  exposes implementation-switch controls, so live audio cannot stack old and
+  new implementations by toggling A/B state.
+- Legacy ids remain parser aliases only:
+  `nox30-experimental -> nox30`,
+  `minotaur-experimental -> minotaur`, and
+  `springfield-experimental -> springfield`. Historical `*-experimental`
+  rig files are compatibility fixtures, not separate maintained models.
+- Nox30 now has a single `Nox30Current` amp core. It owns the Nox30 stages plus
+  a boundary runner that records stage boundary-state snapshots and routes
+  the cathode-follower output into the Top Boost tone stack through a typed
+  `StageSignal` carrying voltage, source/load impedance, coupling, DC
+  offset, and headroom. Parameterized lab hypotheses now use canonical model
+  strings such as `nox30?tone_source_ohms=47000&tone_load_ohms=47000`.
+- Nox30 passive support cells were tightened after the None Star promotion
+  exposed stale tests: `CutPresenceStage` now maps cut logarithmically from max
+  cutoff to min cutoff, and `TopBoostToneStack` applies a sub-audio output DC
+  blocker so the standalone MNA cell blocks DC like the surrounding AC-coupled
+  preamp path. Validation passed `cargo test -p greybound` and the release
+  monitor render `target/grey-nox-passive-fix-3s.wav` with zero xruns, zero
+  near-clips, and zero hard clips.
+- None Star Clean/Edge V1 is implemented as the `none-star` amp model, with
+  aliases `lonestar-special`, `lone-star-special`, and `lonestar` for existing
+  rigs. It is a stage-level graybox target for boutique clean and edge-of-
+  breakup behavior, not the full two-channel Mesa platform or Drive mode. The
+  runtime descriptor lives in
+  `core/src/circuit_descriptor.rs::NONE_STAR_CIRCUIT`, the model notes live in
+  `knowledge/models/amps/none-star.mdx`, and the focused render rig is
+  `rigs/none-star-clean-edge.json5`. The first release monitor
+  render produced zero xruns, zero input/output near-clips, and zero hard clips,
+  with loudest output RMS about `-16.8 dBFS` and peak about `-7.5 dBFS`.
+- Boxer Seven Lead V1 is implemented as the `boxer-seven-lead` amp model, with
+  aliases `boxer-seven`, `shiva-20th-lead`, and `shiva20-lead` for
+  source/reference naming. It is a stage-level graybox target inspired by the
+  Bogner Shiva 20th Anniversary lead channel, not a component-exact schematic
+  clone or the full two-channel platform. `AmpControls::cut` temporarily maps
+  to midrange, `drive` maps to the first mode/boost aggression hypothesis, and
+  `sag` maps to excursion/depth feel. The model notes live in
+  `knowledge/models/amps/boxer-seven-lead.mdx`, the runtime descriptor is
+  `core/src/circuit_descriptor.rs::BOXER_SEVEN_LEAD_CIRCUIT`, and the focused
+  render rig is `rigs/boxer-seven-lead.json5`. Initial validation is
+  runtime-health and regression-oriented until a measured capture, NAM/Axe
+  render, or project-owned SPICE fixture is added.
+  The first 3-second monitor render after output gain staging correction
+  produced zero xruns, zero input/output near-clips, and zero hard clips, with
+  loudest output RMS about `-15.5 dBFS` and peak about `-5.7 dBFS`.
+- Dumbler and Sheriff800 were removed from the supported runtime surface. They
+  were short family-level sketches without maintained rigs, desktop access,
+  runtime circuit descriptors, or reference-quality validation. The supported
+  amp set is now `nox30`, `none-star`, and `boxer-seven-lead`; future D-style or
+  Master Volume Lead work should restart from a sourced model page, rig, circuit
+  descriptor, and validation target rather than reviving the removed sketches.
+- The local None Star NAM reference from TONE3000 tone `69546` is installed as
+  an ignored local model under `lab/references/nam/NoneStar/`, with the
+  source-safe manifest
+  `lab/references/nam/manifests/none-star-mateus-asato-69546.json`. The model
+  metadata reports `gear_type: amp_cab`, so this is a full-rig embedded-cab
+  reference. Render it without an extra NAM-side IR and compare it only against
+  a Greybound full chain with an explicit cab/IR candidate, not against the raw
+  amp core alone.
+- First None Star NAM calibration sweeps use the fixed Mayer DI reference and
+  dry Greybound full-chain rig. The first component-level correction made the
+  tone stack and presence path less like passive high attenuation and more like
+  a presence branch that can restore high-frequency energy. It improved the
+  anchor report from weighted LSD `11.31 dB` to `10.87 dB` and reduced the
+  post-alignment deficits in mid (`-14.24 dB` to `-11.19 dB`), presence
+  (`-13.40 dB` to `-9.53 dB`), and air (`-5.54 dB` to `-2.12 dB`). The current
+  comparison anchor is `rigs/none-star-mateus-anchor.json5`:
+  `bass=0.42`, `cut=0.55`, `treble=1.0`, `presence=1.0`, `volume=0.35`,
+  `drive=0.05`, and `sag=0.20`. Best post-presence report still shows a
+  material mid/presence deficit (`1-4 kHz` about `-10.22 dB`, `4-8 kHz` about
+  `-8.26 dB`) and narrower dynamics, so the next useful change should inspect
+  recovery/phase-inverter drive, output filtering, or cab endpoint voicing
+  before changing arbitrary makeup gain.
+- None Star's DSP topology has been corrected away from the earlier Nox-like
+  flow after inspecting externally hosted Lone Star Special schematic
+  references. The current source-informed clean-channel pass models input
+  triode -> passive-style tone stack -> gain/recovery -> master/presence ->
+  phase inverter -> 6L6-style power bank, with a graybox gain-pot bright bypass
+  around the post-tone recovery path. Earlier EL84/Special wording was a target
+  mismatch for the local Lone Star NAM and the user-provided classic-style head
+  reference. Current best validation is
+  `lab/reports/none-star-mateus-6l6-open-ot-3s.md`: weighted guitar-band LSD
+  `10.22 dB`, null residual relative `-7.63 dB`, envelope error `-10.57 dB`,
+  and clean monitor xrun/clip counts `0/0`. The model is still not
+  component-complete; the remaining mid/presence/air deficit should be
+  investigated through the clean-channel tone/gain section and cab endpoint.
+- Desktop None Star now has its own amp-head visual identity instead of reusing
+  the Nox30 pink amp shell: dark blue/black tolex, a brushed light control
+  plate, compact black knobs, a Greybound badge, corner protectors, and a woven
+  beige grille. It is intentionally inspired by Lone Star-style references but
+  uses original Greybound/None Star branding.
+- Desktop Boxer Seven Lead is integrated as the third selectable amp in the
+  top-level `AMP` workflow and the global amp selector. Its amp-head visual is
+  based on the provided cream Bogner Shiva 20th Anniversary reference but uses
+  original Boxer Seven branding, a dark woven grille, gold control plate, black
+  knobs, and mapped V1 controls: `Gain -> volume`, `Drive -> drive`,
+  `Middle -> cut`, `Excursion -> sag`, `Presence -> presence`, and
+  `Output -> output`. The live desktop runtime now stores these controls into
+  `AmpControls` when `ui.amp_model_id() == "boxer-seven-lead"`.
+- None Star now has a first dedicated SPICE fixture,
+  `tests/fixtures/circuit/none_star_tone_presence.cir`, exposed through
+  `make lab-spice-none-star-tone-presence`. It is a narrow linear AC reference
+  for the current tone-stack/presence hypothesis, not a Mesa schematic. Current
+  ngspice report shows output gains of `-1.12 dB` at `1 kHz`, `+7.59 dB` at
+  `8 kHz`, and an `8 kHz - 1 kHz` output tilt of `+8.71 dB`; this guards the
+  intended presence behavior against reverting to passive high attenuation.
+- None Star now exposes a direct neural power-stage slot,
+  `none-star.power_6l6`, through the existing Greybound neural-cell artifact
+  loader. The slot is opt-in only and expects five runtime features
+  (`power_drive`, `bias_shift`, `sag`, `edge`, `sag_control`) with a scalar
+  output representing pre-transformer power-stage voltage. The next lab step is
+  to create the 6L6 SPICE dataset and train the artifact; no neural 6L6 model is
+  accepted or enabled by default yet.
+- None Star also now uses a structured analytic `PushPull6L6Stage` fallback
+  instead of the former one-line `lonestar_classic_6l6_power_bank` waveshaper.
+  The fallback owns explicit supply, screen, fixed-bias, bias-shift, plate,
+  load-current, screen-current, and attack-current state, so future 6L6 work
+  has component-level state to calibrate. The first biased version was too
+  compressed; the current less-compressed pass reduces bias shift, attack
+  current, supply sag contribution, and plate-current compression. Validation
+  with `target/none-star-structured-6l6-less-compression-trim-3s.wav` produced
+  zero xruns, zero near-clips, and zero hard clips; the NAM comparison report
+  `lab/reports/none-star-structured-6l6-less-compression-trim-mayer-3s.md`
+  improved weighted guitar-band LSD from `10.22 dB` to `8.87 dB`. The old
+  analytic helper still had slightly better null/envelope/dynamic metrics, so
+  this is a better engineering baseline for calibration, not a final sonic
+  match.
+- Minotaur now uses the formerly experimental soft-clip hypothesis as the
+  current cell: diode-pair knee `0.36 V` with `1.023x` internal output makeup.
+  The canonical pedal stores the latest stage-boundary snapshot for input
+  load, coupling, clean path, drive gain, soft clip, summing,
+  treble/presence, and output driver.
+- Minotaur output-driver triage found the level/output stage was the actual
+  source of the reported volume loss: the Rust output node was `-24.42 dB`
+  below the project Klon SPICE fixture while input and buffer matched. The CLI
+  now has `--minotaur-node-report` and the lab has
+  `greybound-lab minotaur-node-compare` for per-node SPICE checks. The output
+  driver now matches the fixture within `-0.04 dB` at the 1 kHz / 120 mV /
+  gain 0.55 / treble 0.60 / level 0.70 diagnostic point, and maintained
+  Minotaur rigs are recalibrated to `output: 0.03` to keep the default
+  Grey Nox preset clean.
+- Springfield now uses the formerly experimental recovery/splash hypothesis as
+  the current path: tank drive gain `1.015x`, splash contribution `1.08x`,
+  recovery brightness offset `+0.035`, and wet makeup `0.985x`. The canonical
+  pedal stores the latest stage-boundary snapshot for input coupling,
+  dwell driver, spring IR tank, splash diffusion, recovery tone, wet/dry mixer,
+  and output driver.
+- 2026-07-02 promotion validation passed:
+  `cargo fmt --check`, `cargo check -p greybound-ui`,
+  `cargo test -p greybound minotaur -- --nocapture`,
+  `cargo test -p greybound springfield -- --nocapture`,
+  `cargo test -p greybound nox30 -- --nocapture`,
+  `cargo test -p greybound-cli`, and
+  `cargo build --release -p greybound-cli -p greybound-free`.
+  The release monitor render
+  `target/grey-nox-canonical-3s.wav` using `rigs/grey-nox.json5`,
+  `Brit - Guitar.wav`, 48 kHz, period size 32, and the Celestion IR produced
+  peak `0.636794448`, RMS `0.075686652`, 12 monitor windows, zero input/output
+  xruns, zero near-clips, and zero hard clips. The monitor log is
+  `target/grey-nox-canonical-3s.monitor.log`.
+
+## Open Questions
+
+- Which rig fields should be added next without mixing runtime session settings into JSON5 rig files?
+- Should shared electrical state be sample-block level only, or should some fields support slower control-rate smoothing?
+- How much impedance interaction should be modeled in the first pass before adding circuit-specific refinements?
+- Which monitor metrics should become hard test assertions versus human-analysis signals?
+- Should `all-nox` remain an intentionally all-active stress rig despite severe
+  full-board clipping, or should it gain a calibrated monitor-safe preset
+  variant?
+- Should the MCP sidecar get an in-UI health indicator and restart button, or
+  stay invisible until a lab/debug panel is built?
+- Should the desktop metronome also be available in offline renders, or remain
+  desktop/live-only until a render use case is clear?
+- Should desktop tuner V1 analyze raw input or post-`INPUT` gain? Current
+  recommendation is post-`INPUT` for consistency with the input VU.
+
+## Risks
+
+- Over-modeling electrical state too early could make the chain hard to evolve.
+- Under-modeling impedance and voltage behavior could make pedal ordering sound unrealistic.
+- Monitor logs can become noisy unless every metric has a clear diagnostic purpose.
+- Full-board `all-nox` renders can mask isolated pedal health because the
+  aggregate chain clips even when an individual effect is stable.

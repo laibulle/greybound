@@ -1,0 +1,141 @@
+* Klon Centaur ngspice fixture for Greybound model work.
+* Run with: ngspice -b tests/fixtures/circuit/klon_centaur.cir
+*
+* Public sources used for topology/component values:
+* - Zpag Klon Centaur schematic and BOM:
+*   https://www.zpag.net/Electroniques/Guitar/klon_centaur_schematic.html
+* - Jatin Chowdhury KlonCentaur LTspice gain-stage reference, BSD-3-Clause:
+*   https://github.com/jatinchowdhury18/KlonCentaur
+* - Texas Instruments TL072 PSpice macromodel SLOJ067:
+*   https://www.ti.com/lit/zip/sloj067
+* - Tiburonboy symbolic MNA Klon Centaur netlist, derived from the Martin
+*   Chittum schematic and compared against LTspice:
+*   https://tiburonboy.github.io/Symbolic-Modified-Nodal-Analysis-using-Python/Klon%20Centaur%20part%202v0.html
+*
+* Scope:
+* - Effect path, not bypass path.
+* - Full audio topology: input buffer, gain/clean feed-forward networks,
+*   germanium hard clipping, summing/filtering, treble, level, output recovery.
+* - TL072 sections use the TI PSpice macromodel with the documented RP
+*   supply-current typo corrected in the local ngspice copy.
+* - Charge-pump switching is not simulated; audio stages are fed by idealized
+*   nominal Klon rails.
+
+.include tests/fixtures/circuit/vendor/ti/tl072/TL072_ti_ngspice.lib
+
+.param GAIN=0.55
+.param TREBLE=0.60
+.param LEVEL=0.70
+.param V9=9
+.param VREF=4.5
+.param VNEG=-8.6
+.param VBOOST=16.2
+
+* Dual-gang gain and output/tone pots. Values from the public BOM.
+.param RV_GAIN_TOP={max(100k*(1-GAIN), 1)}
+.param RV_GAIN_BOT={max(100k*GAIN, 1)}
+.param RV_TREBLE_TOP={max(10k*(1-TREBLE), 1)}
+.param RV_TREBLE_BOT={max(10k*TREBLE, 1)}
+.param RV_LEVEL_TOP={max(100k*(1-LEVEL), 1)}
+.param RV_LEVEL_BOT={max(100k*LEVEL, 1)}
+
+V9 v9 0 DC {V9}
+VREF vref 0 DC {VREF}
+VNEG vneg 0 DC {VNEG}
+VBOOST vboost 0 DC {VBOOST}
+
+* Guitar source.
+VIN guitar 0 SIN(0 120m 1k)
+Rsource guitar j2_tip 10k
+
+* Input buffer and always-buffered output/bypass feed.
+R1 c1_in j2_tip 10k
+C1 u2a_p c1_in 100n
+R2 u2a_p vref 1Meg
+XU2A u2a_p u2a_out vboost vneg u2a_out TL072_TI
+C2 u2a_out bypass_filter 4.7u
+R3 bypass_filter vref 100k
+R4 bypass_out bypass_filter 560
+R26 vout bypass_out 68k
+R28 vout vref 100k
+
+* Drive input and non-inverting gain stage, following the published MNA netlist.
+R5 u2a_out gain_ref 5.1k
+R8 gain_ref vref 1.5k
+C3 drive_in u2a_out 100n
+C4 u2a_out gain_ref 68n
+C6 gain_ref gain_ref_2 390n
+R9 gain_ref_2 vref 1k
+R6 u2b_p drive_in 10k
+C5 u2b_p drive_in 68n
+RGAIN_A_TOP gain_ref gain_wiper {RV_GAIN_TOP}
+RGAIN_A_BOT gain_wiper vref {RV_GAIN_BOT}
+RGAIN_B_TOP gain_tail vref {RV_GAIN_TOP}
+RGAIN_B_BOT vref u2b_p {RV_GAIN_BOT}
+R10 u2b_fb_1 gain_tail 2k
+R11 u2b_n u2b_fb_1 15k
+C7 u2b_n u2b_fb_1 82n
+C8 u2b_out u2b_n 390p
+R12 u2b_out u2b_n 422k
+R7 drive_in clean_feed 1.5k
+C16 clean_feed vref 1u
+XU2B u2b_p u2b_n vboost vneg u2b_out TL072_TI
+
+* Hard clipping and summing preparation.
+C9 u2b_out clip_in 1u
+R13 clip clip_in 1k
+D2 vref clip D1N34A
+D3 clip vref D1N34A
+C10 sum_drive clip 1u
+C11 sum_drive gain_bias 2.2n
+R15 gain_bias gain_wiper 22k
+R16 sum_node sum_drive 47k
+R17 sum_node gain_wiper 27k
+R18 sum_filter gain_wiper 12k
+C12 sum_node sum_filter 27n
+R24_SUM sum_node clean_feed 15k
+
+* Summing op-amp and treble network.
+XU3B vref sum_node vboost vneg mix_out TL072_TI
+R20 mix_out sum_node 392k
+C13 mix_out sum_node 820p
+R21 mix_out treble_top 1.8k
+R22 treble_amp_n mix_out 100k
+RTREBLE_TOP treble_top treble_wiper {RV_TREBLE_TOP}
+RTREBLE_BOT treble_wiper treble_tail {RV_TREBLE_BOT}
+C14 treble_amp_n treble_wiper 3.9n
+R241 tone_out treble_amp_n 100k
+R23 tone_out treble_tail 4.7k
+XU3A vref treble_amp_n vboost vneg tone_out TL072_TI
+
+* Level/output path in effect position.
+C15 tone_out level_in 4.7u
+R25 level_top level_in 560
+RLEVEL_TOP level_top level_wiper {RV_LEVEL_TOP}
+RLEVEL_BOT level_wiper vref {RV_LEVEL_BOT}
+Reffect vout level_wiper 0.01
+Rload vout 0 1Meg
+
+* Power-supply filter caps on idealized rails. The MAX1044 switching network
+* is intentionally out of scope for this audio-path fixture.
+C17 v9 0 47u
+C18 vref 0 47u
+C19 vneg 0 1u
+C21 vboost 0 1u
+C22 vref 0 1u
+
+.model D1N34A D(Is=2.6n Rs=12 N=1.65 Cjo=2p Eg=0.67 Bv=30 Ibv=10u)
+.model D1N4742A D(Is=50n Rs=1.2 N=1.7 Bv=12 Ibv=5m Cjo=80p)
+.model D1N4001 D(Is=14.1n Rs=33m N=1.984 Cjo=35p Bv=50 Ibv=5u)
+
+.save v(j2_tip) v(u2a_out) v(clean_feed) v(u2b_out) v(clip) v(mix_out) v(treble_wiper) v(vout)
+
+.control
+set filetype=ascii
+op
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_klon_centaur.dat v(j2_tip) v(u2a_out) v(clean_feed) v(u2b_out) v(clip) v(mix_out) v(treble_wiper) v(vout)
+quit
+.endc
+
+.end

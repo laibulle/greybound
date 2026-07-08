@@ -1,0 +1,246 @@
+---
+title: Desktop Tuner
+description: Specification for the Greybound desktop tuner UI and realtime pitch detection behavior.
+---
+
+The desktop tuner is a runtime utility for live guitar input. It is not part of
+the musical rig and must not be stored in `rigs/*.json5`. It should analyze a
+clean input-side signal, not the processed output chain, so pedals, amp,
+Springfield, cab IR, and metronome playback cannot affect the detected pitch.
+
+## Goals
+
+- Provide a Neural-style modal opened from the footer `TUNER` button.
+- Detect guitar pitch from the live desktop input path with low latency.
+- Show tuning error in cents around the nearest note.
+- Support a `Cents` and `Hz` display mode.
+- Support a `Live Tuner` toggle so the panel can either monitor continuously or
+  freeze/disable analysis while open.
+- Support a tuner mute control so the user can tune silently.
+- Keep pitch analysis off the CPAL realtime audio callback when practical.
+- Keep the first implementation small enough to validate in release builds.
+
+## Non-Goals
+
+- Do not add the tuner to rig topology or signal-chain APIs.
+- Do not detect pitch from the post-effect output.
+- Do not rely on the amp, cab, spring, or pedal state for tuning.
+- Do not implement polyphonic tuning in V1.
+- Do not implement alternate temperaments in V1.
+- Do not store tuner state in rig files.
+
+## Runtime Boundary
+
+The tuner belongs in `greybound-free`, next to the live audio engine and
+other session-only utilities. It should receive a clean mono analysis feed from
+the CPAL input stream.
+
+Recommended signal taps:
+
+1. CPAL input frame channel 1.
+2. Optional `INPUT` gain tap for visual consistency with the input VU.
+3. Tuner analysis ring buffer.
+4. Guitar DSP chain input.
+
+V1 recommendation: analyze the post-`INPUT` gain signal, because this matches
+the current input VU and lets the user lower noisy input level consistently.
+If `INPUT` gain later becomes a purely musical drive control, move tuner
+analysis back to raw input and document the decision.
+
+The tuner must not analyze the final output bus. That would make pitch detection
+depend on distortion, reverb, cabinet filtering, metronome clicks, and possible
+feedback/loopback.
+
+## Realtime Threading
+
+The CPAL callback should only copy samples into a bounded lock-free analysis
+buffer or write cheap atomics. Pitch detection should run outside the audio
+callback, either:
+
+- on the existing UI tick cadence for V1, consuming a snapshot from a shared
+  ring buffer, or
+- on a dedicated low-priority analyzer thread in a later pass.
+
+Avoid allocation, locks, FFT planning, and note-name formatting in the audio
+callback.
+
+Suggested shared state:
+
+- `tuner_enabled: AtomicBool`
+- `tuner_muted: AtomicBool`
+- `tuner_reference_hz_bits: AtomicU32`, default `440.0`
+- `tuner_input_rms_bits: AtomicU32`
+- `tuner_frequency_hz_bits: AtomicU32`, `0.0` means no stable pitch
+- `tuner_cents_bits: AtomicU32`
+- `tuner_confidence_bits: AtomicU32`
+
+The UI may keep richer non-realtime state:
+
+```rust
+pub struct TunerState {
+    pub open: bool,
+    pub live: bool,
+    pub muted: bool,
+    pub display_mode: TunerDisplayMode,
+    pub reference_hz: f32,
+    pub detected_hz: Option<f32>,
+    pub note_name: Option<String>,
+    pub cents: f32,
+    pub confidence: f32,
+}
+```
+
+## Pitch Detection
+
+V1 should use a time-domain monophonic detector. The preferred first pass is
+YIN or McLeod Pitch Method over a rolling window because guitar fundamentals
+are low and distorted/filtered material can make naive zero-crossing unstable.
+
+Recommended V1 parameters:
+
+- Analysis sample rate: use the live stream sample rate.
+- Window size: `2048` or `4096` samples at `48 kHz`.
+- Hop size: about `10..30 ms`.
+- Search range: `65 Hz..1_200 Hz` for standard guitar and upper harmonics.
+- Minimum RMS gate: ignore silence/noise below a calibrated threshold.
+- Confidence threshold: hide/fade the needle when pitch confidence is low.
+- Smoothing: one-pole smoothing for cents display, but reset quickly when the
+  nearest note changes.
+
+Detection output:
+
+```text
+midi_note = round(69 + 12 * log2(frequency_hz / reference_hz))
+target_hz = reference_hz * 2^((midi_note - 69) / 12)
+cents = 1200 * log2(frequency_hz / target_hz)
+```
+
+Clamp displayed cents to `-50..+50`. If the pitch is farther away, keep the
+needle pinned at the edge and still show the nearest note target.
+
+## UI V1
+
+Footer behavior:
+
+- `TUNER` opens the modal.
+- The footer button should appear selected while the tuner modal is open.
+- If tuner mute is enabled, the footer may later show a muted visual state.
+
+Modal behavior:
+
+- Reuse the existing dark modal frame component.
+- Title: `Tuner`.
+- Close button in the top-right.
+- Add a speaker/mute icon button near the close button.
+- Main display:
+  - horizontal center line from `-50` to `+50`;
+  - large circular needle/target marker;
+  - grey `-50` and `+50` labels near the left/right ends;
+  - optional central note name in a later pass.
+- Bottom controls:
+  - segmented `Cents` / `Hz` mode control;
+  - `Live Tuner` toggle;
+  - reference pitch stepper, default `440.0`.
+
+Display mode behavior:
+
+- `Cents`: primary display is cents offset from nearest equal-tempered note.
+- `Hz`: primary display is detected frequency and target frequency can be added
+  later.
+
+Mute behavior:
+
+- When `muted` is true, guitar output should be silent while tuner remains able
+  to analyze the input.
+- Metronome should also be muted while tuner mute is active, unless a future
+  option explicitly allows it.
+- Muting should be a final live-output gate in `greybound-free`, not a rig
+  bypass and not a change to the DSP chain state.
+
+## Suggested Messages
+
+- `ToggleTuner`
+- `CloseTuner`
+- `ToggleTunerLive`
+- `ToggleTunerMute`
+- `TunerDisplayModeSelected(TunerDisplayMode)`
+- `TunerReferenceStep(f32)`
+- `TunerAnalysisChanged(TunerReading)`
+
+## Visual States
+
+- No signal: dim needle at center, no note name, low confidence.
+- Acquiring: show needle but damp movement and use lower-opacity labels.
+- Stable in tune: center marker brightens when `abs(cents) <= 3`.
+- Flat/sharp: marker moves left/right and may change accent color later.
+- Muted: speaker icon indicates mute; final output is gated.
+
+## Validation
+
+For the first implementation:
+
+- Run `cargo fmt --check`.
+- Run `cargo check -p greybound-ui`.
+- Run `cargo check -p greybound-free`.
+- Run `cargo build --release -p greybound-free`.
+- Launch the release app and verify:
+  - `TUNER` opens and closes the modal;
+  - live analysis responds to an input sine or guitar string;
+  - changing pedals, amp, spring, cab mix, output gain, or metronome playback
+    does not change detected pitch;
+  - lowering `INPUT` reduces tuner input level if V1 uses post-input analysis;
+  - tuner mute silences guitar output while pitch detection continues;
+  - reference pitch changes shift the cents reading as expected.
+
+Future automated validation can add deterministic sine fixtures:
+
+- `82.4069 Hz` should detect near `E2`;
+- `110.0 Hz` should detect near `A2`;
+- `440.0 Hz` should detect near `A4`;
+- `A4` at reference `442.0 Hz` should read about `-7.85 cents`.
+
+## 2026-07-01 V1 Implementation
+
+The first implementation ships a live desktop tuner path:
+
+- Footer `TUNER` opens a dark modal using the shared modal style.
+- The modal renders a `-50..+50` cents rail, a large moving marker, a note/cents
+  or note/Hz readout, `Cents`/`Hz` mode buttons, `Live`/`Hold`, output mute,
+  and a `440.0` reference stepper.
+- The tuning interaction uses a fixed white target circle at the center and a
+  smaller colored ball that moves left/right with cents error. The ball is red
+  when out of tune and green when it enters the target zone.
+- The CPAL input callback duplicates raw input channel 1 into a bounded tuner
+  ring buffer. It does not run pitch detection in the audio callback.
+- A dedicated `TunerAnalysisWorker` consumes the tuner buffer, applies the
+  current `INPUT` gain, and publishes frequency, cents, and confidence through
+  atomics.
+- The V1 detector is normalized autocorrelation over a `4096` sample window
+  with a `1024` sample hop, `65 Hz..1_200 Hz` search range, RMS silence gate,
+  and confidence threshold. This is intentionally simple and can be replaced by
+  YIN/MPM later.
+- Tuner mute gates the final desktop output bus while leaving input analysis
+  active.
+
+Validation commands:
+
+```bash
+cargo fmt --check
+cargo check -p greybound-ui
+cargo check -p greybound-free
+cargo build --release -p greybound-free
+```
+
+All commands passed on 2026-07-01. Live musical validation still needs to check
+guitar strings and a clean sine input against expected note/cents behavior.
+
+## Open Questions
+
+- Should V1 analyze raw input or post-`INPUT` gain? Current recommendation is
+  post-`INPUT` for consistency with the input VU.
+- Should tuner mute also mute the metronome immediately? Current recommendation
+  is yes for silent tuning.
+- Should the modal show the current note name in the center on V1, or first
+  ship with only cents/Hz readouts and the large marker?
+- Should pitch analysis live on the UI tick first, or should it get a dedicated
+  analyzer thread immediately?

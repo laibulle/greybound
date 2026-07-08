@@ -1,0 +1,85 @@
+---
+title: Desktop Graphic EQ
+description: Runtime post-cab graphic equalizer behavior for the Greybound desktop app.
+---
+
+The desktop graphic EQ is a runtime tone utility, not a rig device. It belongs
+after the amp, Springfield, cabinet IR/blend, and before global output gain,
+doubler, metronome mixing, output protection, and L/R meters.
+
+## Goals
+
+- Provide a Neural-style dedicated top-menu EQ view.
+- Keep the EQ global so it shapes the final guitar tone after the cab/IR stage.
+- Keep realtime control updates lock-free by copying UI state into atomics.
+- Keep V1 small: enable/disable, HPF/LPF edge filters, and nine graphic bands.
+
+## Non-Goals
+
+- Do not add the EQ to `rigs/*.json5`.
+- Do not route metronome clicks through the EQ.
+- Do not make EQ state part of pedal, amp, or cab circuit descriptors.
+- Do not claim the EQ is a circuit-level model; it is a desktop output utility.
+
+## Runtime Boundary
+
+Recommended callback order:
+
+1. Pop input sample.
+2. Apply `INPUT` gain.
+3. Process Minotaur, Nox30, Springfield, and cab mix.
+4. Process the mono guitar signal through the graphic EQ.
+5. Apply `OUTPUT` gain.
+6. Process guitar through the doubler, producing L/R.
+7. Generate metronome L/R and add it after the doubler.
+8. Apply final DAC protection and record stereo output meters.
+
+This placement matches the intended Neural-style workflow: the EQ corrects the
+finished cab sound instead of changing how pedals, amp, spring, or IR are
+driven.
+
+## V1 Algorithm
+
+The implementation uses HPF/LPF edge filters plus nine peaking biquad bands.
+
+The side rotaries are interactive:
+
+- HPF at `0.0` is `OFF`; above the off detent it maps logarithmically from
+  about `20 Hz` to `250 Hz`.
+- LPF at `0.0` is `OFF`; above the off detent it maps logarithmically from
+  about `20 kHz` down to `2 kHz`, so clockwise movement increases high-cut
+  strength.
+
+The center sliders are nine peaking bands:
+
+- `65 Hz`
+- `125 Hz`
+- `250 Hz`
+- `500 Hz`
+- `1 kHz`
+- `2 kHz`
+- `4 kHz`
+- `8 kHz`
+- `16 kHz`
+
+Each UI fader maps normalized `0.0..1.0` to `-12 dB..+12 dB`, with `0.5` as
+flat. Coefficients are recomputed in the audio callback only when the stored
+gain or cutoff changes. The callback performs no allocation, file I/O, or
+locking. Turning the global EQ off bypasses the HPF, nine bands, and LPF.
+
+## Validation Notes
+
+Initial implementation checks:
+
+```bash
+cargo fmt --check
+cargo test -p greybound-free eq -- --nocapture
+cargo check -p greybound-ui
+cargo check -p greybound-free
+```
+
+The focused desktop tests verify that bypass preserves the input sample exactly,
+that a boosted 1 kHz band changes signal energy, that HPF reduces low-frequency
+energy, and that LPF reduces high-frequency energy. Live listening should still
+confirm that fader and rotary motion feels responsive at release speed and that
+the UI placement reads as a first-class top-menu view.

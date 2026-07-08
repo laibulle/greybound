@@ -1,0 +1,375 @@
+---
+title: Offline R&D Plan
+description: Plan for SPICE-trained micro-models, Rust inference, and NAM-based chain analysis.
+---
+
+This page is a planning document, not a consolidated implementation guide yet. It captures the current R&D direction for moving Greybound beyond hand-tuned real-time models while keeping the runtime explicit, controllable, and suitable for a live amplifier.
+
+## Goal
+
+Build an offline research pipeline that can improve Greybound models with:
+
+- SPICE-generated datasets for small circuit cells,
+- micro neural networks or fitted gray-box laws where analytic approximations are not enough,
+- Rust inference code that remains deterministic and low-latency,
+- deep spectral and dynamic analysis of whole rigs,
+- comparison against NAM captures as high-quality integration references.
+
+The target is not to replace Greybound with a black-box model. The target is a stronger gray-box system: circuit-inspired structure, learned or optimized local behavior, and measurable end-to-end realism.
+
+## Working Hypothesis
+
+Greybound should use different levels of modeling at different scales:
+
+- White-box where the circuit behavior is simple, stable, and cheap enough to implement directly.
+- Gray-box for local nonlinear cells whose behavior depends on operating point, memory, temperature-like state, or component interactions.
+- NAM-style black-box captures as an external oracle for complete chains, not as the internal architecture.
+
+This keeps the rig graph editable and musical while giving us a way to validate against very realistic captures.
+
+## What To Challenge
+
+The plan only works if we avoid common traps:
+
+- A neural cell is only useful when it improves a bounded circuit subproblem. It should not hide the whole amp.
+- SPICE data can be wrong for our use if the component models, source impedance, load impedance, or bias conditions are wrong.
+- NAM comparisons are only meaningful after gain, latency, sample rate, IR inclusion/exclusion, and test stimulus are aligned.
+- Spectrogram similarity is not enough. A model can match broad spectra and still fail transients, intermodulation, pick dynamics, or knob response.
+- Runtime inference must have a hard CPU and latency budget before it is accepted into the live path.
+
+## System Boundary
+
+The offline lab should generate artifacts. The live application should consume artifacts.
+
+The working area for this effort is `lab/`. It starts as a lightweight research
+workspace for experiment plans, metadata schemas, local WAV references, rendered
+outputs, generated reports, and future training artifacts.
+
+See [Greybound Lab](./lab) for the current public guide to the lab commands,
+directory layout, and implemented workflow.
+
+Offline responsibilities:
+
+- run SPICE simulations,
+- render Greybound rigs to WAV,
+- render or import NAM references,
+- align captures,
+- compute metrics,
+- fit local models,
+- export coefficients, lookup tables, or compact network weights.
+
+Runtime responsibilities:
+
+- load rig files,
+- load approved model artifacts,
+- process sample-by-sample or block-by-block with bounded latency,
+- expose controls through model descriptors,
+- produce monitor logs and validation audio.
+
+## Candidate Cell Targets
+
+Start with small cells where the boundary is clear and the result can be tested in isolation:
+
+- diode clipper transfer with source/load impedance,
+- JFET variable resistance for phaser stages,
+- BBD bandwidth and saturation approximations,
+- triode gain stage current law,
+- cathode follower behavior under tone-stack loading,
+- power-amp sag response as a low-order dynamic subsystem.
+
+The first candidate should probably be the JFET/phaser or diode clipper path because the cell is smaller and easier to validate than a full tube stage. The triode path is more central to amp realism but has higher risk because operating point and loading matter more.
+
+## SPICE Dataset Plan
+
+Each SPICE dataset should be reproducible and explicit:
+
+- circuit netlist or generated circuit graph revision,
+- component values and model names,
+- source impedance and load impedance,
+- control values,
+- sample rate and anti-aliasing strategy,
+- stimulus type,
+- rendered input/output pairs,
+- measured latency and gain normalization,
+- metadata for operating point and initial conditions.
+
+Useful stimuli:
+
+- impulse and step for sanity checks,
+- logarithmic sweeps for broad transfer behavior,
+- multi-sine for intermodulation,
+- level-stepped sine for dynamic nonlinearity,
+- generated plucks for attack and overshoot diagnostics,
+- generated burst stimuli for sag and recovery diagnostics,
+- real guitar DI phrases for musical validation,
+- knob sweeps for parameter conditioning.
+
+## Micro-Model Strategy
+
+The first learned models should be intentionally small:
+
+- tiny MLPs for static or quasi-static nonlinear laws,
+- low-order recurrent cells only when memory is physically justified,
+- constrained lookup tables when they are more predictable than networks,
+- Lipschitz or slope bounds where solver stability matters,
+- explicit input and output ranges with clamping behavior.
+
+Exported artifacts should be simple enough to review:
+
+- JSON5 metadata for training provenance,
+- binary or text weight files with versioned schema,
+- generated Rust constants when the model is frozen,
+- golden WAV and metric snapshots for regression tests.
+
+Current toolchain decision:
+
+- train and analyze in PyTorch,
+- export accepted cells as Greybound artifacts,
+- run accepted artifacts in a specialized Rust implementation,
+- optionally export ONNX for inspection and compatibility tests.
+
+The planned source-of-truth artifact pair is:
+
+```text
+model.greybound.json
+weights.greybound.bin
+```
+
+ONNX is intentionally secondary. It is useful for checking portability and for
+comparing against external runtimes, but the live audio path needs explicit
+streaming state, denormal handling, fixed latency, and no allocation.
+
+This decision is provisional. It should be challenged after the first complete
+SPICE dataset, PyTorch training, Greybound export, Rust inference, and
+Python/Rust equivalence pass.
+
+## Rust Integration
+
+The Rust side should not depend on Python at runtime.
+
+A fitted cell should enter the codebase through a clear boundary:
+
+- a deterministic inference function,
+- explicit state struct if memory is needed,
+- model descriptor controls,
+- bypass behavior,
+- unit tests for range, stability, and denormal safety,
+- golden tests against the exported reference response.
+
+For live use, every accepted model must declare:
+
+- added latency,
+- maximum lookahead,
+- allocation behavior,
+- expected CPU cost per sample or block,
+- sample-rate support,
+- behavior outside the trained control range.
+
+## NAM As Integration Oracle
+
+NAM captures are valuable because they can represent a complete amp or chain with high realism at fixed settings. Greybound should use them as reference photos of complete behavior, not as the final architecture.
+
+For the first VOX-family comparison, use NAM A2 only. Prefer an `Amp Head` NAM
+and render both NAM and Greybound without cab/IR. Use `Full Rig / Combo` only as
+a fallback because it includes cab/mic coloration and will make model-stage
+diagnosis less clean. Speaker/cab IR matching is a separate validation axis.
+
+The current first candidate is TONE3000 `AC30HWH-6580`. Its public page exposes
+a useful semi-structured grid through model names: Normal Bright, Top Boost, and
+Hot Mode captures, gain positions 3/5/7/Full, and optional Top Cut. Treat those
+labels as capture semantics for experiment selection, not as a full knob schema.
+
+Good uses:
+
+- compare a Greybound rig against a known high-quality capture,
+- detect missing dynamics in the full chain,
+- check whether changes improve musical realism beyond isolated unit tests,
+- build integration gates for named reference rigs.
+
+Bad uses:
+
+- training every Greybound rig to mimic a NAM capture directly,
+- treating a single NAM profile as ground truth for all knob settings,
+- accepting a model only because one spectrogram looks close.
+
+## Chain Analysis Metrics
+
+The analysis suite should report several families of metrics:
+
+- time alignment and latency,
+- RMS, peak, crest factor, and loudness,
+- STFT and log-mel distance,
+- segment-local attack, sustain, decay, sag, and high-band diagnostics,
+- band-local residuals for locating tonal errors,
+- harmonic balance across input levels,
+- intermodulation products,
+- transient envelope error,
+- phase and group-delay behavior where meaningful,
+- aliasing residual above the musical band,
+- null-test residual after alignment and gain matching,
+- monitor-log health: clipping, near clipping, xruns, rail behavior.
+
+Metrics should be displayed as trend data, not only pass/fail. The purpose is to drive modeling decisions.
+
+## Proposed Phases
+
+Phase 1: lab skeleton
+
+- define dataset folders and metadata schema,
+- add CLI commands or scripts for offline renders,
+- implement alignment and spectral metric reports,
+- document how to compare Greybound WAV output against a reference WAV.
+- run the first controlled-stimulus clean/driven batch to identify the first
+  subsystem to investigate.
+
+Phase 2: NAM reference comparisons
+
+- select a small number of reference chains,
+- standardize test DI material,
+- align gain and latency,
+- generate HTML or Markdown reports with plots,
+- use the reports to identify the largest model gaps.
+
+Phase 3: SPICE cell generation
+
+- pick one bounded cell,
+- generate reproducible SPICE sweeps,
+- compare the current Greybound approximation against SPICE,
+- decide whether the answer should be analytic, tabulated, or neural.
+
+Current first cell: `common-cathode-12ax7`, imported with `greybound-lab
+spice-run`. The first pass covers DC operating point and a settled 1 kHz
+small-signal transient. The next SPICE step is to add level sweeps and two-tone
+IMD for large-signal behavior.
+
+The first multi-stimulus dataset command is:
+
+```sh
+uv --project lab run greybound-lab spice-dataset \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/datasets/spice
+```
+
+It writes local raw traces, generated netlists, a `.npz` trace package, a human
+dataset report, and a source-describing manifest. The current corpus covers
+several sine amplitudes and two-tone IMD cases with train/validation/test
+splits. It is good enough for the first trainer/export smoke test, but it still
+needs source/load impedance sweeps, B+ perturbation, component tolerances, and
+real DI before a model can be accepted into the live engine.
+
+The first experimental trainer is:
+
+```sh
+uv --project lab run --with torch greybound-lab train-neural-cell \
+  --cell common-cathode-12ax7-mlp \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --output-dir lab/models/common-cathode-12ax7-mlp-v1
+```
+
+It trains a small static MLP and exports `model.greybound.json` plus
+`weights.greybound.bin`. This is an export-path milestone, not a final tube
+model. The Rust core now has an experimental reader and a preallocated
+`NeuralCellRuntime` for that artifact shape. The next acceptance-relevant work
+is to compare the exported artifact against both SPICE holdouts and Greybound's
+current analytic approximation.
+
+The generated-vector equivalence check is now available:
+
+```sh
+uv --project lab run greybound-lab export-neural-cell-vectors \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --output lab/models/common-cathode-12ax7-mlp-v1/equivalence-vectors.json
+
+make lab-check-neural-cell-rust
+```
+
+This proves Python and Rust agree on the exported artifact through the runtime
+path intended for future audio integration. It does not prove the model is a
+good tube replacement yet.
+
+Nox30 has a first-stage neural path through
+`--neural-cell nox30.first_stage=PATH` and `--neural-cell-mode shadow|replace`.
+In `shadow` mode, the neural adapter runs beside the analytic first stage and
+monitor telemetry reports its absolute error while the audio still uses the
+analytic stage. In `replace` mode, the neural output feeds the rest of Nox30.
+This remains an explicit integration gate, not a default model-quality decision.
+
+The first full integration loop is:
+
+```sh
+make lab-evaluate-integrated-neural-cell
+```
+
+It renders analytic, shadow, and replace Nox30 outputs from the same rig and
+input, then writes `lab/reports/integrated-neural-first-stage.md`. This connects
+the cell-level artifact to full-chain evidence: shadow error captures local tube
+cell mismatch, while replace-vs-analytic metrics capture the rendered rig impact.
+
+The cell-level SPICE evaluation command is:
+
+```sh
+uv --project lab run greybound-lab evaluate-neural-cell \
+  --descriptor lab/models/common-cathode-12ax7-mlp-v1/model.greybound.json \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --report lab/models/common-cathode-12ax7-mlp-v1/spice-evaluation.md \
+  --stride 32
+```
+
+The first result is useful but not acceptable as a final model: aggregate error
+beats a zero baseline, while the hot held-out sine still has large relative
+error. This argues for either better conditioning, a dynamic model, or an
+analytic/table baseline comparison before runtime integration.
+
+The analytic baseline comparison is:
+
+```sh
+make lab-evaluate-analytic-common-cathode NEURAL_STRIDE=32
+```
+
+The current local result is about `80 mV` weighted RMSE for the Rust analytic
+common-cathode stage, compared with about `245 mV` for the first MLP. Therefore
+the first neural artifact should not replace the analytic solver. It is a
+pipeline proof. A diagnostic gain/latency correction lowers the analytic
+residual only to about `70 mV`, so the next scientific step is model-shape
+analysis against SPICE rather than immediate runtime integration. The first
+harmonic and IMD shape checks show small THD/IMD deltas, so the next pass should
+not blindly scale the MLP. It should isolate dynamic state and fixture
+equivalence before deciding whether the learned component needs memory.
+
+Phase 4: first fitted micro-model
+
+- train or optimize the smallest viable model,
+- export a Rust-consumable artifact,
+- add golden tests and runtime guards,
+- compare the full rig before and after the cell replacement.
+
+The detailed first-pass neural-cell plan is
+`lab/experiments/006-spice-to-neural-cell-plan.md`.
+
+Phase 5: consolidated docs
+
+- turn this plan into stable implementation documentation,
+- move exploratory notes into model-specific pages,
+- keep only reusable procedures, schemas, and accepted decisions.
+
+## Acceptance Criteria
+
+A research result is ready to become implementation work when:
+
+- the target circuit boundary is explicit,
+- the reference data is reproducible,
+- the improvement is visible in more than one metric,
+- the model behaves safely outside normal guitar input levels,
+- live CPU and latency are acceptable,
+- the Rust implementation can be tested without the offline training stack,
+- the documentation explains what was learned, not just what was changed.
+
+## Open Questions
+
+- Should the offline lab live inside this repository or in a companion repository?
+- Which SPICE engine should be the first supported backend?
+- Do we want generated Rust source for frozen micro-models, or external artifacts loaded at runtime?
+- What is the minimum NAM comparison protocol that is useful without becoming a production profiling tool?
+- Which first cell gives the best ratio of audible improvement to implementation risk?
+- Should the Greybound artifact loader stay runtime-loadable, or should accepted
+  cells eventually become generated Rust source for maximum optimization?

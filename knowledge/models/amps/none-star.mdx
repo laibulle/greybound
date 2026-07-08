@@ -1,0 +1,643 @@
+---
+title: None Star Clean/Edge
+description: Greybound V1 clean and edge-of-breakup amp model inspired by full-rig Lone Star style references.
+---
+
+The `none-star` amp model is Greybound's Clean/Edge target for high-headroom
+boutique clean tones, round low end, articulate treble, and touch-sensitive
+breakup when the input/volume and power response are pushed. The public model
+name is intentionally original. Lone Star style references are calibration
+targets only, not product identity.
+
+V1 does not attempt to implement a complete two-channel Lone Star platform or
+the higher-gain cascading Drive mode.
+
+## Modeling Scope
+
+The current implementation is a tuned graybox approximation. It is not a Mesa
+schematic clone, SPICE netlist, or component-exact wave-digital model. The goal
+is a useful clean-to-edge target that can later be calibrated against measured
+captures, NAM references, or a project-owned SPICE fixture.
+
+Canonical model id:
+
+- `none-star`
+
+Legacy aliases accepted for existing rigs:
+
+- `lonestar-special`
+- `lone-star-special`
+- `lonestar`
+
+## Source Confidence
+
+Public Mesa/Boogie materials describe multiple related Lone Star-family amps.
+The Lone Star Special uses EL84 power tubes, but the larger Lone Star / Lone
+Star Classic family uses 6L6 by default, with EL34 compatibility documented in
+some materials. The local NAM and the user-provided visual reference are named
+and styled as Lone Star rather than Lone Star Special, so the current
+`none-star` V1 target is now the larger 6L6 Clean/Edge family, narrowed to the
+clean and edge-of-breakup range rather than all modes.
+
+The project has inspected externally hosted schematic PDFs for both the Lone
+Star Special and the larger Lone Star classic. Do not commit those PDFs or page
+images. Use them only as references for project-owned topology notes. Earlier
+V1 notes incorrectly treated the current target as the EL84 Special; that was a
+bad fit for the NAM/photo target and has been corrected to a 6L6-style Classic
+Clean/Edge target.
+
+Reference links:
+
+- Mesa/Boogie legacy Lone Star page:
+  `https://legacy.mesaboogie.com/amplifiers/electric/lone-star-series/lone-star/index.html`
+- Mesa/Boogie legacy Lone Star 1x12 combo specs:
+  `https://legacy.mesaboogie.com/amplifiers/electric/lone-star-series/lone-star/1x12-combo.html`
+- Mesa/Boogie legacy Lone Star Special page:
+  `https://legacy.mesaboogie.com/amplifiers/electric/lone-star-series/lone-star-special/index.html`
+- Mesa/Boogie legacy 1x12 combo specs:
+  `https://legacy.mesaboogie.com/amplifiers/electric/lone-star-series/lone-star-special/1x12-combo.html`
+- Lone Star Special schematic reference:
+  `https://el34world.com/charts/Schematics/Files/Mesa_boogie/Boogie_Lonestar_Special.pdf`
+- Lone Star classic schematic reference:
+  `https://schematicheaven.net/boogieamps/boogie_lonestar.pdf`
+- Tone3000 full-rig NAM reference, with embedded 4x12/cab behavior:
+  `https://www.tone3000.com/tones/mesa-boogie-lone-star-mateus-asato-69546`
+
+Do not commit Mesa schematics, manuals, scans, current-production artwork, or
+third-party NAM model files. Keep project-owned topology summaries, validation
+evidence, and local-reference manifests here.
+
+## Current DSP Approximation
+
+The first Rust model lives in
+`core/src/amp/models/none_star.rs::NoneStar` and uses:
+
+- 1 MOhm-style input coupling,
+- a Clean-channel-inspired fixed input triode before the tone stack,
+- passive-style bass/mid/treble shaping before the channel gain/recovery stage,
+- volume/drive-dependent transition into soft edge breakup after the tone stack,
+- recovery/loop-driver shaping into master/presence behavior,
+- phase-inverter approximation before the power section,
+- 6L6-style higher-headroom push-pull power response for the Classic target,
+- slow bias/sag envelope followers,
+- output high-pass/low-pass filtering before cab/IR.
+
+`AmpControls::cut` temporarily represents the mid control because the shared
+amp control shape does not yet expose a dedicated `mid` field.
+
+## Circuit Descriptor
+
+The runtime exposes
+`core/src/circuit_descriptor.rs::NONE_STAR_CIRCUIT`.
+
+It should be rendered as a stage-level graybox map:
+
+- input jack,
+- input coupling,
+- clean input triode,
+- passive-style tone stack,
+- gain/recovery and loop-driver behavior,
+- master/presence behavior,
+- phase inverter,
+- 6L6-style output response,
+- sag/bias state,
+- output transformer/filtering,
+- speaker output.
+
+This descriptor is model-level explanation, not PCB artwork.
+
+## Initial Validation
+
+Focused tests:
+
+```bash
+cargo test -p greybound none_star -- --nocapture
+```
+
+The first tests verify:
+
+- hot input stays finite,
+- edge settings produce measurably more nonlinear energy than clean settings.
+
+Recommended first monitor render:
+
+```bash
+cargo build --release -p greybound-cli
+target/release/greybound-cli --rig rigs/none-star-clean-edge.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/none-star-clean-edge-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/none-star-clean-edge-3s.monitor.log
+```
+
+First monitor result, after output gain staging correction:
+
+- artifact: `target/none-star-clean-edge-3s.wav`,
+- monitor log: `target/none-star-clean-edge-3s.monitor.log`,
+- 12 monitor windows,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-16.8 dBFS`,
+- loudest observed output peak: about `-7.5 dBFS`.
+
+This is runtime-health evidence only. It does not prove the model matches a
+specific Lone Star style capture.
+
+## NAM Full-Rig Reference
+
+The local NAM reference from TONE3000 tone `69546` is installed outside git at:
+
+- `lab/references/nam/NoneStar/Mesa Boogie Lone Star - Mateus Asato.nam`
+
+The source-safe manifest is:
+
+- `lab/references/nam/manifests/none-star-mateus-asato-69546.json`
+
+The NAM metadata reports:
+
+- architecture: `SlimmableContainer`,
+- version: `0.7.0`,
+- sample rate: `48000`,
+- gear type: `amp_cab`,
+- tone type: `clean`,
+- loudness: `-18.89563115809607`,
+- gain: `0.5460526721113095`.
+
+This reference is a full-rig embedded-cab target. Render it without a separate
+IR on the NAM side:
+
+```bash
+make lab-render-none-star-nam NAM_INPUT_WAV="lab/references/tone3000-inputs/Mayer - Guitar.wav"
+```
+
+Smoke render after local installation:
+
+- artifact: `lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav`,
+- metadata: `lab/references/nam/renders/none-star-mateus-asato-mayer-3s.run.json`,
+- render command used `NAM_RENDER_SECONDS=3`, input gain `0 dB`, output gain
+  `-12 dB`,
+- output: mono 48 kHz, 3.0 seconds, RMS about `-38.4 dBFS`, peak about
+  `-17.8 dBFS`,
+- `ir_enabled`: `false`.
+
+For comparisons, render Greybound as a full chain with a cab/IR candidate. Do
+not use this NAM as proof of raw amp-core correctness because its cab/mic
+behavior is embedded in the capture.
+
+## NAM Calibration Notes
+
+First end-to-end comparison used the local full-rig NAM render as reference and
+the Mayer DI as fixed input:
+
+```bash
+make lab-render-none-star-nam NAM_RENDER_SECONDS=3 NAM_INPUT_WAV="lab/references/tone3000-inputs/Mayer - Guitar.wav"
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-clean-edge-dry-cab.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-greybound-mayer-3s-mesa-ir.wav --metadata lab/renders/none-star-greybound-mayer-3s-mesa-ir.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-greybound-mayer-3s-mesa-ir.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-greybound-mayer-3s-mesa-ir.run.json --report lab/reports/none-star-vs-mateus-nam-mayer-3s-mesa-ir.md
+```
+
+Initial `mesa.wav` comparison:
+
+- candidate latency: `14 samples`,
+- candidate gain correction: `-18.33 dB`,
+- null residual relative: `-3.30 dB`,
+- weighted guitar-band log-spectral distance: `11.71 dB`,
+- envelope error: `-4.78 dB`,
+- spectral balance after alignment: low `+0.71 dB`, low-mid `-7.35 dB`,
+  mid `-15.13 dB`, presence `-13.47 dB`, air `-5.35 dB`.
+
+A small IR sweep (`mesa`, `eminence`, `ampeg`, `celestion`) did not explain the
+gap. `mesa.wav` stayed the least-bad candidate by weighted LSD, while
+`eminence.wav` had a slightly lower max spectral-balance error. Treat this as
+evidence that the current mismatch is not only cabinet selection.
+
+The first control sweeps were:
+
+```bash
+uv --project lab run greybound-lab sweep-rig-vs-reference --rig rigs/none-star-clean-edge-dry-cab.json5 --sweep treble=0.45,0.65,0.85 --sweep presence=0.45,0.65,0.85 --sweep cut=0.35,0.55,0.75 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --reference-wav lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --binary target/release/greybound-cli --output-dir lab/reports/none-star-mateus-sweep-tone --report lab/reports/none-star-mateus-sweep-tone.md --metadata lab/reports/none-star-mateus-sweep-tone.run.json --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12
+uv --project lab run greybound-lab sweep-rig-vs-reference --rig rigs/none-star-mateus-anchor.json5 --sweep volume=0.35,0.50,0.65,0.80 --sweep drive=0.05,0.18,0.31,0.44 --sweep sag=0.20,0.40,0.60 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --reference-wav lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --binary target/release/greybound-cli --output-dir lab/reports/none-star-mateus-sweep-gainfeel --report lab/reports/none-star-mateus-sweep-gainfeel.md --metadata lab/reports/none-star-mateus-sweep-gainfeel.run.json --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12
+```
+
+Best tonal point before the first code change was `treble=0.85`,
+`presence=0.85`, `cut=0.55`. Best gain/feel point was `volume=0.35`,
+`drive=0.05`, `sag=0.20`.
+
+Best gain/feel report:
+
+- artifact:
+  `lab/reports/none-star-vs-mateus-nam-best-gainfeel.md`,
+- candidate latency: `13 samples`,
+- candidate gain correction: `-15.87 dB`,
+- null residual relative: `-3.90 dB`,
+- weighted guitar-band log-spectral distance: `11.31 dB`,
+- envelope error: `-5.65 dB`,
+- spectral balance after alignment: low `+0.70 dB`, low-mid `-7.24 dB`,
+  mid `-14.24 dB`, presence `-13.40 dB`, air `-5.54 dB`,
+- dynamic range delta: `-7.33 dB`,
+- transient peak delta: `-7.90 dB`.
+
+Interpretation: lowering drive/volume/sag improves dynamics, but the reference
+still has far more mid/presence transient energy after gain alignment. The next
+useful experiment is not more pot sweeping; inspect the None Star tone stack,
+presence branch, output filtering, and cab endpoint, then make a small
+component-level hypothesis and repeat the same render/compare workflow.
+
+First component-level hypothesis: the V1 tone stack and presence branch were
+too much like passive high attenuation. The presence path now allows the
+high-frequency branch to exceed unity at high settings, which is closer to a
+negative-feedback presence control reducing high-frequency feedback. The tone
+stack also gives the mid and treble branches more available gain while reducing
+the bass branch.
+
+Validation render:
+
+```bash
+cargo build --release -p greybound-cli
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-mateus-anchor.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-mateus-anchor-presence-hypothesis-3s.wav --metadata lab/renders/none-star-mateus-anchor-presence-hypothesis-3s.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-mateus-anchor-presence-hypothesis-3s.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-mateus-anchor-presence-hypothesis-3s.run.json --report lab/reports/none-star-mateus-presence-hypothesis-3s.md
+```
+
+This moved the comparison in the expected direction:
+
+- null residual relative: `-3.90 dB` to `-4.46 dB`,
+- weighted guitar-band log-spectral distance: `11.31 dB` to `10.87 dB`,
+- mid `1-4 kHz`: `-14.24 dB` to `-11.19 dB`,
+- presence `4-8 kHz`: `-13.40 dB` to `-9.53 dB`,
+- air `8-18 kHz`: `-5.54 dB` to `-2.12 dB`,
+- transient high-band ratio delta: `-10.70 dB` to `-8.29 dB`.
+
+After that code change, a small post-presence sweep selected
+`bass=0.42`, `cut=0.55`, `treble=1.0`, `presence=1.0`, `volume=0.35`,
+`drive=0.05`, `sag=0.20`; this is now captured in
+`rigs/none-star-mateus-anchor.json5`.
+
+Best post-presence report:
+
+- artifact: `lab/reports/none-star-mateus-post-presence-best-3s.md`,
+- null residual relative: `-4.50 dB`,
+- weighted guitar-band log-spectral distance: `10.92 dB`,
+- spectral balance after alignment: low `+0.60 dB`, low-mid `-4.79 dB`,
+  mid `-10.22 dB`, presence `-8.26 dB`, air `-0.75 dB`,
+- dynamic range delta: `-7.13 dB`,
+- transient peak delta: `-7.19 dB`,
+- transient high-band ratio delta: `-7.30 dB`.
+
+This validates the direction of the presence/tone-stack change, but the model
+still lacks mid/presence transient energy and remains dynamically narrower than
+the NAM. The next likely component-level hypothesis is around recovery/phase
+inverter drive, output filtering, or cab endpoint phase/voicing rather than
+more global gain makeup.
+
+## Source-Informed Clean Channel Pass
+
+After re-inspecting the externally hosted Lone Star Special schematic pages,
+the old V1 Rust flow was judged too close to the Nox30 family: it effectively
+used two gain stages before the tone network, then a generic EL84-like output
+curve. The Special clean channel reference instead shows the important musical
+ordering as input triode, passive bass/mid/treble network, channel gain/recovery
+behavior, master/presence, loop/output driver behavior, phase inverter, and
+four-EL84 power section.
+
+The current Rust implementation was changed in that direction:
+
+- first triode is mostly fixed high-headroom input conditioning,
+- tone stack happens before the volume/gain push,
+- `volume` now pushes the post-tone recovery path rather than the first triode,
+- master/presence shaping happens before the phase inverter,
+- the power response was initially mapped as an EL84 Special helper, then
+  corrected to a `lonestar_classic_6l6_power_bank` helper after reconciling the
+  NAM/photo target with Mesa's larger Lone Star / Classic family, which is
+  documented as 4x 6L6 by default with EL34 compatibility.
+
+This is still a graybox approximation, not a component-exact schematic port.
+The next step, if we want more confidence, is a project-owned SPICE fixture for
+the clean-channel tone/gain section rather than another arbitrary voicing pass.
+
+Validation commands:
+
+```bash
+cargo build --release -p greybound-cli
+cargo test -p greybound none_star -- --nocapture
+target/release/greybound-cli --rig rigs/none-star-clean-edge.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/none-star-clean-edge-source-informed-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/none-star-clean-edge-source-informed-3s.monitor.log
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-mateus-anchor.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-mateus-source-informed-3s.wav --metadata lab/renders/none-star-mateus-source-informed-3s.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-mateus-source-informed-3s.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-mateus-source-informed-3s.run.json --report lab/reports/none-star-mateus-source-informed-3s.md
+```
+
+Runtime monitor result:
+
+- artifact: `target/none-star-clean-edge-source-informed-3s.wav`,
+- monitor log: `target/none-star-clean-edge-source-informed-3s.monitor.log`,
+- 12 monitor windows,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-14.1 dBFS`,
+- loudest observed output peak: about `-3.0 dBFS`.
+
+NAM comparison against the same Mateus full-rig reference:
+
+- artifact: `lab/reports/none-star-mateus-source-informed-3s.md`,
+- candidate latency: `11 samples`,
+- candidate gain correction: `-17.23 dB`,
+- null residual relative: `-7.31 dB`,
+- weighted guitar-band log-spectral distance: `11.06 dB`,
+- envelope error: `-10.06 dB`,
+- spectral balance after alignment: low `+0.59 dB`, low-mid `-4.75 dB`,
+  mid `-8.98 dB`, presence `-9.10 dB`, air `-7.33 dB`,
+- dynamic range delta: `+0.38 dB`,
+- transient peak delta: `-3.72 dB`,
+- transient high-band ratio delta: `-7.58 dB`.
+
+Interpretation: compared with the previous post-presence best report, weighted
+LSD is slightly worse (`10.92 dB` to `11.06 dB`) and air-band match regressed,
+but null residual, envelope error, dynamic range, and transient peak deltas are
+materially better. This supports the source-informed topology as a better
+engineering baseline even though the cab/high-band endpoint still needs work.
+
+One follow-up source-informed iteration added a gain-pot bright bypass around
+the post-tone recovery path. This is based on the visible clean-channel bright
+cap behavior around the channel gain/volume area in the Lone Star Special
+schematic reference, but it is still a graybox mapping rather than a
+component-exact port.
+
+Validation commands:
+
+```bash
+cargo fmt --check
+cargo test -p greybound none_star -- --nocapture
+cargo build --release -p greybound-cli
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-mateus-anchor.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-mateus-bright-bypass-strong-3s.wav --metadata lab/renders/none-star-mateus-bright-bypass-strong-3s.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-mateus-bright-bypass-strong-3s.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-mateus-bright-bypass-strong-3s.run.json --report lab/reports/none-star-mateus-bright-bypass-strong-3s.md
+target/release/greybound-cli --rig rigs/none-star-clean-edge.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/none-star-clean-edge-bright-bypass-strong-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/none-star-clean-edge-bright-bypass-strong-3s.monitor.log
+cargo check -p greybound-free
+```
+
+NAM comparison:
+
+- artifact: `lab/reports/none-star-mateus-bright-bypass-strong-3s.md`,
+- candidate latency: `11 samples`,
+- candidate gain correction: `-17.215 dB`,
+- null residual relative: `-7.44 dB`,
+- weighted guitar-band log-spectral distance: `10.33 dB`,
+- envelope error: `-10.22 dB`,
+- spectral balance after alignment: low `+0.59 dB`, low-mid `-4.73 dB`,
+  mid `-8.44 dB`, presence `-8.08 dB`, air `-6.45 dB`,
+- dynamic range delta: `+0.36 dB`,
+- transient peak delta: `-3.60 dB`,
+- transient high-band ratio delta: `-6.93 dB`.
+
+Runtime monitor result:
+
+- artifact: `target/none-star-clean-edge-bright-bypass-strong-3s.wav`,
+- monitor log: `target/none-star-clean-edge-bright-bypass-strong-3s.monitor.log`,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-14.1 dBFS`,
+- loudest observed output peak: about `-3.0 dBFS`.
+
+Interpretation: the bright-bypass iteration kept the improved dynamics and
+runtime health of the source-informed topology while improving the NAM spectral
+fit from `11.06 dB` to `10.33 dB` weighted guitar-band LSD. It has since been
+superseded by the 6L6 target correction below.
+
+## Lone Star / Classic 6L6 Target Correction
+
+The previous EL84 wording was wrong for the selected NAM/photo target. Mesa's
+legacy Lone Star page describes the larger Lone Star as driven by a quartet of
+6L6 tubes, and the 1x12 combo specs list `4x Mesa 6L6 (or EL-34)`. The Lone
+Star Special is the related EL84 amp, but it is not the best target for the
+current None Star archetype.
+
+Code changes:
+
+- rename the power helper to `lonestar_classic_6l6_power_bank`,
+- use a higher-headroom 6L6-style current curve,
+- keep the source-informed gain-pot bright bypass,
+- open the output low-pass from `12 kHz` to `14.5 kHz` to avoid over-darkening
+  the cab-fed NAM match after the 6L6 correction.
+
+Validation commands:
+
+```bash
+cargo fmt --check
+cargo test -p greybound none_star -- --nocapture
+cargo build --release -p greybound-cli
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-mateus-anchor.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-mateus-6l6-open-ot-3s.wav --metadata lab/renders/none-star-mateus-6l6-open-ot-3s.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-mateus-6l6-open-ot-3s.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-mateus-6l6-open-ot-3s.run.json --report lab/reports/none-star-mateus-6l6-open-ot-3s.md
+target/release/greybound-cli --rig rigs/none-star-clean-edge.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/none-star-clean-edge-6l6-open-ot-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/none-star-clean-edge-6l6-open-ot-3s.monitor.log
+cargo check -p greybound-free
+```
+
+NAM comparison:
+
+- artifact: `lab/reports/none-star-mateus-6l6-open-ot-3s.md`,
+- candidate latency: `11 samples`,
+- candidate gain correction: `-17.105 dB`,
+- null residual relative: `-7.63 dB`,
+- weighted guitar-band log-spectral distance: `10.22 dB`,
+- envelope error: `-10.57 dB`,
+- spectral balance after alignment: low `+0.59 dB`, low-mid `-4.68 dB`,
+  mid `-8.14 dB`, presence `-8.19 dB`, air `-7.76 dB`,
+- dynamic range delta: `+0.66 dB`,
+- transient peak delta: `-3.22 dB`,
+- transient high-band ratio delta: `-6.91 dB`.
+
+Runtime monitor result:
+
+- artifact: `target/none-star-clean-edge-6l6-open-ot-3s.wav`,
+- monitor log: `target/none-star-clean-edge-6l6-open-ot-3s.monitor.log`,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-14.2 dBFS`,
+- loudest observed output peak: about `-2.3 dBFS`.
+
+Interpretation: the 6L6 correction improves the prior best NAM fit from
+`10.33 dB` to `10.22 dB` weighted guitar-band LSD while also improving null
+residual and envelope error. It is a better target match and should replace the
+EL84/Special assumption. The model remains graybox; remaining error is still
+mostly a mid/presence/air deficit rather than a solved component-level port.
+
+## Direct Neural 6L6 Power Slot
+
+The implementation now has two power-stage paths:
+
+- a structured analytic `PushPull6L6Stage` fallback with explicit supply,
+  screen, fixed-bias, bias-shift, current, load-current, and attack-current
+  state,
+- an optional direct neural power-stage slot that can replace that fallback
+  once a trained artifact exists.
+
+The structured fallback is intentionally a calibration surface, not a claim of
+component-complete 6L6 realism. It replaces the previous
+`lonestar_classic_6l6_power_bank` waveshaper so future iterations can tune
+physical state instead of a one-line transfer curve.
+
+Runtime component id:
+
+- `none-star.power_6l6`
+
+CLI usage:
+
+```bash
+target/release/greybound-cli --rig rigs/none-star-mateus-anchor.json5 \
+  --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" \
+  --output-wav target/none-star-power-neural.wav \
+  --render-seconds 3 \
+  --sample-rate 48000 \
+  --period-size 32 \
+  --ir lab/references/tone3000-irs/mesa.wav \
+  --neural-cell none-star.power_6l6=lab/models/none-star-power-6l6/model.greybound.json \
+  --neural-cell-mode replace
+```
+
+The current Rust slot expects a scalar-output Greybound MLP artifact with five
+features:
+
+1. `power_drive`: phase-inverter/presence-shaped drive into the power section,
+2. `bias_shift`: dynamic bias envelope,
+3. `sag`: dynamic supply envelope,
+4. `edge`: normalized clean-to-edge drive intensity,
+5. `sag_control`: normalized user sag/feel control.
+
+The output is the normalized power-stage voltage before output-transformer
+filtering. Output transformer filtering, cab/IR choice, and final output gain
+remain explicit Greybound stages.
+
+No neural artifact is accepted yet. If no descriptor is provided, or if the
+provided artifact does not have five input features, `none-star` keeps the
+current structured 6L6 fallback. This keeps desktop/live behavior available
+while the lab builds the SPICE-trained artifact.
+
+Structured fallback parameters:
+
+- nominal plate supply: `435 V`,
+- screen supply: `420 V`,
+- screen resistor/capacitor: `470 ohm / 22 uF`,
+- output transformer primary half load proxy: `2.15 kOhm`,
+- fixed-bias reference: `36 V`,
+- bias-shift network: `18 kOhm / 2.2 uF`,
+- idle current target: `70 mA` for the push-pull pair,
+- drive gain: `24x`,
+- current gain: `0.018`,
+- attack-current coupling: `0.18`,
+- plate-current compression: `0.08`,
+- output scale: `0.010`, followed by None Star final trim `0.016`.
+
+Focused tests:
+
+```bash
+cargo test -p greybound six_l6 -- --nocapture
+cargo test -p greybound none_star -- --nocapture
+```
+
+The first attempt used too much effective cutoff bias and behaved like an
+unwanted gate on quiet material. The accepted structured fallback biases the
+pentode curve into conduction around idle, then trims the final amp output to
+avoid clipping.
+
+Validation commands:
+
+```bash
+cargo fmt --check
+cargo test -p greybound six_l6 -- --nocapture
+cargo test -p greybound none_star -- --nocapture
+cargo build --release -p greybound-cli
+target/release/greybound-cli --rig rigs/none-star-clean-edge.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/none-star-structured-6l6-less-compression-trim-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/none-star-structured-6l6-less-compression-trim-3s.monitor.log
+uv --project lab run greybound-lab render-rig --rig rigs/none-star-mateus-anchor.json5 --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" --output-wav lab/renders/none-star-structured-6l6-less-compression-trim-mayer-3s.wav --metadata lab/renders/none-star-structured-6l6-less-compression-trim-mayer-3s.run.json --binary target/release/greybound-cli --render-seconds 3 --sample-rate 48000 --period-size 32 --input-db 0 --output-db -12 --ir --ir-wav lab/references/tone3000-irs/mesa.wav
+uv --project lab run greybound-lab compare-wav --candidate lab/renders/none-star-structured-6l6-less-compression-trim-mayer-3s.wav --reference lab/references/nam/renders/none-star-mateus-asato-mayer-3s.wav --metadata lab/renders/none-star-structured-6l6-less-compression-trim-mayer-3s.run.json --report lab/reports/none-star-structured-6l6-less-compression-trim-mayer-3s.md
+```
+
+Runtime monitor result:
+
+- artifact: `target/none-star-structured-6l6-less-compression-trim-3s.wav`,
+- monitor log:
+  `target/none-star-structured-6l6-less-compression-trim-3s.monitor.log`,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-12.4 dBFS`,
+- loudest observed output peak: about `-2.5 dBFS`.
+
+NAM comparison:
+
+- artifact:
+  `lab/reports/none-star-structured-6l6-less-compression-trim-mayer-3s.md`,
+- candidate latency: `10 samples`,
+- candidate gain correction: `-18.758 dB`,
+- null residual relative: `-6.45 dB`,
+- weighted guitar-band log-spectral distance: `8.87 dB`,
+- envelope error: `-8.45 dB`,
+- spectral balance after alignment: low `+0.59 dB`, low-mid `-4.59 dB`,
+  mid `-9.07 dB`, presence `-9.79 dB`, air `-7.79 dB`,
+- dynamic range delta: `-4.48 dB`,
+- transient peak delta: `-4.35 dB`,
+- transient high-band ratio delta: `-6.58 dB`.
+
+Interpretation: reducing bias-shift strength, attack-current coupling, supply
+sag contribution, and plate-current compression fixed most of the structured
+fallback's over-compression. Against the previous open-OT analytic helper it
+improves weighted guitar-band LSD (`10.22 dB` to `8.87 dB`) and keeps runtime
+health clean. The analytic helper still had a slightly better null residual,
+envelope error, and dynamic-range delta, so the structured fallback is now a
+credible calibration baseline but still not a completed sound match. The next
+useful experiment is to recover more mid/presence transient energy without
+adding global brightness, or to train the `none-star.power_6l6` neural slot
+from a project-owned SPICE fixture.
+
+The direct-neural acceptance path should be:
+
+- build a project-owned `push-pull-6l6` or `none-star-power-6l6` SPICE fixture,
+- export train/validation/test traces with the five runtime features or their
+  SPICE-equivalent electrical variables,
+- train a Greybound MLP artifact,
+- run Rust/Python vector equivalence,
+- render `shadow` and `replace` full-chain comparisons,
+- promote only if the NAM/reference metrics improve without xrun, clip, or
+  unstable output behavior.
+
+## SPICE Fixtures
+
+The first None Star-specific SPICE fixture is:
+
+- `tests/fixtures/circuit/none_star_tone_presence.cir`
+
+Run it with:
+
+```bash
+make lab-spice-none-star-tone-presence
+```
+
+The fixture is intentionally narrow. It is not a Mesa schematic and does not
+model the nonlinear preamp, power amp, transformer, speaker, or cab. It is a
+linear AC reference for the component-level hypothesis behind the current
+tone-stack and presence correction: the mid/presence band should not be erased,
+and the presence branch should restore high-frequency energy rather than act
+only as a passive high cut.
+
+Current generated report:
+
+- `lab/references/spice/none-star-tone-presence.md`
+- `lab/references/spice/none-star-tone-presence.dat`
+
+Current ngspice AC metrics:
+
+- 250 Hz output gain: `-7.67 dB`,
+- 1 kHz output gain: `-1.12 dB`,
+- 4 kHz output gain: `+5.67 dB`,
+- 8 kHz output gain: `+7.59 dB`,
+- 16 kHz output gain: `+8.64 dB`,
+- presence lift at 8 kHz, output minus tone node: `+2.26 dB`,
+- 8 kHz minus 1 kHz output tilt: `+8.71 dB`.
+
+Rust regression coverage now includes
+`amp::tests::none_star_anchor_preserves_presence_band_energy`, which guards the
+DSP implementation against accidentally reintroducing a strongly dark
+presence-band response at the NAM anchor settings.
+
+## Open Assumptions
+
+- Exact channel, revision, and sample settings still need to be chosen for
+  long-term calibration.
+- Tone stack values and tapers are graybox, not component sourced.
+- The 5/15/30 W power switching is represented only as a generic sag/feel
+  control in V1.
+- Built-in reverb is not part of the amp core; Greybound should keep spring
+  effects in FX-loop/runtime effect models.

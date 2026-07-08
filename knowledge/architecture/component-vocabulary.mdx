@@ -1,0 +1,71 @@
+---
+title: Component Vocabulary
+description: Canonical naming for physical parts, circuit cells, stages, devices, and rigs.
+---
+
+Greybound uses circuit knowledge, but it is not currently a full component-exact
+SPICE runtime. Keep these levels distinct so code, docs, lab reports, and UI
+descriptors do not overclaim what a model contains.
+
+## Canonical Levels
+
+| Level | Meaning | Examples | Preferred name |
+| --- | --- | --- | --- |
+| Physical part | One real electronic part or primitive model. | `100k` plate resistor, `22nF` coupling capacitor, ECC83 triode section, diode, pot, transformer winding. | `part`, `physical_part`, or the exact part kind |
+| Circuit cell | A reusable small subcircuit with explicit voltage/current meaning. | common-cathode stage, diode clipper, cathode follower, passive tone stack, sag cell. | `cell` or `CircuitCell` |
+| Stage | A model-level block in an amp or pedal signal path. It may contain many parts or cells. | `first_stage`, `tone_stack`, `phase_inverter`, `power_stage`, `supply_network`. | `stage` |
+| Device | A complete amp, pedal, cab, or effect model. | Nox30, Minotaur, Springfield, None Star. | `device`, `amp`, `pedal`, `effect` |
+| Rig | Musical topology and controls. | Minotaur -> Nox30 -> Springfield -> cab IR. | `rig` |
+
+## Rule
+
+Use `component` only when the text really means a physical part, or when keeping
+a backwards-compatible public API that already used the old word.
+
+For model-boundary data, use `stage`:
+
+- `StageBoundary`: a named observable boundary such as `first_stage` or
+  `tone_stack`.
+- `StageBoundaryState`: voltage, impedance, coupling, headroom, and latency at
+  that boundary.
+- `StageSignal`: the typed signal passed between stages or cells.
+- `StageCoupling`: the coupling mode at a stage boundary.
+
+The older `ComponentBoundary`, `ComponentBoundaryState`, `ComponentSignal`, and
+`ComponentCoupling` names are compatibility aliases only. New code should not
+use them.
+
+## What This Means For Greybound
+
+A Nox30 `first_stage` is not a single component. It is a stage that represents
+the behavior of a small tube circuit: triode, plate load, cathode network,
+coupling assumptions, and validation evidence. If the model needs the exact
+resistor or capacitor values, document them as physical parts inside the stage
+or circuit-cell notes.
+
+A `tone_stack` can be a true circuit cell when it solves the passive network
+with explicit source/load assumptions. A `power_stage` may still be a graybox
+stage if it exposes useful current, voltage, sag, and headroom behavior without
+solving every physical part.
+
+This keeps the project honest:
+
+- circuit descriptors can explain the model without pretending to be PCB
+  artwork,
+- lab reports can say whether they validate a physical part, a cell, a stage,
+  or a complete device,
+- future open-source readers can tell which parts are measured, inferred,
+  graybox, or algorithmic.
+
+## Acceptance Language
+
+Use precise acceptance statements:
+
+- "This stage is circuit-informed and validated against a NAM render."
+- "This cell has a SPICE fixture and operating-point checks."
+- "This physical part value is sourced with medium confidence."
+- "This device is a graybox approximation, not a component-exact clone."
+
+Avoid broad claims such as "component-accurate" unless every relevant physical
+part, value, topology variant, operating point, and validation fixture is
+documented.

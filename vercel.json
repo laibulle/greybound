@@ -1,0 +1,4 @@
+{
+  "installCommand": "npm --prefix landing ci",
+  "buildCommand": "npm --prefix landing run build"
+}

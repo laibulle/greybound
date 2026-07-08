@@ -1,0 +1,15 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "index",
+    "signal-chain",
+    "rig-files",
+    "component-vocabulary",
+    "amp-model-experiments",
+    "circuit-diagrams",
+    "ir-research",
+    "audio-lab-mcp",
+    "desktop-metronome",
+    "desktop-tuner"
+  ]
+}

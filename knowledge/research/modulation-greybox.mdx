@@ -1,0 +1,71 @@
+---
+title: Modulation Gray-Box Modeling
+description: Notes on gradient-based gray-box optimisation for guitar modulation effects.
+---
+
+## Reference
+
+Alistair Carson, Alec Wright, and Stefan Bilbao, ["Gradient-based Optimisation of Modulation Effects"](https://arxiv.org/abs/2601.04867), arXiv:2601.04867, submitted 8 January 2026.
+
+## Why It Matters
+
+This paper is directly relevant to Greybound's modulation models because it targets the same live-guitar problem space:
+
+- phaser, flanger, and chorus effects,
+- analog reference units,
+- gray-box / DDSP-style structure instead of pure black-box neural inference,
+- training in the time-frequency domain,
+- time-domain inference with zero added latency,
+- low computational cost compared with heavier neural approaches.
+
+The strongest architectural point for Greybound is that the runtime model should remain explicit and controllable. Neural or gradient-based optimization should identify internal parameters, not replace the rig graph with an opaque network.
+
+## Implementation Takeaways
+
+For Greybound, this suggests a staged path:
+
+- Keep the existing device descriptors, rig format, bypass state, and runtime controls.
+- Promote modulation models to structured gray-box blocks whose parameters can be fitted.
+- Start with the existing `Tron`, `Jetstream`, and `Celeste` models because they map directly to phaser, flanger, and chorus.
+- Treat training/optimization as an offline toolchain that emits runtime coefficients.
+- Keep live inference sample-by-sample and zero-latency.
+- Prefer interpretable parameters: fractional delay, feedback, LFO shape, all-pass/JFET resistance law, BBD bandwidth, mix, and output gain.
+
+## Candidate Mapping
+
+`Tron`:
+
+- Current role: optical-style phaser.
+- Research direction: move from heuristic all-pass sweep to fitted time-varying phase network.
+- Candidate fitted parameters: sweep range, stage spread, feedback, lamp/LDR smoothing, nonlinear resistance law.
+
+`Jetstream`:
+
+- Current role: BBD-style flanger.
+- Research direction: fitted fractional-delay path with feedback and bandwidth limits.
+- Candidate fitted parameters: manual delay, sweep depth, feedback gain/sign, pre/post delay low-pass filters, wet/dry balance.
+
+`Celeste`:
+
+- Current role: BBD-style chorus.
+- Research direction: fitted short-delay modulation with analog bandwidth and mix behavior.
+- Candidate fitted parameters: delay offsets, LFO phase spread, wet-path tone, BBD filtering, level compensation.
+
+## Validation Requirements
+
+Before replacing the current hand-tuned models, each fitted gray-box model should pass:
+
+- impulse and chirp sanity checks,
+- no added latency at inference,
+- bounded feedback under all exposed controls,
+- parameter smoothing without zipper noise,
+- CPU budget under live `period-size` values,
+- WAV render comparison against current model and target captures,
+- monitor-log validation with no xruns and no unexpected clipping.
+
+## Open Questions
+
+- Should the optimizer live inside this Rust workspace or in a separate Python training tool?
+- What capture protocol should produce dry/wet training pairs for real pedals?
+- Do we fit one model per reference unit, or one conditional model across knob settings?
+- Should fitted coefficient files become part of the rig, the model descriptor, or a separate asset registry?

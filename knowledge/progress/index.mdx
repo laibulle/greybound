@@ -1,0 +1,39 @@
+---
+title: Progress
+description: Current implementation status and near-term engineering priorities.
+---
+
+This page tracks the project state at a practical engineering level. Update it when behavior changes.
+
+## Done
+
+- Added monitor modes that do not require a real audio output.
+- Added WAV monitor output for later inspection.
+- Verified a short WAV monitor render with `target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/greybound-nox30-monitor.wav --render-seconds 2 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor`.
+- Implemented the Muffin fuzz as a chainable pre-amp device.
+- Added plugin parameters for Muffin enable, sustain, tone, and level.
+- Implemented the Minotaur overdrive as a chainable pre-amp device.
+- Added plugin parameters for Minotaur gain, treble, and output.
+- Implemented the Monarch dual-stage overdrive as a chainable pre-amp device.
+- Moved standalone pedal topology and pedal controls behind JSON5 rig files instead of per-pedal CLI flags.
+- Implemented the Godess One distortion as a chainable pre-amp device with Standard and Custom voices.
+- Implemented Nox30 FX-loop routing between preamp send and phase-inverter/power return.
+- Implemented Dartford as a chainable modulation device with a `rigs/all-nox.json5` FX-loop rig.
+- Added an interactive terminal monitor for live amp knob changes without locking the audio callback.
+- Replaced rig-specific runtime examples with `target/release/greybound-cli --rig ...` commands.
+- Reduced maintained JSON5 rigs to `rigs/all-nox.json5` for the full board and
+  `rigs/grey-nox.json5` for the focused Klon/Minotaur into Nox30 grey-box path.
+- Verified a short fuzz WAV render with `target/release/greybound-cli --rig rigs/all-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/greybound-fuzz-monitor.wav --render-seconds 2 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor`.
+- Added Codex agent configuration for log analysis and focused implementation roles.
+- Started Fumadocs as the canonical place for architecture, progress, state, and contributor notes.
+
+## In Progress
+
+- Circuit-accurate refinements for the Muffin transistor, diode, and tone-stack stages.
+- Shared-state telemetry at chain boundaries.
+
+## Next
+
+- Add a component-level Muffin stage solve to replace the first-pass tanh gain stages.
+- Add monitor logging for chain slot state and pedal input/output levels.
+- Extend monitor logging to include shared-state snapshots at chain boundaries.

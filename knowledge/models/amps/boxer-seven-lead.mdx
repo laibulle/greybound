@@ -1,0 +1,148 @@
+---
+title: Boxer Seven Lead
+description: Greybound V1 lead-channel graybox inspired by the Bogner Shiva 20th Anniversary lead channel.
+---
+
+`boxer-seven-lead` is Greybound's original-name lead-channel target inspired by
+the Bogner Shiva 20th Anniversary lead channel. It focuses on thick classic-rock
+lead saturation, forward but controllable mids, high-headroom KT-style output
+feel, and global presence/excursion behavior.
+
+V1 is not a complete Shiva platform, not the clean channel, and not a
+component-exact schematic clone.
+
+## Modeling Scope
+
+The current implementation is a tuned graybox approximation. It uses public
+control/topology information plus existing Greybound amp-stage primitives:
+
+- high-impedance input coupling,
+- bright input gain that becomes less dominant as gain rises,
+- cascaded tube-style lead gain,
+- asymmetric cold-biased lead clipping,
+- recovery/follower behavior into a three-band tone stack,
+- post-tone loop/master driver,
+- presence shaping,
+- phase-inverter approximation,
+- high-headroom KT-style push-pull current-bank response,
+- excursion/sag envelope and low-frequency feel shaping,
+- output coupling and low-pass filtering before cab/IR.
+
+Canonical model id:
+
+- `boxer-seven-lead`
+
+Accepted source/reference aliases:
+
+- `boxer-seven`
+- `shiva-20th-lead`
+- `shiva20-lead`
+
+## Source Confidence
+
+Public sources agree on the useful V1 target shape: the 20th Anniversary Shiva
+lead channel exposes gain plus bass/middle/treble, has bright/shift/mode
+voicing controls, and shares master/presence/excursion controls. Review and
+modeling-community notes describe the KT88 20th Anniversary version as a
+high-headroom, wide, dynamic amp with a dark/thick default lead voice and
+classic-rock gain rather than extreme modern metal gain.
+
+Reference links:
+
+- Bogner Shiva manual PDF:
+  `https://www.musette-japan.com/bogner_contents/pdf/manual/shiva.pdf`
+- Premier Guitar 20th Anniversary Shiva review:
+  `https://www.premierguitar.com/gear/bogner-20th-anniversary-shiva-and-ecstasy-amp-reviews`
+- Fractal Audio Shiva 20th model discussion:
+  `https://forum.fractalaudio.com/threads/fractal-audio-amp-models-shiver-bogner-shiva-20th-ann.114764/`
+- Fractal AOTM Shiva notes:
+  `https://forum.fractalaudio.com/threads/aotm-bogner-shiva.94396/`
+- Equipboard feature summary:
+  `https://equipboard.com/items/bogner-shiva-20th-anniversary`
+
+Do not commit Bogner manual PDFs, schematic scans, current-production artwork,
+or third-party model files. Keep only project-owned topology notes, values,
+validation evidence, and links here.
+
+## Current DSP Approximation
+
+The Rust model lives in
+`core/src/amp/models/boxer_seven.rs::BoxerSevenLead`.
+
+Control mapping:
+
+- `volume`: lead gain into the cascade.
+- `bass`: low band of the three-band graybox tone stack.
+- `cut`: temporary mid control until shared amp controls expose `mid`.
+- `treble`: high band of the three-band graybox tone stack.
+- `drive`: V1 mode/boost aggression hypothesis; it raises clipping gain,
+  compression, and upper-mid bite.
+- `presence`: high-frequency feedback-style lift before the output section.
+- `sag`: excursion/depth feel hypothesis; it changes low-frequency bloom and
+  supply/bias softness.
+- `output`: final global output gain from the runtime.
+
+## Circuit Descriptor
+
+The runtime exposes
+`core/src/circuit_descriptor.rs::BOXER_SEVEN_LEAD_CIRCUIT`.
+
+It should be rendered as a stage-level graybox map:
+
+- input jack,
+- input coupling,
+- bright gain,
+- cascaded lead gain,
+- asymmetric lead clipper,
+- recovery/follower,
+- bass/mid/treble tone stack,
+- loop/channel-volume driver,
+- presence,
+- phase inverter,
+- KT-style high-headroom power response,
+- sag/excursion state,
+- output transformer/filtering,
+- speaker output.
+
+This descriptor is model-level explanation, not PCB artwork or a full SPICE
+netlist.
+
+## Initial Validation
+
+Focused tests:
+
+```bash
+cargo test -p greybound boxer_seven -- --nocapture
+cargo test -p greybound circuit_descriptor::tests::boxer_seven -- --nocapture
+```
+
+The first tests verify:
+
+- hot input stays finite,
+- the mode/boost hypothesis produces measurably more nonlinear residual energy
+  than the lower-aggression setting,
+- the circuit descriptor exposes lead scope and a KT-style power-stage node.
+
+Recommended first monitor render:
+
+```bash
+cargo build --release -p greybound-cli
+target/release/greybound-cli --rig rigs/boxer-seven-lead.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/boxer-seven-lead-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/boxer-seven-lead-3s.monitor.log
+```
+
+Initial validation is runtime-health and regression-oriented only. It does not
+prove match quality against a measured Shiva 20th Anniversary capture. The next
+useful experiment is a fixed DI comparison against a measured hardware capture,
+NAM/Axe reference render, or a project-owned SPICE fixture for the lead tone and
+mode/excursion controls.
+
+First monitor result, after output gain staging correction:
+
+- artifact: `target/boxer-seven-lead-3s.wav`,
+- monitor log: `target/boxer-seven-lead-3s.monitor.log`,
+- 12 monitor windows,
+- input xrun/output xrun: `0/0`,
+- input near-clip/hard-clip: `0/0`,
+- output near-clip/hard-clip: `0/0`,
+- loudest observed output RMS: about `-15.5 dBFS`,
+- loudest observed output peak: about `-5.7 dBFS`.

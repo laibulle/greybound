@@ -1,0 +1,224 @@
+use greybound::ir::SpeakerStage;
+use greybound::{
+    configure_nox30_first_stage_graybox, configure_nox30_first_stage_neural, AmpControls,
+    DeviceSlotControls, NeuralCellMode, RigConfig, SignalChain, SignalChainConfig,
+    SignalChainControls,
+};
+use js_sys::Float32Array;
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub struct GreyboundNox30 {
+    chain: SignalChain,
+    chain_config: SignalChainConfig,
+    controls: AmpControls,
+    amp_enabled: bool,
+    device_controls: Vec<DeviceSlotControls>,
+    sample_rate: u32,
+    speaker: SpeakerStage,
+    speaker_enabled: bool,
+    first_stage_model: FirstStageModel,
+}
+
+#[wasm_bindgen]
+impl GreyboundNox30 {
+    #[wasm_bindgen(constructor)]
+    pub fn new(sample_rate: f32) -> Self {
+        configure_first_stage_model(FirstStageModel::Graybox);
+        let chain_config = SignalChainConfig::amp_only("nox30");
+        Self {
+            chain: SignalChain::new(sample_rate, chain_config.clone()),
+            chain_config,
+            controls: default_controls(),
+            amp_enabled: true,
+            device_controls: Vec::new(),
+            sample_rate: sample_rate as u32,
+            speaker: SpeakerStage::bypassed(),
+            speaker_enabled: false,
+            first_stage_model: FirstStageModel::Graybox,
+        }
+    }
+
+    #[wasm_bindgen(js_name = fromRigJson)]
+    pub fn from_rig_json(
+        sample_rate: f32,
+        rig_json: &str,
+        output_gain: f32,
+    ) -> Result<Self, JsValue> {
+        let rig = RigConfig::from_json5(rig_json)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let chain_config = rig
+            .signal_chain_config()
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let device_controls = rig
+            .device_controls()
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        configure_first_stage_model(FirstStageModel::Graybox);
+        Ok(Self {
+            chain: SignalChain::new(sample_rate, chain_config.clone()),
+            chain_config,
+            controls: rig.amp_controls(output_gain),
+            amp_enabled: rig.amp_enabled(),
+            device_controls,
+            sample_rate: sample_rate as u32,
+            speaker: SpeakerStage::bypassed(),
+            speaker_enabled: false,
+            first_stage_model: FirstStageModel::Graybox,
+        })
+    }
+
+    pub fn reset(&mut self) {
+        self.chain.reset();
+        self.speaker.reset();
+    }
+
+    pub fn set_amp_controls(
+        &mut self,
+        volume: f32,
+        bass: f32,
+        treble: f32,
+        cut: f32,
+        drive: f32,
+        presence: f32,
+        sag: f32,
+        output: f32,
+    ) {
+        self.controls = AmpControls {
+            volume: clamp_unit(volume),
+            bass: clamp_unit(bass),
+            treble: clamp_unit(treble),
+            cut: clamp_unit(cut),
+            drive: clamp_unit(drive),
+            presence: clamp_unit(presence),
+            sag: clamp_unit(sag),
+            output: output.clamp(0.0, 2.0),
+        };
+    }
+
+    pub fn set_amp_enabled(&mut self, enabled: bool) {
+        self.amp_enabled = enabled;
+    }
+
+    pub fn set_device_bypassed(&mut self, slot_index: usize, bypassed: bool) {
+        if let Some(slot) = self.device_controls.get_mut(slot_index) {
+            slot.bypassed = bypassed;
+        }
+    }
+
+    #[wasm_bindgen(js_name = setRigControlsJson)]
+    pub fn set_rig_controls_json(
+        &mut self,
+        rig_json: &str,
+        output_gain: f32,
+    ) -> Result<(), JsValue> {
+        let rig = RigConfig::from_json5(rig_json)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        self.controls = rig.amp_controls(output_gain);
+        self.amp_enabled = rig.amp_enabled();
+        self.device_controls = rig
+            .device_controls()
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = setFirstStageModel)]
+    pub fn set_first_stage_model(&mut self, model: &str) -> Result<(), JsValue> {
+        let model = match model {
+            "analytic" => FirstStageModel::Analytic,
+            "graybox" | "accepted-graybox" => FirstStageModel::Graybox,
+            other => {
+                return Err(JsValue::from_str(&format!(
+                    "unsupported first-stage model '{other}'"
+                )))
+            }
+        };
+        if self.first_stage_model == model {
+            return Ok(());
+        }
+        configure_first_stage_model(model);
+        self.chain = SignalChain::new(self.sample_rate as f32, self.chain_config.clone());
+        self.first_stage_model = model;
+        Ok(())
+    }
+
+    pub fn set_speaker_enabled(&mut self, enabled: bool) {
+        self.speaker_enabled = enabled;
+    }
+
+    pub fn set_ir_wav_bytes(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        self.speaker = SpeakerStage::from_wav_bytes(bytes, self.sample_rate)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        Ok(())
+    }
+
+    pub fn process_sample(&mut self, input: f32) -> f32 {
+        let controls = SignalChainControls {
+            amp: self.controls,
+            devices: &self.device_controls,
+        };
+        let chain_output = if self.amp_enabled {
+            self.chain.process(input, controls)
+        } else {
+            input
+        };
+        self.speaker.process(chain_output, self.speaker_enabled)
+    }
+
+    pub fn process_block(&mut self, input: &Float32Array) -> Float32Array {
+        let mut input_samples = vec![0.0; input.length() as usize];
+        input.copy_to(&mut input_samples);
+
+        let mut output_samples = Vec::with_capacity(input_samples.len());
+        for sample in input_samples {
+            output_samples.push(self.process_sample(sample));
+        }
+
+        Float32Array::from(output_samples.as_slice())
+    }
+
+    pub fn latency_samples(&self) -> usize {
+        greybound::amp::AMP_LATENCY
+    }
+}
+
+#[wasm_bindgen]
+pub fn greybound_wasm_version() -> String {
+    env!("CARGO_PKG_VERSION").to_owned()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FirstStageModel {
+    Analytic,
+    Graybox,
+}
+
+fn configure_first_stage_model(model: FirstStageModel) {
+    match model {
+        FirstStageModel::Analytic => {
+            configure_nox30_first_stage_neural(None, NeuralCellMode::Shadow);
+        }
+        FirstStageModel::Graybox => {
+            configure_nox30_first_stage_graybox(
+                Some("accepted-live".into()),
+                NeuralCellMode::Replace,
+            );
+        }
+    }
+}
+
+fn default_controls() -> AmpControls {
+    AmpControls {
+        volume: 0.55,
+        bass: 0.5,
+        treble: 0.6,
+        cut: 0.35,
+        output: 1.0,
+        drive: 0.0,
+        presence: 0.0,
+        sag: 0.0,
+    }
+}
+
+fn clamp_unit(value: f32) -> f32 {
+    value.clamp(0.0, 1.0)
+}

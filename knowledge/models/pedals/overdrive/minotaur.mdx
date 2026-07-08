@@ -1,0 +1,232 @@
+---
+title: Minotaur
+description: Reverse-engineered Minotaur overdrive engineering baseline for Greybound pedal modeling.
+---
+
+Minotaur is Greybound's first overdrive pedal model. It targets the broad behavior of buffered clean-blend overdrives: high input impedance, low output impedance, gain-dependent clipping, a treble/presence control, and enough headroom to push an amp without behaving like a fuzz.
+
+## Circuit Diagram
+
+Diagram data lives in `knowledge/models/pedals/overdrive/diagrams/minotaur.diagram.json5`.
+
+This JSON5 graph is a documentation and renderer artifact. It maps the buffered input, clean/drive blend, clipping, treble, and output stages to the current Rust emulation and includes partial SPICE export fields for explicit electrical boundaries.
+
+The runtime also exposes the same model-level intent through
+`core/src/circuit_descriptor.rs::MINOTAUR_CIRCUIT`. UI tools should prefer that
+descriptor when they need live model semantics such as control bindings, stage
+confidence, and implementation references.
+
+<CircuitDiagram model="minotaur" />
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving long cables or another pedal.
+- Input coupling that removes DC and keeps low frequencies controlled.
+- Gain path with soft symmetrical clipping.
+- Clean path blended with the clipped path so low and medium gain settings preserve pick attack.
+- Treble control that emphasizes presence rather than creating a deep mid scoop.
+
+## Controls
+
+- `gain`: amount of clipped drive path and clean/drive blend.
+- `treble`: presence-band lift after the clean/drive blend.
+- `output`: final level into the next load.
+- `bypass`: routing state; active circuit state remains private to the pedal instance.
+
+## External Boundaries
+
+The pedal receives and emits voltage plus impedance:
+
+- input source: guitar pickup or previous pedal output,
+- input load: Minotaur input impedance plus cable capacitance memory,
+- output source: pedal output voltage plus output impedance,
+- output load: amp input, next pedal, or FX-loop return.
+
+`ConnectionState` owns cable capacitance and source/load division. Minotaur should not mutate amp internals.
+
+## Current DSP Approximation
+
+The current implementation is a scalar greybox approximation:
+
+- high-pass input coupling,
+- low-passed clean path,
+- soft-clipped drive path,
+- gain-controlled clean/drive blend,
+- treble high-pass presence path,
+- modest post-tone transient lift,
+- output low-pass smoothing and low source impedance.
+
+This is not yet a component-exact op-amp/diode solve. It is intentionally shaped around useful engineering boundaries first so it can participate correctly in arbitrary rig ordering.
+
+## Current Promoted Cell
+
+The former `minotaur-experimental` clipping hypothesis is now the canonical
+Minotaur behavior. The current analytic diode-pair knee is `0.36 V`, followed
+by `1.023x` internal output makeup. This is still a greybox approximation, not
+a component-exact Klon op-amp/diode solve, but it is now the single maintained
+runtime path.
+
+`minotaur-experimental` remains accepted by rig parsing as a legacy alias for
+`minotaur` so old lab fixtures and saved sessions do not break. It no longer
+selects a separate DSP implementation.
+
+The current boundary snapshot records:
+
+- input load,
+- input coupling,
+- clean path,
+- drive gain,
+- soft clip,
+- summing node,
+- treble/presence,
+- output driver.
+
+These states use the shared `StageBoundaryState` vocabulary: voltage,
+source/load impedance, coupling type, headroom, nominal level, peak level, and
+latency. The values are model-level observations from the current Rust
+greybox, not measured proof of component-exact Klon hardware behavior.
+
+## 2026-07-02 Output Driver SPICE Triage
+
+The Minotaur was reported to compress too early and to lose level even with the
+output control at maximum. Instead of adding post-hoc makeup gain, a component
+diagnostic path was added to the release CLI:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --minotaur-node-report target/minotaur-node-rust-after-output-driver.json --diagnostic-frequency 1000 --diagnostic-input-v 0.120 --diagnostic-seconds 0.120 --diagnostic-gain 0.55 --diagnostic-treble 0.60 --diagnostic-output 0.70 --disable-neural-cell
+uv --project lab run greybound-lab minotaur-node-compare --rust-report target/minotaur-node-rust-after-output-driver.json --spice-data lab/references/spice/klon-centaur.dat --report target/minotaur-node-vs-spice-after-output-driver.md --json target/minotaur-node-vs-spice-after-output-driver.json
+```
+
+The pre-fix diagnostic showed the output driver was the dominant component
+mismatch: Rust output was `-24.42 dB` below the project Klon SPICE fixture while
+input and buffer levels matched within `0.1 dB`. The final level stage was
+therefore still behaving like a small DSP trim, not like the Klon level pot
+after the active treble recovery path.
+
+Change:
+
+- replaced the small post-tone output trim with a level/output driver gain that
+  matches the SPICE fixture at `GAIN=0.55`, `TREBLE=0.60`, `LEVEL=0.70`,
+- updated the focused Rust test from a historical NAM makeup range to a
+  SPICE-output-driver range,
+- recalibrated maintained Minotaur rigs from `output: 0.42` to `output: 0.03`
+  so the default Grey Nox preset remains a clean musical starting point while
+  the output control can still boost hard when raised.
+
+Evidence after the change:
+
+- `target/minotaur-node-vs-spice-after-output-driver.md`: output node delta
+  improved from `-24.42 dB` to `-0.04 dB`.
+- Remaining largest node-level mismatch is `tone` at `+8.58 dB`; this is the
+  next circuit-mapping target and may partly reflect that the Rust collapsed
+  treble node is not yet the same probe as SPICE `treble_wiper`.
+- `target/grey-nox-minotaur-output-driver-preset-3s.wav` monitor render:
+  peak `-3.92 dBFS`, RMS `-21.77 dBFS`, zero near clips, zero hard clips, and
+  zero xruns.
+- A temporary pedal-active-max check showed the output control no longer
+  behaves as an attenuation-only stage versus bypass.
+
+Assumptions and limitations:
+
+- The diagnostic is analytic/graybox only when run with `--disable-neural-cell`.
+- The level-driver correction is anchored to the existing project-owned SPICE
+  fixture, not to a measured hardware capture.
+- Full-chain gain staging must be evaluated separately because a real Klon-like
+  level boost can intentionally overdrive the Nox30.
+
+The historical `rigs/grey-nox-minotaur-experimental.json5` fixture is now a
+legacy-alias compatibility fixture. A future divergent Minotaur experiment
+should use a new explicitly named hypothesis instead of reviving a permanent
+stable/experimental split.
+
+The initial transparent-wrapper verification used release CLI renders:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-stable-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+target/release/greybound-cli --rig rigs/grey-nox-minotaur-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-experimental-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+Both renders produced peak `0.636794448` and RMS `0.075814350`; direct
+sample comparison reported `max_abs_diff=0.000000000000` and
+`rms_diff=0.000000000000`.
+
+The first divergent soft-clip hypothesis was checked with:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-stable-softclip-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+target/release/greybound-cli --rig rigs/grey-nox-minotaur-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-minotaur-experimental-softclip-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+Former stable render: peak `0.636794448`, RMS `0.075814350`.
+Promoted soft-clip-plus-makeup candidate render: peak `0.636794448`, RMS
+`0.075699705`. Direct comparison reported `max_abs_diff=0.018015459180` and
+`rms_diff=0.001366575224`. This is a small but measurable change that became
+the current canonical path after desktop listening/feel checks.
+
+## 2026-06-11 Klon NAM Pedal-Only Iteration
+
+The current greybox Minotaur voicing was adjusted against the Klon gain-5 NAM render in
+`lab/reports/klon-minotaur/klon-gain5.wav` using a pedal-only diagnostic rig derived from
+`lab/reports/klon-minotaur/sweep-gain5/generated-rigs/15-gain-0p420__treble-0p700__output-0p420.json5`.
+The maintained integration rig remains `rigs/grey-nox.json5`; a direct sweep against it was discarded for this pedal reference because that compares pedal-plus-amp against a pedal-only NAM target.
+
+Change:
+
+- reduced the treble/high branch contribution,
+- added more mid fill after the clean/drive blend,
+- increased the small transient lift from `0.04` to `0.055`.
+
+Evidence:
+
+- Baseline artifact: `lab/reports/klon-minotaur/minotaur-pedal-only.wav`.
+- Candidate artifact: `lab/reports/klon-minotaur/minotaur-voicing-final.wav`.
+- Evaluation report: `lab/reports/klon-minotaur/minotaur-voicing-final.eval.md`.
+- Composite sweep-style metric improved from `0.4044` to `0.3993`.
+- Null residual improved from `-7.75 dB` to `-8.20 dB`.
+- Envelope error improved from `-12.78 dB` to `-13.30 dB`.
+- Spectral-balance max drift improved from `5.95 dB` to `5.51 dB`, mostly in the air band.
+- Transient max drift improved from `2.01 dB` to `1.76 dB`.
+- Dynamics range drift improved from `-0.91 dB` to `-0.76 dB`.
+- Level-response max drift improved from `1.03 dB` to `0.94 dB`.
+- Weighted log-spectral distance regressed from `15.09 dB` to `15.90 dB`; unweighted log-spectral distance regressed from `16.24 dB` to `17.34 dB`.
+- `clipper` profile verdict remains `warning`.
+
+Runtime health was checked with:
+
+```bash
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/greybound-overdrive-nox30-monitor.wav --render-seconds 10 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+The monitor log had 40 samples, zero xruns, zero near-clips, zero hard clips,
+and a maximum output peak of `-3.9 dBFS`.
+
+Conclusion: keep this candidate as a small composite improvement for the Klon
+pedal-only anchor, not as proof of realism. The spectral-distance regression
+means the next useful experiment should target the tone branch or clipping
+spectral shape directly, ideally with dedicated sine/transfer stimuli in
+addition to the musical DI.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- input and output impedance targets are measured against reference data,
+- gain sweep changes harmonic density while preserving clean blend at low settings,
+- treble sweep changes presence without excessive level jumps,
+- output level into 1 MOhm, 500 kOhm, 220 kOhm, and 100 kOhm loads behaves plausibly,
+- buffered-source and guitar-source inputs produce sensible differences,
+- SPICE or measured captures validate individual stage responses.
+
+## Measurement Protocol
+
+Hardware or SPICE captures should include:
+
+- supply voltage and current draw,
+- input impedance at 100 Hz, 1 kHz, 5 kHz, and 10 kHz,
+- output impedance across output settings,
+- bypass behavior,
+- gain, treble, and output potentiometer taper,
+- clean path, clipping path, tone output, and final output probes,
+- sine tests at 82 Hz, 110 Hz, 220 Hz, 440 Hz, 1 kHz, 3 kHz, and 6 kHz,
+- input amplitudes from 20 mV RMS to 1 V RMS, with large amplitudes only from a buffered source.

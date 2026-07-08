@@ -1,0 +1,45 @@
+---
+title: Circuits
+description: Reusable physical-part, circuit-cell, and solver knowledge for Greybound models.
+---
+
+This section contains reusable circuit knowledge: physical parts, cells, passive
+networks, solver rules, validation gates, and shared electrical behavior.
+Product or family targets belong under `knowledge/models/`.
+
+Use the architecture [Component Vocabulary](/architecture/component-vocabulary)
+when naming work. In this section, "component" should mean a physical electronic
+part unless the text is explicitly discussing a backwards-compatible API name.
+
+## Policy
+
+Do not store copied schematic scans, service PDFs, or current-production circuit artwork in this repository. In this section, document:
+
+- reusable circuit cells,
+- generic topology patterns,
+- solver assumptions,
+- state variables,
+- validation plans,
+- public source URLs for readers to consult themselves.
+
+When a circuit source is copyrighted or has unclear redistribution rights, link to it and summarize only the engineering facts needed by Greybound.
+
+## Current Component Areas
+
+- Passive networks: tone stacks, coupling, loading, and cable behavior.
+- Tube stages: ECC83/12AX7 stages, phase inverters, power stages, supply sag.
+- BJT stages: transistor pedal cells, diode clipping, coupling capacitors.
+- Modeling primitives: KCL/KVL, MNA, WDF, and state-space boundaries.
+- Nonlinear solvers: bounded Newton rules for diodes, BJTs, and tubes.
+- Tone stacks: passive stack interaction, loading, insertion loss, and sweeps.
+- Coupling and bias: coupling-capacitor memory, bias shift, and blocking behavior.
+- Supply sag: rail compression, rectifier/filter memory, and validation stimuli.
+- Validation: shared evidence gates for component-level work.
+
+## Confidence Vocabulary
+
+- `high`: stable topology or value across trusted references, or measured in our own fixtures.
+- `medium`: plausible public-reference value, but variant-sensitive or not yet measured.
+- `low`: implementation placeholder or modeling assumption needing measurement.
+
+Use this vocabulary when adding new circuit notes so implementation choices remain auditable.

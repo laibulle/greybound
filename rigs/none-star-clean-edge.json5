@@ -1,0 +1,44 @@
+{
+  // Rig only: no input device, output device, monitor, or render settings.
+  // Focused None Star Clean/Edge validation rig.
+  name: "none-star-clean-edge",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [],
+
+  fx_loop: [
+    {
+      id: "spring-reverb",
+      device: "springfield",
+      bypassed: false,
+      controls: {
+        dwell: 0.38,
+        tone: 0.56,
+        mix: 0.18,
+      },
+    },
+  ],
+
+  amp: {
+    model: "none-star",
+    bypassed: false,
+    controls: {
+      volume: 0.62,
+      bass: 0.56,
+      // Temporary mid control until shared amp controls expose `mid`.
+      cut: 0.58,
+      treble: 0.60,
+      drive: 0.28,
+      presence: 0.48,
+      sag: 0.42,
+    },
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/celestion.wav",
+    bypassed: false,
+  },
+}

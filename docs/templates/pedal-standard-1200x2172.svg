@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="2172" viewBox="0 0 1200 2172">
+  <title>Greybound standard pedal render template</title>
+  <desc>Layout guide for AI-generated pedal faceplate assets. Use as a reference only; guides must not appear in final artwork.</desc>
+  <rect width="1200" height="2172" fill="none"/>
+  <rect x="72" y="72" width="1056" height="2028" rx="72" fill="none" stroke="#00a7ff" stroke-width="6" stroke-dasharray="24 18"/>
+  <rect x="112" y="112" width="976" height="1948" rx="52" fill="none" stroke="#62d26f" stroke-width="4" stroke-dasharray="18 14"/>
+  <line x1="600" y1="0" x2="600" y2="2172" stroke="#ff4fd8" stroke-width="3" stroke-dasharray="14 14"/>
+  <line x1="0" y1="1086" x2="1200" y2="1086" stroke="#ff4fd8" stroke-width="3" stroke-dasharray="14 14"/>
+  <g fill="none" stroke="#ffffff" stroke-width="5">
+    <circle cx="314" cy="395" r="135"/>
+    <circle cx="888" cy="395" r="135"/>
+    <circle cx="607" cy="708" r="135"/>
+    <circle cx="600" cy="1351" r="72"/>
+    <circle cx="600" cy="1755" r="96"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#ffffff">
+    <text x="314" y="572" text-anchor="middle">control label</text>
+    <text x="888" y="572" text-anchor="middle">control label</text>
+    <text x="607" y="885" text-anchor="middle">control label</text>
+    <text x="600" y="1500" text-anchor="middle">model name zone</text>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#00a7ff">
+    <text x="72" y="48">canvas 1200 x 2172 transparent PNG</text>
+    <text x="86" y="2140">blue: outer safe body, green: no-crop safe detail, white: common control anchors</text>
+  </g>
+</svg>

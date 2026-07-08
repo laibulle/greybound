@@ -1,0 +1,438 @@
+---
+title: Audio Lab MCP
+description: MCP contract and implementation notes for repeatable Greybound audio debugging runs.
+---
+
+The Audio Lab MCP lets Codex run bounded, reproducible audio experiments
+without manually assembling long CLI commands each time. It is an orchestration
+layer over `greybound-cli`, `greybound-lab`, rig files, WAV references, monitor
+logs, and generated reports. It should not become a second DSP runtime.
+
+## Current Implementation
+
+The first implementation lives in the workspace crate
+`audio-lab-mcp` and builds the binary `greybound-audio-lab-mcp`.
+It implements MCP over newline-delimited JSON-RPC on `stdio`, with no logging to
+stdout. The desktop app starts the sidecar at initialization when it can find
+`target/release/greybound-audio-lab-mcp` or `target/debug/greybound-audio-lab-mcp`.
+Sidecar stderr is written to `target/greybound-mcp/audio-lab-mcp.stderr.log`,
+and the desktop process owns and terminates the sidecar.
+
+Implemented tools:
+
+- `list_audio_assets`
+- `inspect_rig`
+- `render_rig`
+- `monitor_render`
+- `compare_wav`
+- `evaluate_wav`
+- `summarize_run`
+
+`sweep_controls` is currently a reserved tool entry that returns a warning
+instead of running batch renders. Future live-session tools are still out of
+scope for this first pass.
+
+Validation smoke command:
+
+```bash
+target/debug/greybound-audio-lab-mcp <<'JSON'
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"render_rig","arguments":{"rig":"rigs/grey-nox.json5","run_id":"mcp-smoke","build":false,"runtime":{"input_wav":"lab/references/tone3000-inputs/placeholder.wav","output_wav":"lab/renders/mcp/mcp-smoke.wav","monitor_log":"lab/renders/mcp/mcp-smoke.monitor.log","render_seconds":0.1,"sample_rate":48000,"period_size":32,"ir":"lab/references/tone3000-irs/celestion.wav","monitor":true},"overrides":{"amp":{"volume":0.5},"devices":[{"section":"pre_amp","index":0,"controls":{"gain":0.3}}]}}}}
+JSON
+```
+
+Observed result: `status: clean`, one monitor entry, `xrun_count: 0`,
+`hard_clip_count: 0`, output WAV at `lab/renders/mcp/mcp-smoke.wav`, monitor log
+at `lab/renders/mcp/mcp-smoke.monitor.log`, metadata at
+`lab/renders/mcp/mcp-smoke.run.json`, and a temporary override rig under
+`target/greybound-mcp/mcp-smoke/`.
+
+## Transport And Desktop Lifecycle
+
+The implementation uses MCP over `stdio`.
+
+The desktop UI launches the MCP server as a local sidecar process when the
+app starts. The sidecar is owned by the UI process:
+
+- start sidecar during desktop initialization when the binary exists,
+- communicate over stdin/stdout using the MCP protocol,
+- route sidecar logs to stderr or a file, never stdout,
+- shut down the sidecar when the UI exits,
+- expose sidecar health in the UI when useful in a future pass.
+
+The desktop app should not use the MCP sidecar for real-time audio processing.
+Live CPAL/CoreAudio audio remains inside the desktop runtime. The MCP sidecar is
+for bounded offline renders, monitor analysis, chain inspection, WAV export,
+and lab comparison.
+
+Example launch shape:
+
+```json
+{
+  "transport": "stdio",
+  "command": "target/release/greybound-audio-lab-mcp",
+  "cwd": "/Users/guillaume/sources/greybound",
+  "stderr_log": "target/greybound-mcp/audio-lab-mcp.stderr.log"
+}
+```
+
+For development, the desktop falls back to `target/debug/...` when the release
+binary is missing. In production-like runs, prefer the release sidecar because
+it may launch CPU-heavy analysis and subprocess orchestration.
+
+## Goals
+
+- Render a rig from a WAV input and write a WAV output artifact.
+- Override amp, pedal, cab, and bypass controls for a single run without
+  mutating the source rig unless explicitly requested.
+- Inspect the current signal chain and available controls.
+- Capture monitor evidence: input/output RMS, peaks, clipping, xruns,
+  underruns/overruns, silence, and component telemetry when available.
+- Hand produced WAVs and metadata to the lab comparison workflows.
+- Keep every run reproducible by recording exact command, git revision,
+  rig source, runtime settings, input WAV, IR, and control overrides.
+
+## Non-Goals
+
+- Do not replace `greybound-cli`.
+- Do not embed live audio callbacks in the MCP server for the first version.
+- Do not store runtime session choices in `rigs/*.json5`.
+- Do not silently edit committed rig files when the user asks for a temporary
+  knob change.
+- Do not judge audio quality from listening-only comments; always produce
+  monitor or comparison evidence.
+
+## Artifact Layout
+
+MCP-generated artifacts should live under `lab/renders/mcp/` by default:
+
+- `lab/renders/mcp/{run_id}.wav`: rendered candidate output.
+- `lab/renders/mcp/{run_id}.monitor.log`: bounded monitor log copied from the
+  CLI run.
+- `lab/renders/mcp/{run_id}.run.json`: run metadata and exact command.
+- `lab/reports/mcp/{run_id}.md`: summary or comparison report.
+- `target/greybound-mcp/{run_id}/`: temporary rigs and scratch files.
+
+`run_id` should be stable enough for humans to scan, for example
+`20260701-183500-grey-nox-minotaur-gain70`.
+
+## Data Model
+
+### RuntimeConfig
+
+```json
+{
+  "sample_rate": 48000,
+  "period_size": 32,
+  "render_seconds": 10.0,
+  "input_wav": "lab/references/tone3000-inputs/Brit - Guitar.wav",
+  "input_channel": 0,
+  "ir": "lab/references/tone3000-irs/celestion.wav",
+  "output_wav": "lab/renders/mcp/example.wav",
+  "monitor": true
+}
+```
+
+### ControlOverride
+
+Controls are addressed by role and stable ids, not by UI labels alone.
+
+```json
+{
+  "amp": {
+    "volume": 0.58,
+    "bass": 0.54,
+    "treble": 0.59,
+    "cut": 0.43,
+    "sag": 0.45
+  },
+  "devices": [
+    {
+      "section": "pre_amp",
+      "index": 0,
+      "model": "minotaur",
+      "bypassed": false,
+      "controls": {
+        "gain": 0.42,
+        "treble": 0.70,
+        "output": 0.42
+      }
+    }
+  ],
+  "cab": {
+    "enabled": true
+  }
+}
+```
+
+The MCP should implement overrides by writing a temporary rig file derived from
+the selected base rig. The original rig remains unchanged unless a future
+explicit `save_rig_variant` tool is added.
+
+### RunSummary
+
+```json
+{
+  "run_id": "20260701-183500-grey-nox",
+  "status": "clean",
+  "candidate_wav": "lab/renders/mcp/20260701-183500-grey-nox.wav",
+  "monitor_log": "lab/renders/mcp/20260701-183500-grey-nox.monitor.log",
+  "metadata": "lab/renders/mcp/20260701-183500-grey-nox.run.json",
+  "report": "lab/reports/mcp/20260701-183500-grey-nox.md",
+  "input_rms_dbfs": -24.1,
+  "output_rms_dbfs": -16.8,
+  "input_peak_dbfs": -8.2,
+  "output_peak_dbfs": -1.4,
+  "xrun_count": 0,
+  "hard_clip_count": 0,
+  "near_clip_count": 12,
+  "warnings": []
+}
+```
+
+`status` should be:
+
+- `clean`: no severe runtime health issue.
+- `warning`: useful artifact, but something needs attention.
+- `severe`: clipping, xruns, silence, runaway levels, unreadable output, or
+  failed command.
+
+## Proposed MCP Tools
+
+### `list_audio_assets`
+
+Lists known WAV inputs, IRs, rigs, references, recent renders, and reports.
+
+Inputs:
+
+```json
+{
+  "kind": "all | rigs | inputs | irs | renders | reports"
+}
+```
+
+Outputs include paths, duration/sample rate when cheap to inspect, and a short
+label.
+
+### `inspect_rig`
+
+Parses a rig and returns the musical chain: amp, pre-amp devices, FX loop,
+post-amp devices, bypass states, controls, and display descriptors.
+
+Inputs:
+
+```json
+{
+  "rig": "rigs/grey-nox.json5"
+}
+```
+
+Output should include normalized control ids and current values so Codex can
+propose precise knob changes.
+
+### `render_rig`
+
+Runs a bounded offline render through `greybound-cli` with an input WAV.
+
+Inputs:
+
+```json
+{
+  "rig": "rigs/grey-nox.json5",
+  "runtime": {
+    "input_wav": "lab/references/tone3000-inputs/Brit - Guitar.wav",
+    "output_wav": "lab/renders/mcp/test.wav",
+    "render_seconds": 10.0,
+    "sample_rate": 48000,
+    "period_size": 32,
+    "ir": "lab/references/tone3000-irs/celestion.wav",
+    "monitor": true
+  },
+  "overrides": {
+    "amp": { "volume": 0.7 },
+    "devices": []
+  }
+}
+```
+
+Behavior:
+
+1. Build release CLI when missing or stale, unless `build=false`.
+2. Write a temporary rig if overrides are present.
+3. Run `target/release/greybound-cli` with `--input-wav`,
+   `--output-wav`, `--render-seconds`, `--sample-rate`, `--period-size`,
+   `--ir`, and `--monitor`.
+4. Copy or direct the monitor log to the run artifact path.
+5. Write run metadata with command, git revision, inputs, and overrides.
+6. Return `RunSummary`.
+
+### `monitor_render`
+
+Reads a monitor log and WAV artifact and returns runtime health diagnostics.
+This tool should be callable both after `render_rig` and on existing artifacts.
+
+Inputs:
+
+```json
+{
+  "monitor_log": "lab/renders/mcp/test.monitor.log",
+  "candidate_wav": "lab/renders/mcp/test.wav"
+}
+```
+
+Outputs:
+
+- RMS/peak ranges.
+- near/hard clip counts.
+- xrun/underrun/overrun counts.
+- silence/runaway flags.
+- component telemetry summaries for Nox30 when present.
+- verdict and warnings.
+
+### `compare_wav`
+
+Runs the lab comparison workflow against a reference WAV.
+
+Inputs:
+
+```json
+{
+  "candidate": "lab/renders/mcp/test.wav",
+  "reference": "lab/references/nox30-reference.wav",
+  "metadata": "lab/renders/mcp/test.run.json",
+  "segments": "lab/segments/guitar-chords.markers.json",
+  "report": "lab/reports/mcp/test-vs-reference.md"
+}
+```
+
+Behavior:
+
+Calls:
+
+```bash
+uv --project lab run greybound-lab compare-wav \
+  --candidate CANDIDATE \
+  --reference REFERENCE \
+  --metadata METADATA \
+  --segments SEGMENTS \
+  --report REPORT
+```
+
+Output should include the report path and key metric deltas.
+
+### `evaluate_wav`
+
+Runs the lab quality-gated evaluation workflow against a reference WAV.
+
+Inputs:
+
+```json
+{
+  "candidate": "lab/renders/mcp/test.wav",
+  "reference": "lab/references/nox30-reference.wav",
+  "metadata": "lab/renders/mcp/test.run.json",
+  "segments": "lab/segments/guitar-chords.markers.json",
+  "report": "lab/reports/mcp/test-eval.md",
+  "profile": "amp-tone | clipper | regression"
+}
+```
+
+Use `profile=regression` when there is no external hardware, NAM, or SPICE
+truth target and the reference is a previous Greybound render. When no
+reference exists at all, use `monitor_render` only and report the result as
+runtime-health diagnostics, not realism evidence.
+
+### `sweep_controls`
+
+Runs multiple renders with one or more knob sweeps.
+
+Inputs:
+
+```json
+{
+  "rig": "rigs/grey-nox.json5",
+  "runtime": {
+    "input_wav": "lab/references/tone3000-inputs/Brit - Guitar.wav",
+    "render_seconds": 5.0,
+    "sample_rate": 48000,
+    "period_size": 32,
+    "ir": "lab/references/tone3000-irs/celestion.wav"
+  },
+  "sweep": [
+    {
+      "target": "devices[0].controls.gain",
+      "values": [0.2, 0.5, 0.8]
+    }
+  ]
+}
+```
+
+Output should include every run summary and one aggregate report table.
+
+### `summarize_run`
+
+Creates a concise human-readable summary from metadata, monitor output, WAV
+diagnostics, and comparison reports.
+
+Inputs:
+
+```json
+{
+  "run_id": "20260701-183500-grey-nox"
+}
+```
+
+Output should lead with:
+
+- verdict,
+- artifact paths,
+- exact command,
+- changed controls,
+- severe warnings,
+- useful metric changes,
+- next recommended experiment.
+
+## Future Tools
+
+### `start_live_session`
+
+Optional later tool for opening a live CPAL session. It should be lower priority
+than offline rendering because bounded WAV renders are easier to reproduce and
+safer for automated debugging.
+
+### `stop_live_session`
+
+Stops a live session and returns the last monitor snapshot.
+
+### `capture_live_window`
+
+Records a bounded live input/output window for later lab analysis. This should
+never run indefinitely.
+
+### `save_rig_variant`
+
+Writes a deliberate rig variant after the user approves. This is separate from
+temporary render overrides.
+
+## Safety And Reproducibility Rules
+
+- Bounded offline renders are the default.
+- Every tool that runs audio processing must return exact artifact paths.
+- Every render must write metadata before returning success.
+- Temporary rigs belong under `target/greybound-mcp/`.
+- MCP tools should never mutate committed rig files unless the tool name and
+  request explicitly say so.
+- Severe monitor issues should be surfaced before tonal commentary.
+- If monitor and comparison metrics disagree, report the conflict rather than
+  collapsing it into a single score.
+
+## MVP Implementation Order
+
+1. `inspect_rig`
+2. `render_rig`
+3. `monitor_render`
+4. `compare_wav`
+5. `summarize_run`
+6. `sweep_controls`
+
+That MVP is enough for Codex to answer: "what happens if I feed this WAV into
+this rig, turn this knob, capture the output, and hand it to the lab?"

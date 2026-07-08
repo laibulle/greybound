@@ -1,0 +1,52 @@
+{
+  // Rig only: no input device, output device, monitor, or render settings.
+  // Focused Boxer Seven Lead validation rig.
+  name: "boxer-seven-lead",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [],
+
+  fx_loop: [
+    {
+      id: "studio-room",
+      device: "studioverb",
+      bypassed: false,
+      controls: {
+        algorithm: "plate",
+        decay: 0.38,
+        size: 0.46,
+        pre_delay_ms: 16.0,
+        diffusion: 0.62,
+        low_cut: 0.42,
+        mod_depth: 0.18,
+        mix: 0.13,
+      },
+    },
+  ],
+
+  amp: {
+    model: "boxer-seven-lead",
+    bypassed: false,
+    controls: {
+      // Lead gain.
+      volume: 0.76,
+      bass: 0.48,
+      // Temporary mid control until shared amp controls expose `mid`.
+      cut: 0.60,
+      treble: 0.58,
+      // V1 mode/boost aggression hypothesis.
+      drive: 0.58,
+      presence: 0.56,
+      // Excursion/depth feel hypothesis.
+      sag: 0.34,
+    },
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/celestion.wav",
+    bypassed: false,
+  },
+}

@@ -1,0 +1,181 @@
+---
+title: Springfield
+description: Spring-tank-inspired reverb engineering baseline for Greybound FX-loop and chain modeling.
+---
+
+Springfield is Greybound's first reverb model. It targets the musical behavior of a guitar spring reverb: a driven transducer feel, short metallic diffusion, bright splash, and a controllable wet/dry blend.
+
+The current implementation is a graybox/IR hybrid, not a component-exact spring
+tank simulation. It is intended to be useful in the rig now while leaving room
+for a later measured or transducer-level tank model.
+
+## Circuit Descriptor
+
+The runtime exposes `core/src/circuit_descriptor.rs::SPRINGFIELD_CIRCUIT` as the
+semantic description of the current model. It should be rendered as a
+graybox/IR hybrid: buffered input, dwell driver, embedded spring IR tank, splash
+diffusion, recovery tone, wet/dry mixer, and output boundary. It should not be
+presented as a complete hardware spring-tank schematic until a measured or
+SPICE-backed tank/transducer reference exists.
+
+## Baseline Assumptions
+
+- Buffered input with about 1 MOhm input impedance.
+- Low output impedance suitable for driving an amp FX return or another post-preamp device.
+- Best default placement is `fx_loop`, after preamp drive and before the power section.
+- The wet path has private delay/tank state.
+- Bypass is routing state; the active tank state remains private to the Springfield instance.
+
+## Controls
+
+- `dwell`: drive into the spring tank and feedback intensity.
+- `tone`: tank brightness and splash emphasis.
+- `mix`: wet/dry blend.
+- `bypass`: routing state.
+
+## External Boundaries
+
+The effect receives and emits voltage plus impedance:
+
+- input source: amp FX send, previous FX-loop device, guitar pickup, or previous pedal output,
+- input load: Springfield input impedance plus cable capacitance memory,
+- output source: reverb-mixed voltage plus output impedance,
+- output load: amp FX return, next pedal, or post-amp section.
+
+`ConnectionState` owns cable capacitance and source/load division. Springfield should not mutate amp internals.
+
+## Current DSP Approximation
+
+The current implementation uses:
+
+- source/load input boundary and input coupling,
+- dwell-dependent saturated driver into the tank,
+- embedded SMAC2023 spring IR convolution as the primary tank response,
+- four short cross-fed delay lines as a small splash/dispersion layer and
+  fallback if the embedded IR cannot be decoded,
+- tone-dependent pre-emphasis and wet-path brightness,
+- recovery-style output low-pass smoothing and level scaling,
+- wet/dry mix with conservative level scaling,
+- low output source impedance.
+
+## R&D Spring IR Reference
+
+For near-term R&D, use the SMAC2023 modelled spring impulse response as the
+cleanest available no-cab spring reference:
+
+- local file: `lab/references/spring-irs/smac2023/fig7a-full-modal-model.wav`,
+- manifest: `lab/references/spring-irs/smac2023/manifest.json`,
+- upstream repository:
+  `https://github.com/jacobmcquillan/SMAC2023-spring-reverb-audio`,
+- upstream path:
+  `SMAC2023 audio examples/modelled impulse responses/Fig7a.wav`,
+- SHA256:
+  `8ca463c1a82398cf78d70d69f9797b0a17c1a5c43b15a0baad680ee26e7b95c4`,
+- format: mono 44.1 kHz, 16-bit WAV, 3.0 seconds,
+- measured shape: peak around `83.8 ms`, very low `0-5 ms` energy, and a tail
+  lasting the full 3 seconds.
+
+This is preferable to `lab/references/tone3000-irs/spring.wav` when the goal is
+to avoid cab coloration, because it is a modelled spring response rather than a
+generic contributed IR from a mixed cab/reverb/acoustic-space directory.
+
+Rights boundary: no explicit upstream license has been found. Keep the WAV local
+for Greybound R&D and calibration only. Do not commit or redistribute the WAV
+unless permission or a compatible license is obtained.
+
+## 2026-06-11 Hybrid IR/Graybox Update
+
+Springfield now embeds `fig7a-full-modal-model.wav` as its primary tank response
+and keeps the electrical/analog-inspired parts in graybox code:
+
+- input source/load boundary and coupling,
+- tone-dependent pre-emphasis before the tank driver,
+- dwell-dependent driver gain and saturation,
+- small short-delay splash layer around the IR tank,
+- tone-dependent recovery filtering,
+- wet/dry mix and low output impedance.
+
+Validation:
+
+```bash
+cargo test -p greybound springfield
+cargo build --release
+uv --project lab run greybound-lab evaluate-reverb --dry lab/stimuli/reverb-diagnostics.wav --wet target/springfield-ir-reverb-diagnostics-wet.wav --report lab/reports/springfield-ir-reverb-diagnostics-eval.md --json lab/reports/springfield-ir-reverb-diagnostics-eval.json
+```
+
+The Rust test/build commands passed after the update. A 10-second isolated Springfield render
+using `Brit - Guitar.wav`, with amp and cab bypassed, produced zero xruns, zero
+near-clips, and zero hard clips. The isolated wet contribution measured about
+`-49.1 dBFS` RMS and `-30.2 dBFS` peak at the current `all-nox` controls
+(`dwell = 0.48`, `tone = 0.58`, `mix = 0.26`), with stronger late-tail energy
+from 6-10 seconds than in the first second.
+
+The controlled `reverb-diagnostics.wav` evaluation passed. Key reverb metrics:
+wet component `-69.36 dBFS` RMS, wet-to-dry `-36.47 dB`, no near-clips, no
+hard clips, DC offset `-88.54 dBFS`, early centroid `6097 Hz`, mid centroid
+`2589 Hz`, late centroid `2572 Hz`, and late-to-early energy `-14.18 dB`.
+
+The maintained `rigs/all-nox.json5` monitor render still reports severe output
+clipping, but the same render with Springfield bypassed clips by essentially
+the same amount. Treat that as a full-board gain-staging issue, not as evidence
+that the new spring tank is unstable.
+
+`rigs/grey-nox.json5` now includes Springfield in the FX loop after the
+Minotaur/Nox path. A 10-second monitor render to
+`target/greybound-grey-nox-spring-monitor.wav` produced zero xruns, zero
+near-clips, zero hard clips, output RMS about `-17.7 dBFS`, and output peak
+about `-3.9 dBFS`.
+
+## 2026-07-02 Current Recovery Promotion
+
+The former `springfield-experimental` recovery hypothesis is now the canonical
+Springfield behavior. The single maintained Springfield path exports
+stage-boundary snapshots for the descriptor stages and applies the promoted
+recovery/splash shaping:
+
+- tank drive gain `1.015x`,
+- splash contribution `1.08x`,
+- recovery brightness offset `+0.035`,
+- wet makeup gain `0.985x`.
+
+This keeps the model focused on spring recovery/splash color rather than a new
+topology. `springfield-experimental` remains accepted by rig parsing as a
+legacy alias for `springfield`, but it no longer selects a separate DSP
+implementation. The historical
+`rigs/grey-nox-springfield-experimental.json5` fixture is now a compatibility
+fixture for that alias.
+
+Validation:
+
+```bash
+cargo fmt --check
+cargo test -p greybound springfield -- --nocapture
+cargo test -p greybound-cli
+cargo build --release -p greybound-cli -p greybound-free
+target/release/greybound-cli --rig rigs/grey-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-springfield-stable-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/grey-nox-springfield-stable-3s.monitor.log
+target/release/greybound-cli --rig rigs/grey-nox-springfield-experimental.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/grey-nox-springfield-experimental-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 32 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/grey-nox-springfield-experimental-3s.monitor.log
+```
+
+Both monitor renders were clean: zero xruns, zero near-clips, and zero hard
+clips. WAV-level summary for the 3-second guitar DI render:
+
+- former baseline: peak `0.636794448`, RMS `0.075814350`,
+- promoted recovery candidate: peak `0.636794448`, RMS `0.075800713`,
+- diff: max abs `0.000462960452`, RMS `0.000093319015`.
+
+Interpretation: this candidate is intentionally subtle and runtime-safe. It is
+the current canonical desktop path, but it is still not measured proof of a more
+realistic tank. The next useful experiment is a reverb-specific stimulus and
+comparison against the SMAC2023 IR diagnostics rather than a full rig guitar
+render.
+
+## Validation Gates
+
+The model is not component-exact until:
+
+- dwell sweep is checked for stable decay and useful drive range,
+- tone sweep changes splash/brightness without runaway level,
+- mix sweep preserves dry level at low settings and gives a musical wet blend at high settings,
+- bypass behavior preserves the direct path,
+- FX-loop placement and post-amp placement produce expected musical differences,
+- measured or SPICE captures define a specific spring tank reference.

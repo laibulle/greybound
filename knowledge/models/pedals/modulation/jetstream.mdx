@@ -1,0 +1,58 @@
+---
+title: Jetstream
+description: A/DA Flanger-inspired BBD-style flanger engineering baseline.
+---
+
+Jetstream is Greybound's first flanger model. The reference target is the classic A/DA Flanger family: a wide, musical, BBD-era sweep with manual delay offset, slow liquid modulation, feedback regeneration, and a wet/dry comb path.
+
+The implementation does not copy a factory schematic. It is a graybox model that captures the useful engineering behavior: buffered high input impedance, input/output coupling, BBD-like bandwidth limits, a short fractional delay line, LFO-controlled delay modulation, bounded feedback, wet/dry mix, and low output impedance.
+
+## Reference Placement
+
+The reference rig places Jetstream before the amp input:
+
+- guitar/source loading through `ConnectionState`,
+- nominal high input impedance,
+- modulated delay before Nox30 preamp drive,
+- low output source impedance into the next chain slot.
+
+This placement gives an obvious flange sweep into the amp. It can still be moved to `fx_loop` in a rig when a post-preamp sweep is desired.
+
+## Controls
+
+- `manual`: base delay offset; lower values sit closer to through-zero-style combing, higher values widen the sweep.
+- `rate_hz`: LFO rate in Hz.
+- `depth`: LFO sweep width around the manual delay.
+- `feedback`: regeneration from delayed output back into the delay input.
+- `mix`: wet/dry blend for the comb path.
+- `bypass`: routing state; private LFO and delay state remain owned by the pedal instance.
+
+## DSP Mapping
+
+- Input boundary uses `ConnectionState` with high input impedance and cable capacitance.
+- Input coupling removes DC before the delay path.
+- Pre-delay and post-delay low-pass filters approximate BBD bandwidth limits.
+- Fractional delay is swept between sub-millisecond and single-digit millisecond delay times.
+- Feedback is bounded before re-entering the delay line.
+- Wet and dry are recombined to create moving comb notches.
+- Output is clamped and exported through a low output source impedance.
+
+## Validation
+
+Current validation is behavioral:
+
+- deeper sweep changes the comb output versus a shallow sweep,
+- active chain output remains audible,
+- rig parser accepts all Jetstream controls,
+- CLI runtime controls are shared atomics so the monitor can edit controls without locking the audio callback.
+
+Useful next checks:
+
+- render swept sine files and inspect moving comb notch frequency,
+- compare pre-amp versus FX-loop placement,
+- add optional stereo phase offset once the chain has stereo-aware device processors.
+
+## References
+
+- The A/DA Flanger is the primary musical reference: wide BBD sweep, manual delay control, and strong regeneration.
+- Public BBD flanger schematics are used only as topology references. The source of truth for Greybound remains this model document plus the Rust implementation.

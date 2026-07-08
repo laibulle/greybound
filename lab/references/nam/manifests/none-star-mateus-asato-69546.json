@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/nam-pack-manifest.schema.json",
+  "gear": {
+    "make": "Mesa Boogie Lone Star",
+    "model": "Mesa Boogie Lone Star",
+    "notes": "TONE3000 NAM reference for None Star calibration. The page describes a Full Rig / Combo Capture, Mesa Boogie Lone Star - 4x12, so cab/mic behavior is embedded in the model and no extra IR should be added on the NAM side."
+  },
+  "model_policy": {
+    "architecture_version": "2",
+    "format": "nam-a2",
+    "gear_type": "full-rig",
+    "includes_cab": true,
+    "ir_policy": "full-rig-embedded-cab"
+  },
+  "models": [
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.5460526721113095,
+      "loudness": -18.89563115809607,
+      "metadata_name": "Mesa Boogie Lone Star - Mateus Asato",
+      "name": "Mesa Boogie Lone Star - Mateus Asato",
+      "path": "NoneStar/Mesa Boogie Lone Star - Mateus Asato.nam",
+      "priority": true,
+      "recommended_latency_samples": null,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_make": "Mesa Boogie Lone Star",
+        "gear_model": "Mesa Boogie Lone Star",
+        "gear_type": "amp_cab",
+        "raw_name": "Mesa Boogie Lone Star - Mateus Asato",
+        "tone_type": "clean"
+      },
+      "size_bytes": 295581,
+      "validation_esr": null,
+      "version": "0.7.0"
+    }
+  ],
+  "priority_models": [
+    "Mesa Boogie Lone Star - Mateus Asato"
+  ],
+  "reference_id": "none-star-mateus-asato-69546",
+  "schema_version": 1,
+  "source": {
+    "creator": "estetisu",
+    "license": "T3K",
+    "license_notes": "TONE3000 T3K: local use and published outputs are allowed; do not republish or redistribute the data files without author permission.",
+    "provider": "TONE3000",
+    "tone_id": "69546",
+    "url": "https://www.tone3000.com/tones/mesa-boogie-lone-star-mateus-asato-69546"
+  }
+}

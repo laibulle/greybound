@@ -1,0 +1,61 @@
+---
+title: Desktop FX Loop
+description: Desktop view boundary for post-amp effects such as reverb and delay.
+---
+
+The desktop FX Loop view is the visual home for effects that belong after the
+amp path rather than on the pre-amp pedalboard. It mirrors the runtime chain
+boundary: pre-amp pedals stay in `PEDALS`, amp controls stay in `AMP`, and
+post-amp effects such as StudioVerb live in `FX LOOP`.
+
+## Goals
+
+- Keep the pedalboard visually focused on pre-amp pedals.
+- Keep reverb out of the `PEDALS` view because these effects are intended for
+  the FX-loop/post-amp section.
+- Reserve a first-class top-menu view for future delays, reverbs, modulation,
+  and other post-amp utilities that should not be mistaken for front-of-amp
+  drives.
+- Preserve the existing realtime control bindings and bypass behavior.
+
+## Runtime Boundary
+
+The desktop runtime builds the live chain as:
+
+```text
+Minotaur -> selected amp -> StudioDelay (bypassed) -> Springfield (bypassed) -> StudioVerb -> cab/IR blend -> EQ -> OUTPUT -> Doubler
+```
+
+StudioDelay and Springfield remain visible in the FX Loop for quick comparison
+and creative playing, but both are bypassed by default. StudioVerb is the active
+default and is a designed digital reverb, not a graybox spring circuit.
+
+## UI Boundary
+
+- `PEDALS` renders only `DeviceKind::Pedal` devices.
+- `FX LOOP` renders `DeviceKind::FxLoop` devices.
+- Both views use the same skeuomorphic device renderer and circuit-view toggle,
+  but visible slots keep their original source indices so control updates still
+  write into the single shared `GreyboundUi.devices` state.
+- Selecting or bypassing a device returns the user to the correct top-menu view
+  based on `DeviceKind`.
+- StudioDelay is exposed with `Time`, `Feedback`, and `Mix`, initially bypassed.
+- Springfield is exposed with `Dwell`, `Tone`, and `Mix`, initially bypassed.
+- StudioVerb is exposed with the V1 desktop controls `Decay`, `Tone`, and
+  `Mix`, initially active; hidden parameters keep the documented model defaults
+  for size, diffusion, low-cut, predelay, and modulation depth.
+
+## Validation Notes
+
+Initial implementation checks:
+
+```bash
+cargo fmt --check
+cargo check -p greybound-ui
+cargo check -p greybound-free
+cargo build --release -p greybound-free
+```
+
+Remaining work is visual: future effects should probably get a slightly
+different FX-loop surface treatment once delay/modulation devices are present,
+but Springfield can reuse the current device panel for now.

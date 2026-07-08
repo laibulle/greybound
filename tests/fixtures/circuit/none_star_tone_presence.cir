@@ -1,0 +1,53 @@
+* None Star tone/presence ngspice fixture for Greybound model work.
+* Run with: ngspice -b tests/fixtures/circuit/none_star_tone_presence.cir
+*
+* Scope:
+* - Linearized graybox tone stack and presence branch used to validate the
+*   current None Star Clean/Edge spectral hypothesis.
+* - This is not a Mesa/Boogie schematic and not a full amp model. It is a
+*   project-owned fixture that captures the intended electrical behavior:
+*   bass/mid/treble branch weighting followed by a feedback-style presence
+*   branch that can restore high-frequency energy.
+
+.param BASS=0.42
+.param MID=0.55
+.param TREBLE=1.0
+.param PRESENCE=1.0
+
+.param GBASS={0.40 + BASS * 0.72}
+.param GMID={0.72 + MID * 1.08}
+.param GTREBLE={0.82 + TREBLE * 1.28}
+.param TONE_MAKEUP=0.56
+.param PRESENCE_BLEND={0.45 + PRESENCE * 1.05}
+.param FPRES={1900 + PRESENCE * 5400}
+
+VIN in 0 AC 1
+
+* Low branch: approximates core::NoneStar stack_low_filter at 235 Hz.
+RLOW in low 1k
+CLOW low 0 677.3n
+
+* High branch is input minus a 2.15 kHz low-passed copy.
+RHILP in hilp 1k
+CHILP hilp 0 74.03n
+
+* Weighted graybox tone output. `mid` is the residual band.
+BTONE tone 0 V={TONE_MAKEUP * (GBASS * v(low) + GMID * (v(in) - v(low) - v(hilp)) + GTREBLE * (v(in) - v(hilp)))}
+
+* Presence branch: low-passed feedback reference plus a controllable
+* high-frequency branch. At high presence settings this may exceed unity,
+* modeling reduced high-frequency negative feedback rather than passive cut.
+RPRES tone pres_low 1k
+CPRES pres_low 0 {1 / (6.283185307179586 * FPRES * 1000)}
+BPRES output 0 V={v(pres_low) + (v(tone) - v(pres_low)) * PRESENCE_BLEND}
+
+.save v(in) v(tone) v(output)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_none_star_tone_presence.dat mag(v(in)) mag(v(tone)) mag(v(output))
+quit
+.endc
+
+.end

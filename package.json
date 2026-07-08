@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "landing:dev": "npm --prefix landing run dev",
+    "landing:build": "npm --prefix landing run build",
+    "landing:start": "npm --prefix landing run start",
+    "landing:typecheck": "npm --prefix landing run typecheck",
+    "vercel-build": "npm --prefix landing run build"
+  }
+}

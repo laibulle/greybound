@@ -1,0 +1,147 @@
+---
+title: Virtual Analog Bibliography
+description: Source-safe notes for foundational virtual analog and neural-WDF papers.
+---
+
+This page replaces the old local `doc/research/` PDF folder. Do not commit third-party PDFs unless their redistribution license is explicit and compatible with the project. Keep public links, citations, and Greybound-specific engineering notes here instead.
+
+## Amp Modeling Review
+
+Jyri Pakarinen and David T. Yeh, ["A Review of Digital Techniques for Modeling Vacuum-Tube Guitar Amplifiers"](https://doi.org/10.1162/comj.2009.33.2.85), Computer Music Journal 33(2), 85-100, 2009.
+
+What it covers:
+
+- taxonomy of digital tube-amp modeling,
+- preamp, tone stack, power amp, output transformer, and loudspeaker/load interactions,
+- black-box system identification,
+- white-box circuit equations,
+- nonlinear filters and Volterra-style approaches.
+
+Greybound interest:
+
+- Still useful as the historical map of the problem.
+- Good reminder that amp modeling is not only static clipping: operating point, coupling, tone networks, power amp state, transformer, and speaker/load all matter.
+- Supports our decision to keep amps as stage-level systems rather than a single waveshaper.
+
+Current status:
+
+- Not obsolete as a conceptual survey.
+- Dated for modern neural/DDSP/SSM methods and recent WDF work.
+- Use it for vocabulary and architectural decomposition, not as the state of the art.
+
+## Wave Digital Filter Foundation
+
+Alfred Fettweis, ["Wave Digital Filters: Theory and Practice"](https://doi.org/10.1109/PROC.1986.13458), Proceedings of the IEEE 74(2), 270-327, 1986.
+
+What it covers:
+
+- the core WDF mapping from circuit variables to wave variables,
+- passivity-preserving digital filter structures,
+- port resistances and adaptor concepts,
+- stability-oriented discretization thinking.
+
+Greybound interest:
+
+- Foundational if we promote more reusable circuit components to WDF form.
+- Especially relevant for passive tone networks, coupling networks, and future physically structured nonlinear blocks.
+- Explains why WDF is attractive for real-time stability compared with naive circuit solving.
+
+Current status:
+
+- Foundational, not obsolete.
+- Too low-level and general to directly implement a Greybound amp by itself.
+- Should be paired with later arbitrary-topology and nonlinear-WDF papers before implementation.
+
+## Arbitrary WDF Topologies
+
+Kurt J. Werner, Julius O. Smith III, and Jonathan S. Abel, ["Wave Digital Filter Adaptors for Arbitrary Topologies and Multiport Linear Elements"](https://www.dafx.de/paper-archive/details/dFlSsTeUmyOhfdA7HIi7Aw), DAFx-15, Trondheim, 2015.
+
+What it covers:
+
+- Modified-Nodal-Analysis-derived WDF adaptors,
+- complicated non-series/parallel topologies,
+- multiport linear elements such as transformers and controlled sources,
+- examples including Bassman tone stack and Tube Screamer tone/volume stages.
+
+Greybound interest:
+
+- Very relevant for making circuit diagrams executable rather than only documentary.
+- A useful path for tone stacks, transformer-like linear networks, and pedal tone/volume networks that are not simple cascades.
+- Matches our long-term desire to construct WDF/SPICE-style graphs from JSON circuit descriptions.
+
+Current status:
+
+- Still relevant.
+- It expands linear/multiport topology handling; it does not solve every nonlinear multi-device case by itself.
+- Use as a bridge from our circuit graph format to stable real-time linear subcircuits.
+
+## LSTM Guitar Amp Baseline
+
+Thomas Schmitz and Jean-Jacques Embrechts, ["Real Time Emulation of Parametric Guitar Tube Amplifier With Long Short Term Memory Neural Network"](https://arxiv.org/abs/1804.07145), arXiv:1804.07145, 2018.
+
+What it covers:
+
+- black-box LSTM modeling of a tube guitar amplifier,
+- gain-parameter conditioning,
+- real-time neural inference target,
+- reported low RMS error against measured amplifier output.
+
+Greybound interest:
+
+- Useful as a historical black-box baseline and evidence that neural sequence models can emulate nonlinear amp behavior.
+- Good contrast against our preferred gray-box approach.
+- Relevant for future comparison metrics and capture protocols.
+
+Current status:
+
+- Partly obsolete as a primary architecture choice.
+- LSTM-only models are less interpretable, harder to guarantee, and less aligned with our rig/circuit state design.
+- More recent SSM, DDSP, and neural gray-box work is a better fit for Greybound.
+
+## Neural WDF Nonlinearities
+
+Oliviero Massi, Edoardo Manino, and Alberto Bernardini, ["Wave Digital Modeling of Circuits with Multiple One-Port Nonlinearities Based on Lipschitz-Bounded Neural Networks"](https://www.dafx.de/paper-archive/details/mBGX01wZSkEOde19dL8m3Q), DAFx-24, Guildford, 2024.
+
+What it covers:
+
+- neural models inside Wave Digital Filter structures,
+- multiple nonlinear one-port elements,
+- Lipschitz-bounded neural networks,
+- convergence conditions for fixed-point methods such as the Scattering Iterative Method.
+
+Greybound interest:
+
+- Important if we later model coupled nonlinear devices inside one WDF network.
+- Relevant to diode networks, transistor cells, and future nonlinear WDF subcircuits.
+- The Lipschitz constraint is the key idea: learned nonlinearities must preserve solver convergence, not just fit data.
+
+Current status:
+
+- Current and useful, but not immediately required by the present Greybound runtime.
+- The paper targets multiple one-port nonlinearities; tube stages and transformers may need multiport/vector treatment.
+- Use when we introduce nonlinear delay-free-loop solvers, not for every pedal or amp block.
+
+## Modulation Gray-Box Optimization
+
+Alistair Carson, Alec Wright, and Stefan Bilbao, ["Gradient-based Optimisation of Modulation Effects"](https://arxiv.org/abs/2601.04867), arXiv:2601.04867, submitted 8 January 2026.
+
+What it covers:
+
+- phaser, flanger, and chorus modeling,
+- differentiable digital signal processing,
+- gradient-based parameter optimization,
+- time-frequency training,
+- zero-latency time-domain inference,
+- real analog reference units.
+
+Greybound interest:
+
+- Directly relevant to `Tron`, `Jetstream`, and `Celeste`.
+- Supports our live target: fitted gray-box parameters with explicit, low-latency runtime structures.
+- Better fit than generic neural black-box models for modulation effects.
+
+Current status:
+
+- Very relevant and recent.
+- Should drive our next modulation-modeling plan.
+- See [Modulation Gray-Box Modeling](./modulation-greybox) for Greybound-specific mapping.

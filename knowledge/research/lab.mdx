@@ -1,0 +1,834 @@
+---
+title: Greybound Lab
+description: Public guide to the offline R&D workspace used for renders, comparisons, and future model fitting.
+---
+
+`lab/` is the offline scientific workspace for Greybound. It is intentionally
+separate from the real-time Rust engine: the lab can use slower analysis tools,
+large generated files, SPICE renders, NAM references, plots, and training
+artifacts. The runtime crates should only consume artifacts after they have been
+reviewed, tested, and frozen.
+
+## Why It Exists
+
+Greybound is moving toward a stronger gray-box modeling workflow. That means we
+need evidence before changing models:
+
+- render rigs in a reproducible way,
+- compare renders against references,
+- measure latency, gain, spectrum, envelope, and residual error,
+- keep metadata for every run,
+- later generate SPICE datasets and fitted micro-models.
+
+The lab is not a product runtime. It is where we search, measure, and decide.
+
+## Tooling Boundary
+
+The lab is Python-first because the R&D work needs the scientific audio
+ecosystem: `numpy`, `scipy`, plotting, optimization, neural tooling, and
+eventually SPICE automation.
+
+Rust remains the target for accepted runtime work:
+
+- deterministic inference,
+- bounded latency,
+- no Python dependency in the live path,
+- golden tests for frozen artifacts,
+- explicit model descriptors and controls.
+
+In short: Python for research, Rust for the engine.
+
+## Neural Cell Strategy
+
+The current neural-cell decision is deliberately split:
+
+```text
+PyTorch trains.
+Greybound exports.
+Rust runs.
+ONNX verifies.
+```
+
+PyTorch is the default training and R&D environment because it gives the lab the
+strongest scientific workflow for fitting, plotting, debugging, and comparing
+small circuit-cell models. The live engine should not run PyTorch.
+
+Accepted cells should be exported as versioned Greybound artifacts:
+
+- `model.greybound.json` for architecture, controls, state, normalization,
+  provenance, validation metrics, and runtime requirements,
+- `weights.greybound.bin` for packed numeric weights.
+
+The Rust runtime should implement only the tiny set of operations we accept for
+real-time audio: dense layers, small activation functions, causal convolution or
+explicit state update when justified, normalization, control conditioning, and
+safety clamps. This keeps the audio path deterministic, bounded, and free from
+generic graph-runtime behavior.
+
+ONNX may still be exported for inspection, compatibility tests, or external
+runtime comparison. It is not the source of truth for Greybound's live runtime.
+
+Important uncertainty: this is a current engineering decision, not a proven
+benchmark result. It may change after the first full loop if SPICE quality,
+PyTorch export stability, Rust CPU cost, or validation metrics contradict the
+assumption. The detailed plan and decision gates live in
+`lab/experiments/006-spice-to-neural-cell-plan.md`.
+
+## Current Workflow
+
+The first implemented loop is complete-chain WAV analysis.
+
+1. Render a Greybound rig to a WAV file and metadata JSON.
+2. Compare that WAV against a reference WAV.
+3. Optionally provide segment markers for local diagnostics.
+4. Generate synthetic stimuli when the metric needs controlled input.
+5. Run SPICE fixtures for bounded circuit-cell references.
+6. Import NAM renders as integration references.
+7. Inspect the visual notebook when metric tables are not enough.
+8. Read the generated Markdown report to decide what to investigate next.
+
+This is deliberately before NAM integration or neural training. Without a
+stable comparison loop, training would produce numbers without engineering
+meaning.
+
+## Setup
+
+From the repository root:
+
+```sh
+uv --project lab sync --dev
+uv --project lab run pytest
+```
+
+The lab commands are exposed through `greybound-lab`.
+
+The neural-cell work starts with `spice-dataset`, then later adds PyTorch
+training and Greybound artifact export.
+
+## Visual WAV Dashboard
+
+Use the notebook dashboard when a render is musically plausible but the next
+modeling move is unclear:
+
+```sh
+uv --project lab run --with jupyter jupyter lab lab/notebooks/wav-comparison-dashboard.ipynb
+```
+
+The notebook calls `greybound_lab.notebook`, which reuses the same WAV loading,
+latency alignment, gain correction, segment parsing, and comparison metrics as
+`compare-wav`. The first version plots aligned waveform overlays, smoothed
+envelopes, post-alignment residual, Welch spectra, residual spectrograms,
+global spectral/dynamics bars, and segment-level band residuals. Treat these
+plots as investigation views, not as a promotion gate by themselves: final DSP
+changes still need fixed test conditions, monitor health, and metric deltas
+against the chosen comparison target.
+
+## Render A Rig
+
+Use `render-rig` to call the release `greybound-cli`, write a WAV into
+`lab/renders/`, and write provenance metadata next to it:
+
+```sh
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/grey-nox.json5 \
+  --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
+  --output-wav lab/renders/nox30-driven.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --render-seconds 10 \
+  --sample-rate 48000 \
+  --period-size 16 \
+  --output-db -18 \
+  --ir lab/references/tone3000-irs/celestion.wav
+```
+
+The metadata file records:
+
+- git revision,
+- rig path,
+- exact render command,
+- input WAV,
+- sample rate,
+- render duration,
+- input and output gain,
+- IR enabled state,
+- local environment summary.
+
+## Sweep A Rig Against NAM
+
+Use `sweep-rig-vs-reference` to generate rig variants in memory, pipe each rig
+to `greybound-cli --rig -`, render WAVs, and compare them against an already
+rendered NAM reference WAV.
+
+The current NAM comparison protocol is amp-head only: do not add an IR to the
+NAM render, and do not pass `--ir` to Greybound during the sweep.
+
+```sh
+uv --project lab run greybound-lab sweep-rig-vs-reference \
+  --rig rigs/grey-nox.json5 \
+  --sweep volume=0.64,0.76,0.88 \
+  --sweep drive=0.68,0.80,0.92 \
+  --sweep sag=0.55,0.70 \
+  --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
+  --reference-wav lab/reports/nam-diagnostics-ac30hwh-topboost-gain5-brit-noir.wav \
+  --output-dir lab/reports/sweeps/nox30-volume-drive-sag-vs-topboost-gain5 \
+  --report lab/reports/nox30-volume-drive-sag-sweep-vs-nam-topboost-gain5.md \
+  --metadata lab/reports/nox30-volume-drive-sag-sweep-vs-nam-topboost-gain5.run.json \
+  --render-seconds 10 \
+  --sample-rate 48000 \
+  --period-size 16 \
+  --output-db -12
+```
+
+The sweep report ranks points with a composite diagnostic score. The score now
+uses the same broad metric families exposed by `evaluate-wav`: weighted and
+unweighted log-spectral distance, null residual, envelope error, gain
+correction, gain-normalized spectral-balance drift, dynamics and level-response
+drift, transient-sharpness drift, phase/decay/modulation drift, and global
+nonlinear diagnostics. This is intentionally not an objective tone score: if a
+control feels musically reactive, keep that listening evidence. The score is
+only a guardrail against selecting a static NAM anchor from one metric.
+
+The first Nox30 grid sweep against `TopBoost-Gain5` stays near
+`volume = 0.760`, `drive = 0.800`, and `sag = 0.550`. Treat that as a coarse
+anchor, not as a final calibration: the null residual and envelope metrics still
+indicate dynamic mismatch that needs a broader sweep or targeted greybox work.
+
+A segmented follow-up compared the best composite point, best spectral point,
+and current driven-style point against the same NAM render. The working
+measurement anchor is now `volume = 0.640`, `drive = 0.800`, `sag = 0.700`.
+This keeps the musically reactive `drive = 0.800` region while favoring null and
+envelope behavior over a purely spectral fit. See
+`lab/reports/nox30-anchor-segmented-summary-vs-nam-topboost-gain5.md`.
+
+## Generate Stimuli
+
+Some metrics are not reliable on a musical DI because the input does not isolate
+the behavior being measured. Use `generate-stimuli` to create controlled WAVs
+and matching marker files:
+
+```sh
+uv --project lab run greybound-lab generate-stimuli \
+  --output-dir lab/stimuli \
+  --sample-rate 48000
+```
+
+The generated set currently includes:
+
+- `sine-level-sweep.wav`: harmonic distortion and level-dependent behavior.
+- `two-tone-imd.wav`: intermodulation-oriented input windows.
+- `aliasing-stress.wav`: high-frequency sine and sweep stress for nonlinear
+  aliasing triage.
+- `sag-bursts.wav`: repeated low-frequency bursts for supply/compression
+  recovery behavior.
+- `pluck-attacks.wav`: synthetic plucks for attack timing and overshoot.
+
+Generated stimuli are ignored by git. The generator code is the source of truth.
+
+## Run SPICE Fixtures
+
+Use `spice-run` to execute supported ngspice fixtures and import their output
+into the lab:
+
+```sh
+uv --project lab run greybound-lab spice-run \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/references/spice
+```
+
+The first supported fixture is `common-cathode-12ax7`. It produces:
+
+- copied SPICE `wrdata` output,
+- a Markdown report with DC operating point,
+- settled 1 kHz transient gain metrics.
+
+This is the bridge from full-rig observations to cell-level validation. The
+first report gives the common-cathode stage a reproducible electrical anchor:
+plate around `250.544 V`, cathode around `0.402 V`, B+ around `277.322 V`, and
+small-signal plate gain around `14.88x`.
+
+Use `spice-dataset` to package that fixture as a local dataset artifact:
+
+```sh
+uv --project lab run greybound-lab spice-dataset \
+  --fixture common-cathode-12ax7 \
+  --output-dir lab/datasets/spice
+```
+
+The command writes:
+
+- `common-cathode-12ax7.dataset.npz`,
+- `common-cathode-12ax7.dataset.json`.
+
+This is the first small multi-stimulus corpus. It runs generated SPICE netlists
+for several 1 kHz sine levels, two-tone IMD cases, first burst/decay dynamic
+probes, and a deliberately hard bias-recovery stress probe. It writes raw
+traces, packs a `.npz`, and records hashes, node roles, train/validation/test
+splits, component values, generated netlists, and operating point. Its purpose
+is to make the SPICE-to-training contract executable before we expand to
+source/load impedance sweeps, B+ perturbation, component tolerance sweeps,
+stronger transient probes, and real DI windows.
+
+Train the current experimental MLP artifact with:
+
+```sh
+uv --project lab run --with torch greybound-lab train-neural-cell \
+  --cell common-cathode-12ax7-mlp \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --output-dir lab/models/common-cathode-12ax7-mlp-current \
+  --epochs 1200 \
+  --hidden-size 32 \
+  --learning-rate 0.0005 \
+  --stride 8
+```
+
+The command writes:
+
+- `model.greybound.json`,
+- `weights.greybound.bin`,
+- `training-report.md`.
+
+This model is still a static cell, but the current working artifact is no
+longer only an export smoke test. It maps normalized `input_v` to normalized
+`plate_ac_v` through a small MLP and proves the PyTorch-to-Greybound artifact
+path, Rust inference path, and explicit Nox30 first-stage insertion path. It
+still does not model tube memory, capacitance, source/load interaction, or B+
+perturbation.
+
+The Rust core now has an experimental `neural_cell` loader for this artifact
+shape. It can parse `model.greybound.json`, read `weights.greybound.bin`, and run
+deterministic scalar MLP inference with `tanh` activations. Nox30 can use it
+explicitly in `shadow` or `replace` mode for R&D. For subjective local listening,
+Nox30 also loads `lab/models/common-cathode-12ax7-mlp-current/model.greybound.json`
+by default when that artifact exists and inserts it in `replace` mode. Use
+`--disable-neural-cell` for a purely analytic render.
+
+Export Python reference vectors and verify the local artifact through Rust with:
+
+```sh
+uv --project lab run greybound-lab export-neural-cell-vectors \
+  --descriptor lab/models/common-cathode-12ax7-mlp-current/model.greybound.json \
+  --output lab/models/common-cathode-12ax7-mlp-current/equivalence-vectors.json
+
+make lab-check-neural-cell-rust
+```
+
+The generated vectors are local artifacts. The Rust test is optional during
+normal test runs and becomes active when `GREYBOUND_NEURAL_CELL_DESCRIPTOR` and
+`GREYBOUND_NEURAL_CELL_VECTORS` point to the local files.
+
+The Rust side now has two layers:
+
+- `ExperimentalNeuralCell`: descriptor/weight loader and scalar reference path,
+- `NeuralCellRuntime`: preallocated streaming runtime intended for future audio
+  integration.
+
+The generated-vector test runs through `NeuralCellRuntime`, so the integration
+candidate is checked against Python-exported golden values without allocating per
+sample.
+
+Nox30 has an explicit first-stage neural path. The CLI form is:
+
+```sh
+target/release/greybound-cli \
+  --rig rigs/grey-nox.json5 \
+  --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" \
+  --output-wav target/greybound-nox30-monitor.wav \
+  --render-seconds 20 \
+  --sample-rate 48000 \
+  --period-size 16 \
+  --monitor \
+  --neural-cell nox30.first_stage=lab/models/common-cathode-12ax7-mlp-current/model.greybound.json \
+  --neural-cell-mode shadow
+```
+
+`shadow` runs the neural adapter beside the analytic `first_stage`; monitor
+telemetry reports `shadow first abs err avg/max`, and the sound still comes from
+the analytic stage. `replace` feeds the neural output into the rest of Nox30.
+That mode is intentionally explicit and remains an R&D diagnostic, not an
+accepted model-quality gate.
+
+The convenience command is:
+
+```sh
+make lab-shadow-nox30-first-stage
+```
+
+This is an integration diagnostic only. Promotion to audio replacement still
+requires better model-quality and dynamic-state evidence.
+
+The full first integrated network loop is:
+
+```sh
+make lab-evaluate-integrated-neural-cell
+```
+
+It renders three versions of the same offline rig:
+
+- `analytic.wav`: current Nox30 path only.
+- `shadow.wav`: neural `nox30.first_stage` runs beside the analytic first stage
+  and emits monitor error.
+- `replace.wav`: neural `nox30.first_stage` feeds the rest of the amp.
+
+The command writes its report to
+`lab/reports/integrated-neural-first-stage-anchor-current.md`. It uses
+`rigs/grey-nox.json5`, no IR, `lab/segments/guitar-chords.markers.json`,
+and the NAM TopBoost-Gain5 render as external reference. This is the first
+full-chain gate for a neural component: shadow telemetry gives local component
+error in volts, replace-vs-analytic audio metrics show the complete
+audible/runtime impact, and NAM comparison shows whether replacement moves the
+full chain toward or away from the external oracle.
+
+Current integrated result:
+
+- shadow first-stage average error: about `0.137 V`,
+- replace-vs-analytic null residual: about `-24.7 dB`,
+- replace-vs-analytic log-spectral distance: about `3.71 dB`,
+- analytic-vs-NAM log-spectral distance: about `12.43 dB`,
+- replace-vs-NAM log-spectral distance: about `12.68 dB`,
+- weighted NAM score: `0.5308` analytic versus `0.5335` neural replace,
+- program-material NAM log-spectral distance after preroll: `10.87 dB` analytic
+  versus `11.10 dB` neural replace,
+- program-material weighted NAM score: `0.4956` analytic versus `0.4978`
+  neural replace.
+
+The neural path is therefore integrated and measurable, but not promoted. The
+working artifact is now much closer to the analytic chain after high-amplitude
+coverage was added, but it does not improve the NAM-facing weighted score.
+Segment deltas show the largest apparent regression in the quiet opening
+preroll; after excluding preroll the NAM metric still moves slightly away, but
+by a smaller amount. Promotion still needs local and external-reference evidence
+to agree. The promotion rule is NAM-first: `replace` should beat `analytic` on
+the weighted NAM score, while `replace-vs-analytic` remains a stability
+guardrail rather than the source of truth.
+
+An offline neural blend sweep confirms this decision:
+
+```sh
+make lab-sweep-neural-blend
+```
+
+The command blends `analytic.wav` and `replace.wav` for several alpha values and
+scores each result against NAM with the same weighted score. Current result:
+`alpha=0.000` is best globally with score `0.5308`, and `alpha=0.000` is also
+best after excluding preroll with score `0.4956`. Therefore no partial blend of
+the current first-stage neural cell improves the NAM objective. The next useful
+work is not a blend control; it is a better neural target, richer cell
+representation, or a full-chain objective tied to NAM.
+
+Evaluate the artifact against the SPICE dataset in physical units:
+
+```sh
+uv --project lab run greybound-lab evaluate-neural-cell \
+  --descriptor lab/models/common-cathode-12ax7-mlp-current/model.greybound.json \
+  --dataset-manifest lab/datasets/spice/common-cathode-12ax7.dataset.json \
+  --report lab/models/common-cathode-12ax7-mlp-current/spice-evaluation.md \
+  --stride 16
+```
+
+The current report evaluates 13 stimuli and 38,763 decimated samples. Adding a
+400 mV sine to the training split and a 300 mV sine to validation changes the
+interpretation materially: the previous bias-recovery failure was mostly
+high-amplitude domain coverage, not proven memory. Weighted RMSE is now about
+`49.6 mV`; the `bias_recovery_probe_20mv_after_400mv` test is about `67.8 mV`
+instead of the earlier `1.77 V`. The history-probe gain delta remains near zero,
+which means this fixture exposes domain coverage more strongly than low-level
+post-stress gain memory.
+
+Compare the existing Rust analytic common-cathode stage against the same SPICE
+dataset with:
+
+```sh
+make lab-evaluate-analytic-common-cathode NEURAL_STRIDE=32
+```
+
+The static MLP is now in the same range as the analytic baseline on the expanded
+SPICE dataset and is much closer to the analytic Nox30 chain in replacement
+mode. The integrated Nox30 result still does not justify promotion because it
+moves the NAM log-spectral metric in the wrong direction. The immediate research
+target is now better external alignment: decide whether neural or fitted
+components can reduce held-out SPICE error and full-chain NAM distance without
+creating a large replace-vs-analytic residual.
+
+The analytic evaluator also reports a diagnostic residual after a small
+integer-latency search and optimal linear gain. The current weighted residual
+only moves from about `80 mV` to about `70 mV`, so the mismatch is not explained
+mostly by gain or latency. That points the next R&D loop toward model shape:
+nonlinear transfer, dynamic biasing, solver discretization, and exact fixture
+equivalence. The best-lag columns are diagnostic only; periodic sine stimuli can
+produce phase-equivalent lags and negative gains that should not be interpreted
+as physical circuit latency.
+
+The same evaluator now reports level-normalized harmonic and IMD shape. The
+first result is deliberately conservative: THD is within about `0.2 dB` across
+the sine sweep, and the hotter two-tone IMD case is within about `0.1 dB`.
+Therefore the remaining time-domain residual is not obviously a gross static
+transfer error. The next cell-level investigation should isolate dynamic state:
+cathode bypass memory, supply movement, phase behavior, operating-point
+trajectory, or exact SPICE/Rust fixture equivalence.
+
+## NAM References
+
+NAM is used as an integration oracle, not as Greybound's internal architecture.
+The preferred protocol is:
+
+- use **NAM A2** captures only,
+- find a VOX AC30-family **Amp Head** capture,
+- render the same dry DI through NAM,
+- do not add an IR to the NAM render,
+- compare against Greybound rendered with cab/IR disabled.
+
+This keeps the comparison focused on the amp core. Speaker/cab IR matching is a
+separate validation axis and should not be mixed into the primary NAM
+amp-reference score. A full-rig NAM is still acceptable as a broad end-to-end
+sanity check, but the report must be marked as cab/mic-confounded.
+
+Current candidate source:
+
+- First candidate: `https://www.tone3000.com/tones/ac30hwh-6580`
+- TONE3000 `VOX AC30` category: `https://www.tone3000.com/categories/makes/VOX%2BAC30`
+- Filter target: gear `Amp Head`, platform `NAM`, architecture `A2`, clean or
+  edge-of-breakup Top Boost style capture.
+
+For `AC30HWH-6580`, the public page exposes useful capture semantics in the
+model names and description: Normal Bright, Top Boost, and Hot Mode variants,
+gain positions `3`, `5`, `7`, or `Full`, optional `TopCut`, Top Boost treble and
+bass at noon, and Top Cut at 6/10 when enabled. This is useful for experiment
+selection, but it is not a complete machine-readable knob schema.
+
+Metadata for imported references should follow
+`lab/schemas/nam-reference.schema.json`. Local NAM renders and downloaded model
+files belong under `lab/references/nam/` and are ignored by git.
+
+For a manually downloaded pack, write a source-safe manifest with:
+
+```sh
+make lab-inspect-nam-pack
+```
+
+The current manifest is
+`lab/references/nam/manifests/ac30hwh-6580.json`. It records the 22 local NAM
+files, their architecture/sample-rate/training metadata, parsed capture
+semantics, and the four priority models for the first comparison pass.
+
+NAM rendering is handled by a wrapper around an external A2 renderer:
+
+```sh
+make lab-render-nam \
+  NAM_MODEL=lab/references/nam/AC30HWH/TopBoost-Gain5.nam \
+  NAM_INPUT_DB=-70 \
+  NAM_OUTPUT_DB=-12
+```
+
+The wrapper writes the output WAV and run metadata in the same shape as
+Greybound renders. The default adapter uses the official Python
+`neural-amp-modeler` package in a temporary Python 3.11 `uv run` environment,
+selects the highest-quality A2 submodel, and keeps NAM inference outside the
+runtime engine.
+
+## External DI Inputs
+
+TONE3000 exposes public input audio in the `neural-amp-modeler-wasm`
+repository. These are useful because they are already meant to drive NAM-style
+amp comparisons: short mono WAV examples with guitar and bass playing styles.
+
+Download them into the local lab with:
+
+```sh
+uv --project lab run greybound-lab download-tone3000-inputs \
+  --output-dir lab/references/tone3000-inputs
+```
+
+The command downloads WAV files from:
+
+- `https://github.com/tone-3000/neural-amp-modeler-wasm/tree/main/ui/public/inputs`
+
+It also writes a local `manifest.json` with the original GitHub URL, raw
+download URL, SHA, size, and local filename for every sample. The generated WAVs
+and manifest stay ignored by git.
+
+Important rights boundary:
+
+- the upstream repository is public and its code is MIT-licensed,
+- the input WAV files are contributed audio samples,
+- Greybound treats them as local R&D references only,
+- do not redistribute the downloaded WAVs from our repository unless the sample
+  rights are explicit.
+
+## External IR References
+
+TONE3000 also exposes public impulse-response WAV files in the same
+`neural-amp-modeler-wasm` repository. These are useful as quick cab and reverb
+references when a NAM capture is an amp-head model and needs an external IR.
+
+Download them with:
+
+```sh
+uv --project lab run greybound-lab download-tone3000-irs \
+  --output-dir lab/references/tone3000-irs
+```
+
+The command downloads WAV files from:
+
+- `https://github.com/tone-3000/neural-amp-modeler-wasm/tree/main/ui/public/irs`
+
+It writes the same local `manifest.json` structure used by the DI downloader.
+The generated WAVs and manifest stay ignored by git.
+
+Use this as a reference set, not as Greybound's canonical shipped cabinet
+library. Many commercial and free IR packs are licensed for end-user use but not
+redistribution, and some require account or mailing-list access. Those should be
+imported manually into `lab/references/` and described by metadata rather than
+scripted as project assets.
+
+For spring reverb R&D, the current no-cab reference is:
+
+- `lab/references/spring-irs/smac2023/fig7a-full-modal-model.wav`,
+- source:
+  `https://github.com/jacobmcquillan/SMAC2023-spring-reverb-audio`,
+- upstream path:
+  `SMAC2023 audio examples/modelled impulse responses/Fig7a.wav`,
+- manifest:
+  `lab/references/spring-irs/smac2023/manifest.json`.
+
+It is a modelled spring impulse response, not a guitar cabinet capture. Keep it
+local-only until permission or a compatible license is obtained.
+
+## Compare WAV Files
+
+Use `compare-wav` to compare a candidate WAV against a reference WAV:
+
+```sh
+uv --project lab run greybound-lab compare-wav \
+  --candidate lab/renders/nox30-driven.wav \
+  --reference lab/references/nox30-reference.wav \
+  --metadata lab/renders/nox30-driven.run.json \
+  --segments lab/segments/guitar-chords.markers.json \
+  --report lab/reports/nox30-driven-vs-reference.md
+```
+
+The current report includes:
+
+- sample-rate and duration information,
+- estimated candidate latency,
+- gain correction,
+- RMS, peak, and crest factor,
+- null residual after alignment and gain correction,
+- log-spectral distance,
+- envelope error,
+- optional segment-level local gain, residual, spectrum, and envelope metrics,
+- band-local residual across low, low-mid, mid, presence, and air ranges,
+- attack peak timing, rise timing, and overshoot deltas,
+- two-tone intermodulation diagnostics,
+- high-band residual checks for aliasing triage,
+- sag drop and recovery deltas on dynamic windows.
+
+These metrics are diagnostic, not a single quality score. They should tell us
+whether the difference is mostly alignment, gain, spectral shape, transient
+behavior, or nonlinear dynamics.
+
+## Metric Families
+
+Latency and gain alignment:
+
+: Makes comparisons fair. A model can look wrong simply because it is shifted by
+  a few samples or louder than the reference. The lab estimates candidate
+  latency and applies an optimal gain before residual metrics.
+
+RMS, peak, and crest factor:
+
+: Checks gain staging and dynamic shape. Crest factor is especially useful for
+  spotting over-compression, missing transient energy, or unexpected clipping.
+
+Null residual:
+
+: Measures what remains after latency and gain correction. It is sensitive and
+  useful for regressions, but it should not be treated as a complete perceptual
+  score.
+
+Band residual:
+
+: Splits the residual by broad musical ranges: low, low-mid, mid, presence, and
+  air. This tells us where to investigate. A mid-band error points toward gain
+  stages, tone networks, or speaker color; a presence/air error may point toward
+  cab/IR, anti-aliasing, or high-frequency nonlinear behavior.
+
+Log-spectral distance:
+
+: Tracks broad EQ, harmonic balance, cab/IR color, and frequency-dependent
+  differences. It is useful for finding tonal drift, but it can hide transient
+  and dynamic errors.
+
+Envelope error:
+
+: Tracks amplitude shape over time. It helps identify compression, sustain,
+  decay, tremolo/modulation depth, and slow dynamic mismatch.
+
+Attack diagnostics:
+
+: Compare peak timing, rise timing, and overshoot in short windows. This is
+  important for pick feel, immediacy, and whether a model blunts or exaggerates
+  the front of notes.
+
+Harmonic diagnostics:
+
+: Compare THD and H2-H5 balance on stable sine windows. This is useful for
+  diode clippers, triodes, overdrives, fuzzes, and any nonlinear stage where
+  even/odd harmonic structure matters.
+
+High-band / aliasing diagnostics:
+
+: Measure high-frequency energy and high-band residual. This is a triage metric
+  for nonlinear aliasing; it should be used with generated high-frequency
+  stimuli, not trusted blindly on arbitrary guitar DI.
+
+Sag diagnostics:
+
+: Compare level drop and recovery inside burst windows. This targets supply sag,
+  bias shift, compression memory, and other slow dynamic behaviors.
+
+Intermodulation:
+
+: Compares two-tone intermodulation products such as `2F1-F2`, `2F2-F1`,
+  `F2-F1`, and `F1+F2` relative to the main tones. This matters for nonlinear
+  stages because intermodulation often reveals harshness and chord smear better
+  than THD.
+
+## Segment Markers
+
+Segment files live in `lab/segments/` and follow
+`lab/schemas/segments.schema.json`. They define named time windows:
+
+```json
+{
+  "schema_version": 1,
+  "segments": [
+    {
+      "name": "opening_attack",
+      "kind": "attack",
+      "start_s": 0.0,
+      "end_s": 0.35
+    }
+  ]
+}
+```
+
+Supported segment kinds today:
+
+- `general`, `sustain`, `decay`, and `silence`: local gain, residual,
+  spectral, and envelope metrics.
+- `attack`: adds peak timing, rise timing, and overshoot comparison.
+- `harmonic`: adds THD and H2-H5 deltas; use `fundamental_hz` when the segment
+  is a known sine or stable note.
+- `imd`: adds two-tone intermodulation diagnostics; use `first_hz` and
+  `second_hz` when the tones are known.
+- `aliasing`: adds high-band and high-band residual checks.
+- `sag`: adds drop and recovery comparison across the segment.
+
+The first committed marker file is
+`lab/segments/guitar-chords.markers.json`. It is a coarse analysis anchor for
+the bundled dry guitar sample, not a canonical transcription of the performance.
+
+## Directory Layout
+
+`lab/experiments/`
+
+: Committed experiment plans. The first one is
+  `001-chain-reference-analysis.md`; the first completed controlled-stimulus
+  pass is `002-nox30-stimulus-batch.md`.
+
+`lab/schemas/`
+
+: Committed JSON schemas for reproducible metadata.
+
+`lab/segments/`
+
+: Committed segment marker files used for local diagnostics.
+
+`lab/stimuli/`
+
+: Generated synthetic WAV stimuli and generated marker files. Ignored by git;
+  regenerate them with `generate-stimuli`.
+
+`lab/datasets/`
+
+: Local generated or imported datasets. Ignored by git by default.
+
+`lab/models/`
+
+: Local generated neural-cell artifacts, checkpoints, optional ONNX exports,
+  and experimental descriptors. Ignored by git by default except for source-safe
+  notes.
+
+`lab/references/`
+
+: Local reference WAVs, NAM renders, measured captures, or SPICE exports.
+  Ignored by git by default unless redistribution rights are explicit.
+
+`lab/renders/`
+
+: Local Greybound WAV renders and run metadata. Ignored by git by default.
+
+`lab/reports/`
+
+: Local generated comparison reports. Ignored by git by default.
+
+## Current Status
+
+Implemented:
+
+- Python package `greybound-lab`,
+- `render-rig` command,
+- `compare-wav` command,
+- run metadata schema,
+- segment marker schema,
+- SPICE dataset manifest schema,
+- neural-cell artifact descriptor schema,
+- segment-level diagnostics for attack, harmonic, high-band/aliasing, and sag
+  windows,
+- band residual diagnostics for every segment,
+- intermodulation diagnostics for two-tone segments,
+- generated stimuli for harmonic, high-band/aliasing, sag, attack, and future
+  intermodulation protocols,
+- first controlled-stimulus Nox30 clean/driven batch,
+- first common-cathode SPICE import/report,
+- NAM reference protocol and metadata schema,
+- first real NAM A2 render and comparison against Greybound Nox30,
+- tests for metric alignment and metadata generation,
+- first experiment plan for chain reference analysis.
+
+Not implemented yet:
+
+- plots in reports,
+- NAM render batch workflow for priority models,
+- broader SPICE fixture automation beyond the first common-cathode import,
+- generated SPICE datasets using the dataset manifest schema,
+- first experimental PyTorch MLP training from a SPICE dataset,
+- first Greybound neural-cell descriptor and packed weight export,
+- experimental Rust neural-cell descriptor/weight loader and scalar MLP
+  inference,
+- optional generated-vector Python/Rust equivalence check for local neural-cell
+  artifacts,
+- SPICE evaluation report for exported neural-cell artifacts.
+- analytic Rust common-cathode baseline evaluation against the same SPICE
+  dataset.
+
+## Next Research Steps
+
+The next useful improvements are:
+
+- add plots to comparison reports,
+- define a real reference WAV protocol,
+- add a stronger aliasing score that separates harmonics from folded non-harmonic
+  residuals,
+- extend the common-cathode SPICE fixture to level sweeps and two-tone IMD,
+- generate the first common-cathode SPICE dataset manifest,
+- train a dynamic or better-conditioned cell only after the analytic comparison
+  identifies where the current approximation fails,
+- inspect analytic residuals by waveform/phase/harmonic content to decide
+  whether the residual is caused by initialization, capacitor discretization,
+  solver tolerance, or nonlinear law mismatch,
+- decide how neural-cell artifacts should be mounted into an amp model without
+  violating real-time constraints,
+- standardize one Nox30-style NAM comparison,
+- decide the first fitted cell only after the reports show where the largest
+  error is.

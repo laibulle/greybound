@@ -1,0 +1,137 @@
+---
+title: Rig Files
+description: JSON5 files that describe only Greybound rig topology and controls.
+---
+
+Rig files describe the musical rig, not the runtime session. They should not contain input devices, output devices, WAV paths, monitor settings, sample rate, or render duration.
+
+Runtime stays in CLI flags:
+
+```bash
+target/release/greybound-cli --rig rigs/all-nox.json5 --device 'DEVICE NAME' --input-channel 1 --output-channels 1,2 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor
+```
+
+For generated rigs, the CLI also accepts `--rig -` and reads the JSON5 rig from stdin:
+
+```bash
+sed 's/bypassed: true/bypassed: false/' rigs/grey-nox.json5 | target/release/greybound-cli --rig - --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/generated-rig.wav --render-seconds 10 --sample-rate 48000 --period-size 16
+```
+
+## Format
+
+Rig files use JSON5 so they can keep JSON-like structure while supporting comments, trailing commas, unquoted keys, and single-quoted strings.
+
+```json5
+{
+  name: "grey-nox",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [
+    {
+      id: "klon-drive",
+      device: "minotaur",
+      bypassed: false,
+      controls: {
+        gain: 0.42,
+        treble: 0.70,
+        output: 0.42,
+      },
+    },
+  ],
+
+  amp: {
+    model: "nox30",
+    bypassed: false,
+    controls: {
+      volume: 0.48,
+      bass: 0.52,
+      treble: 0.58,
+      cut: 0.46,
+      drive: 0.25,
+      presence: 0.32,
+      sag: 0.55,
+    },
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/celestion.wav",
+    bypassed: false,
+  },
+}
+```
+
+## Current Fields
+
+- `name`: optional rig name.
+- `chain.cable_capacitance_pf`: optional shared cable capacitance for chain connections.
+- `pre_amp`: ordered devices before the amp input.
+- `fx_loop`: ordered devices between the amp preamp send and return/power section. Nox30 has an explicit split here; other amp models currently use the compatible chain API until their internals are split.
+- `post_amp`: ordered devices after the amp, currently available in the data model.
+- `*.bypassed`: explicit activation state for pedal slots, `amp`, and `cab`. Use `false` for active and `true` for bypassed.
+- `amp.model`: `nox30`, `none-star`, or `boxer-seven-lead`. The legacy
+  `nox30-experimental` id is still accepted as an alias for `nox30` so
+  historical rigs continue to parse.
+  `lonestar-special`, `lone-star-special`, and `lonestar` are accepted as
+  aliases for `none-star`.
+  `boxer-seven`, `shiva-20th-lead`, and `shiva20-lead` are accepted as
+  source/reference aliases for `boxer-seven-lead`.
+  Lab-only Nox30 development rigs may suffix `nox30` with explicit model
+  parameters such as
+  `?tone_source_ohms=47000&tone_load_ohms=47000`; these are implementation
+  hypotheses for A/B renders, not user-facing runtime settings.
+- `amp.controls`: normalized `0.0..1.0` amp controls.
+- `cab.ir`: path to a mono WAV impulse response matching the runtime sample rate.
+- `cab.bypassed`: whether the configured speaker IR starts bypassed.
+
+Supported device ids:
+
+- `lumen`
+- `muon`
+- `muffin`
+- `godess-one`
+- `dartford`
+- `springfield`
+- `springfield-experimental` as a legacy alias for `springfield`.
+- `minotaur`
+- `minotaur-experimental` as a legacy alias for `minotaur`.
+- `monarch`
+- `tron`
+- `jetstream`
+- `celeste`
+- `brigade`
+
+## Included Rigs
+
+- `rigs/all-nox.json5`: every current pedal slot on the Nox30 chain. This is a
+  broad integration board, not proof that every pedal is a finished grey-box
+  implementation.
+- `rigs/grey-nox.json5`: Klon/Minotaur into Nox30. This is the default focused
+  rig because those are the current real grey-box implementations.
+- `rigs/grey-nox-minotaur-experimental.json5`: historical compatibility
+  fixture proving `device: "minotaur-experimental"` still aliases to Minotaur.
+- `rigs/grey-nox-springfield-experimental.json5`: historical compatibility
+  fixture proving `device: "springfield-experimental"` still aliases to
+  Springfield.
+- `rigs/grey-nox-experimental.json5`: historical compatibility fixture proving
+  `amp.model: "nox30-experimental"` still aliases to Nox30.
+- `rigs/grey-nox-experimental-tone-load.json5`: the same focused topology with
+  the Nox30 follower-to-tone-stack boundary loaded to
+  `47 kOhm -> 47 kOhm` for lab hypothesis renders.
+- `rigs/boxer-seven-lead.json5`: focused Boxer Seven Lead validation rig using
+  a Celestion-style cab IR and a light post-amp StudioVerb room.
+
+## Boundaries
+
+Do not add runtime execution fields to rig files. These are intentionally rejected by the parser:
+
+- input device
+- output device
+- monitor/log paths
+- render duration
+- sample rate
+- output WAV path
+
+That separation keeps rigs portable and lets the same rig run live, into null output, or into a WAV render.

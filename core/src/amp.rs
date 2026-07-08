@@ -1,0 +1,1529 @@
+mod components;
+mod models;
+mod oversampling;
+
+use models::AmpCore;
+use oversampling::{half_band_coefficients, FirFilter, OVERSAMPLING_FACTOR};
+use std::path::PathBuf;
+
+pub const AMP_LATENCY: usize = 16;
+
+#[derive(Clone, Copy, Debug)]
+pub struct AmpControls {
+    pub volume: f32,
+    pub bass: f32,
+    pub treble: f32,
+    pub cut: f32,
+    pub output: f32,
+    pub drive: f32,
+    pub presence: f32,
+    pub sag: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Nox30OperatingPoint {
+    pub input_volume_output_v: f32,
+    pub first_stage_output_v: f32,
+    pub follower_output_v: f32,
+    pub tone_stack_output_v: f32,
+    pub preamp_send_v: f32,
+    pub phase_inverter_input_v: f32,
+    pub phase_inverter_output_v: f32,
+    pub power_stage_output_v: f32,
+    pub output_transformer_output_v: f32,
+    pub preamp_voltage: f32,
+    pub phase_inverter_voltage: f32,
+    pub power_voltage: f32,
+    pub first_stage_plate_current: f32,
+    pub first_stage_cathode_voltage: f32,
+    pub follower_plate_current: f32,
+    pub follower_cathode_voltage: f32,
+    pub drive_stage_plate_current: f32,
+    pub recovery_stage_plate_current: f32,
+    pub first_stage_shadow_output_v: Option<f32>,
+    pub first_stage_shadow_error_v: Option<f32>,
+    pub phase_inverter_plate_a_current: f32,
+    pub phase_inverter_plate_b_current: f32,
+    pub phase_inverter_cathode_voltage: f32,
+    pub power_positive_current: f32,
+    pub power_negative_current: f32,
+    pub power_positive_screen_current: f32,
+    pub power_negative_screen_current: f32,
+    pub power_screen_voltage: f32,
+    pub power_cathode_bias_voltage: f32,
+    pub power_attack_current: f32,
+    pub transformer_core_flux: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NeuralCellMode {
+    Shadow,
+    Replace,
+}
+
+pub fn configure_nox30_first_stage_neural(descriptor_path: Option<PathBuf>, mode: NeuralCellMode) {
+    models::configure_nox30_first_stage_neural(descriptor_path, mode);
+}
+
+pub fn configure_nox30_first_stage_graybox(config_path: Option<PathBuf>, mode: NeuralCellMode) {
+    models::configure_nox30_first_stage_graybox(config_path, mode);
+}
+
+pub fn configure_none_star_power_6l6_neural(
+    descriptor_path: Option<PathBuf>,
+    mode: NeuralCellMode,
+) {
+    models::configure_none_star_power_6l6_neural(descriptor_path, mode);
+}
+
+/// A model-level stage or circuit-cell boundary exposed by an amp or pedal.
+///
+/// This is intentionally not a physical electronic part such as a resistor,
+/// capacitor, tube, or diode. Physical parts belong inside circuit cells; stage
+/// boundaries describe the observable voltage/impedance contract between cells.
+#[derive(Clone, Copy, Debug)]
+pub struct StageBoundary {
+    pub id: &'static str,
+    pub role: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StageCoupling {
+    DcCoupled,
+    AcCoupled,
+    Buffered,
+    Transformer,
+    SupplyRail,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct StageBoundaryState {
+    pub id: &'static str,
+    pub voltage_v: f32,
+    pub source_impedance_ohms: f32,
+    pub load_impedance_ohms: f32,
+    pub coupling: StageCoupling,
+    pub dc_offset_v: f32,
+    pub headroom_v: f32,
+    pub nominal_level_v: f32,
+    pub peak_level_v: f32,
+    pub latency_samples: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct StageSignal {
+    pub voltage_v: f32,
+    pub source_impedance_ohms: f32,
+    pub load_impedance_ohms: f32,
+    pub coupling: StageCoupling,
+    pub dc_offset_v: f32,
+    pub headroom_v: f32,
+}
+
+impl StageSignal {
+    pub fn new(
+        voltage_v: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+        coupling: StageCoupling,
+        dc_offset_v: f32,
+        headroom_v: f32,
+    ) -> Self {
+        Self {
+            voltage_v,
+            source_impedance_ohms: source_impedance_ohms.max(0.0),
+            load_impedance_ohms: load_impedance_ohms.max(0.0),
+            coupling,
+            dc_offset_v,
+            headroom_v: headroom_v.max(0.0),
+        }
+    }
+}
+
+#[deprecated(note = "Use StageBoundary; ComponentBoundary meant physical parts too easily.")]
+pub type ComponentBoundary = StageBoundary;
+#[deprecated(note = "Use StageCoupling; ComponentCoupling is kept for compatibility.")]
+pub type ComponentCoupling = StageCoupling;
+#[deprecated(note = "Use StageBoundaryState; ComponentBoundaryState is kept for compatibility.")]
+pub type ComponentBoundaryState = StageBoundaryState;
+#[deprecated(note = "Use StageSignal; ComponentSignal is kept for compatibility.")]
+pub type ComponentSignal = StageSignal;
+
+pub const NOX30_STAGE_BOUNDARIES: &[StageBoundary] = &[
+    StageBoundary {
+        id: "input_volume",
+        role: "Input coupling, volume attenuation, and bright bypass network",
+    },
+    StageBoundary {
+        id: "first_stage",
+        role: "First nonlinear ECC83 common-cathode gain stage",
+    },
+    StageBoundary {
+        id: "cathode_follower",
+        role: "ECC83 cathode follower driving the tone stack",
+    },
+    StageBoundary {
+        id: "tone_stack",
+        role: "Top-boost passive tone network",
+    },
+    StageBoundary {
+        id: "drive_stage",
+        role: "Additional nonlinear ECC83 drive stage",
+    },
+    StageBoundary {
+        id: "recovery_stage",
+        role: "Post-drive nonlinear ECC83 recovery stage",
+    },
+    StageBoundary {
+        id: "phase_inverter",
+        role: "Shared-cathode long-tail-pair phase inverter",
+    },
+    StageBoundary {
+        id: "cut_presence",
+        role: "Cut and presence shaping network",
+    },
+    StageBoundary {
+        id: "power_stage",
+        role: "Push-pull EL84 plate-feedback power stage",
+    },
+    StageBoundary {
+        id: "supply_network",
+        role: "Shared B+ rail and sag network",
+    },
+    StageBoundary {
+        id: "output_transformer",
+        role: "Output transformer filtering and core-flux state",
+    },
+];
+
+#[deprecated(note = "Use NOX30_STAGE_BOUNDARIES.")]
+pub const NOX30_COMPONENT_BOUNDARIES: &[StageBoundary] = NOX30_STAGE_BOUNDARIES;
+
+impl Nox30OperatingPoint {
+    pub fn boundary_states(&self) -> [StageBoundaryState; 11] {
+        [
+            boundary_state(
+                "input_volume",
+                self.input_volume_output_v,
+                250_000.0,
+                1_000_000.0,
+                StageCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage * 0.35,
+                0,
+            ),
+            boundary_state(
+                "first_stage",
+                self.first_stage_output_v,
+                38_000.0,
+                1_000_000.0,
+                StageCoupling::AcCoupled,
+                self.first_stage_cathode_voltage,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "cathode_follower",
+                self.follower_output_v,
+                820.0,
+                220_000.0,
+                StageCoupling::Buffered,
+                self.follower_cathode_voltage,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "tone_stack",
+                self.tone_stack_output_v,
+                820.0,
+                220_000.0,
+                StageCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage * 0.5,
+                0,
+            ),
+            boundary_state(
+                "drive_stage",
+                self.preamp_send_v,
+                38_000.0,
+                1_000_000.0,
+                StageCoupling::AcCoupled,
+                0.0,
+                self.preamp_voltage,
+                0,
+            ),
+            boundary_state(
+                "recovery_stage",
+                self.preamp_send_v,
+                38_000.0,
+                1_000_000.0,
+                StageCoupling::AcCoupled,
+                0.0,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "phase_inverter",
+                self.phase_inverter_output_v,
+                44_000.0,
+                500_000.0,
+                StageCoupling::AcCoupled,
+                self.phase_inverter_cathode_voltage,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "cut_presence",
+                self.phase_inverter_output_v,
+                44_000.0,
+                500_000.0,
+                StageCoupling::AcCoupled,
+                0.0,
+                self.phase_inverter_voltage,
+                0,
+            ),
+            boundary_state(
+                "power_stage",
+                self.power_stage_output_v,
+                4_000.0,
+                4_000.0,
+                StageCoupling::DcCoupled,
+                self.power_cathode_bias_voltage,
+                self.power_voltage,
+                0,
+            ),
+            boundary_state(
+                "supply_network",
+                self.power_voltage,
+                12_000.0,
+                0.0,
+                StageCoupling::SupplyRail,
+                self.power_screen_voltage,
+                self.power_voltage,
+                0,
+            ),
+            boundary_state(
+                "output_transformer",
+                self.output_transformer_output_v,
+                8.0,
+                8.0,
+                StageCoupling::Transformer,
+                self.transformer_core_flux,
+                self.power_voltage,
+                AMP_LATENCY,
+            ),
+        ]
+    }
+}
+
+fn boundary_state(
+    id: &'static str,
+    voltage_v: f32,
+    source_impedance_ohms: f32,
+    load_impedance_ohms: f32,
+    coupling: StageCoupling,
+    dc_offset_v: f32,
+    headroom_v: f32,
+    latency_samples: usize,
+) -> StageBoundaryState {
+    let nominal_level_v = voltage_v.abs();
+    StageBoundaryState {
+        id,
+        voltage_v,
+        source_impedance_ohms: source_impedance_ohms.max(0.0),
+        load_impedance_ohms: load_impedance_ohms.max(0.0),
+        coupling,
+        dc_offset_v,
+        headroom_v: headroom_v.max(0.0),
+        nominal_level_v,
+        peak_level_v: nominal_level_v,
+        latency_samples,
+    }
+}
+
+/// Oversampled facade around a dedicated amp model.
+pub struct VoxAmp {
+    upsampler: FirFilter,
+    core: AmpCore,
+    downsampler: FirFilter,
+    oversampled: bool,
+}
+
+impl VoxAmp {
+    pub fn new(sample_rate: f32) -> Self {
+        Self::with_model(sample_rate, "nox30")
+    }
+
+    pub fn with_model(sample_rate: f32, model: &str) -> Self {
+        let coefficients = half_band_coefficients();
+        let model_base = model.split_once('?').map_or(model, |(base, _)| base);
+        let oversampled = !matches!(model_base, "nox30" | "nox30-experimental");
+        let core_sample_rate = if oversampled {
+            sample_rate * OVERSAMPLING_FACTOR
+        } else {
+            sample_rate
+        };
+        Self {
+            upsampler: FirFilter::new(coefficients),
+            core: AmpCore::new_with_model(core_sample_rate, model),
+            downsampler: FirFilter::new(coefficients),
+            oversampled,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.upsampler.reset();
+        self.core.reset();
+        self.downsampler.reset();
+    }
+
+    pub fn nox30_operating_point(&self) -> Option<Nox30OperatingPoint> {
+        self.core.nox30_operating_point()
+    }
+
+    pub fn nox30_boundary_states(&self) -> Option<[StageBoundaryState; 11]> {
+        self.core.nox30_boundary_states()
+    }
+
+    #[inline]
+    pub fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
+        if !self.oversampled {
+            return self.core.process(input, controls);
+        }
+
+        let upsampled = self.upsampler.process(input * OVERSAMPLING_FACTOR);
+        let output = self
+            .downsampler
+            .process(self.core.process(upsampled, controls));
+
+        let upsampled = self.upsampler.process(0.0);
+        self.downsampler
+            .process(self.core.process(upsampled, controls));
+        output
+    }
+
+    #[inline]
+    pub fn process_with_fx_loop(
+        &mut self,
+        input: f32,
+        controls: AmpControls,
+        mut process_fx: impl FnMut(f32) -> f32,
+    ) -> f32 {
+        if !self.oversampled {
+            return self.core.process_with_fx_loop(input, controls, process_fx);
+        }
+
+        let amp_output = self.process(input, controls);
+        process_fx(amp_output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::components::{cathode_follower, TopBoostToneStack};
+    use super::models::AmpCore;
+    use super::oversampling::{half_band_coefficients, FirFilter, OVERSAMPLING_FACTOR};
+    use super::*;
+    use crate::ir::SpeakerStage;
+    use std::path::Path;
+
+    fn controls() -> AmpControls {
+        AmpControls {
+            volume: 0.5,
+            bass: 0.5,
+            treble: 0.5,
+            cut: 0.5,
+            output: 1.0,
+            drive: 0.0,
+            presence: 0.0,
+            sag: 0.0,
+        }
+    }
+
+    fn sine_rms_at(amp: &mut VoxAmp, frequency: f32, amplitude: f32, controls: AmpControls) -> f32 {
+        let sample_rate = 48_000.0;
+        let mut sum = 0.0;
+        for sample_idx in 0..9_600 {
+            let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / sample_rate).sin()
+                * amplitude;
+            let output = amp.process(input, controls);
+            if sample_idx >= 4_800 {
+                sum += output * output;
+            }
+        }
+        (sum / 4_800.0).sqrt()
+    }
+
+    fn sine_rms(amp: &mut VoxAmp, frequency: f32, controls: AmpControls) -> f32 {
+        sine_rms_at(amp, frequency, 0.02, controls)
+    }
+
+    fn sine_residual_energy(samples: &[f32], frequency: f32, sample_rate: f32) -> f32 {
+        let mut sin_projection = 0.0;
+        let mut cos_projection = 0.0;
+        let mut energy = 0.0;
+        for (index, sample) in samples.iter().copied().enumerate() {
+            let phase = std::f32::consts::TAU * frequency * index as f32 / sample_rate;
+            sin_projection += sample * phase.sin();
+            cos_projection += sample * phase.cos();
+            energy += sample * sample;
+        }
+        let scale = 2.0 / samples.len().max(1) as f32;
+        let fundamental_energy =
+            (sin_projection * scale).powi(2) + (cos_projection * scale).powi(2);
+        (energy / samples.len().max(1) as f32 - fundamental_energy * 0.5).max(0.0)
+    }
+
+    fn tone_stack_rms(frequency: f32, bass: f32, treble: f32) -> f32 {
+        tone_stack_rms_with_boundary(frequency, bass, treble, 820.0, 220_000.0)
+    }
+
+    fn tone_stack_rms_with_boundary(
+        frequency: f32,
+        bass: f32,
+        treble: f32,
+        source_impedance_ohms: f32,
+        load_impedance_ohms: f32,
+    ) -> f32 {
+        let sample_rate = 96_000.0;
+        let mut stack = TopBoostToneStack::new(sample_rate);
+        let mut sum = 0.0;
+        for sample_idx in 0..19_200 {
+            let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / sample_rate).sin();
+            let output = stack.process_with_boundary(
+                input,
+                bass,
+                treble,
+                source_impedance_ohms,
+                load_impedance_ohms,
+            );
+            if sample_idx >= 9_600 {
+                sum += output * output;
+            }
+        }
+        (sum / 9_600.0).sqrt()
+    }
+
+    #[test]
+    fn default_amp_silence_stays_finite_and_settles() {
+        let mut amp = VoxAmp::new(48_000.0);
+        let mut output = 0.0;
+        for _ in 0..48_000 {
+            output = amp.process(0.0, controls());
+            assert!(output.is_finite());
+        }
+        assert!(output.abs() < 0.02, "settled output={output}");
+    }
+
+    #[test]
+    fn default_amp_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::new(48_000.0);
+        let mut controls = controls();
+        controls.volume = 1.0;
+        controls.bass = 1.0;
+        controls.treble = 1.0;
+        controls.cut = 0.0;
+        controls.output = 2.0;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn none_star_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "none-star");
+        let mut controls = controls();
+        controls.volume = 0.92;
+        controls.bass = 0.56;
+        controls.cut = 0.58;
+        controls.treble = 0.62;
+        controls.presence = 0.52;
+        controls.sag = 0.45;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn boxer_seven_lead_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
+        let mut controls = controls();
+        controls.volume = 0.84;
+        controls.bass = 0.48;
+        controls.cut = 0.58;
+        controls.treble = 0.62;
+        controls.drive = 0.72;
+        controls.presence = 0.60;
+        controls.sag = 0.35;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn boxer_seven_mode_increases_lead_harmonic_energy() {
+        let mut vintage = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
+        let mut modern = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
+        let mut vintage_controls = controls();
+        vintage_controls.volume = 0.70;
+        vintage_controls.bass = 0.48;
+        vintage_controls.cut = 0.62;
+        vintage_controls.treble = 0.58;
+        vintage_controls.presence = 0.54;
+        vintage_controls.sag = 0.30;
+        vintage_controls.drive = 0.0;
+
+        let mut modern_controls = vintage_controls;
+        modern_controls.drive = 0.85;
+
+        let mut vintage_samples = Vec::new();
+        let mut modern_samples = Vec::new();
+        for sample_idx in 0..9_600 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.07;
+            let vintage_output = vintage.process(input, vintage_controls);
+            let modern_output = modern.process(input, modern_controls);
+            if sample_idx >= 4_800 {
+                vintage_samples.push(vintage_output);
+                modern_samples.push(modern_output);
+            }
+        }
+        let vintage_residual = sine_residual_energy(&vintage_samples, 220.0, 48_000.0);
+        let modern_residual = sine_residual_energy(&modern_samples, 220.0, 48_000.0);
+
+        assert!(
+            modern_residual > vintage_residual * 1.18,
+            "vintage_residual={vintage_residual}, modern_residual={modern_residual}"
+        );
+    }
+
+    #[test]
+    fn none_star_edge_has_more_harmonic_energy_than_clean() {
+        let mut clean = VoxAmp::with_model(48_000.0, "none-star");
+        let mut edge = VoxAmp::with_model(48_000.0, "none-star");
+        let mut clean_controls = controls();
+        clean_controls.volume = 0.34;
+        clean_controls.bass = 0.55;
+        clean_controls.cut = 0.56;
+        clean_controls.treble = 0.58;
+        clean_controls.presence = 0.45;
+
+        let mut edge_controls = clean_controls;
+        edge_controls.volume = 0.82;
+        edge_controls.drive = 0.72;
+        edge_controls.sag = 0.55;
+
+        let mut clean_samples = Vec::new();
+        let mut edge_samples = Vec::new();
+        for sample_idx in 0..9_600 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            let clean_output = clean.process(input, clean_controls);
+            let edge_output = edge.process(input, edge_controls);
+            if sample_idx >= 4_800 {
+                clean_samples.push(clean_output);
+                edge_samples.push(edge_output);
+            }
+        }
+        let clean_residual = sine_residual_energy(&clean_samples, 220.0, 48_000.0);
+        let edge_residual = sine_residual_energy(&edge_samples, 220.0, 48_000.0);
+
+        assert!(
+            edge_residual > clean_residual * 1.20,
+            "clean_residual={clean_residual}, edge_residual={edge_residual}"
+        );
+    }
+
+    #[test]
+    fn none_star_anchor_preserves_presence_band_energy() {
+        let mut controls = controls();
+        controls.volume = 0.35;
+        controls.bass = 0.42;
+        controls.cut = 0.55;
+        controls.treble = 1.0;
+        controls.drive = 0.05;
+        controls.presence = 1.0;
+        controls.sag = 0.20;
+
+        let mid = sine_rms(
+            &mut VoxAmp::with_model(48_000.0, "none-star"),
+            1_000.0,
+            controls,
+        );
+        let presence = sine_rms(
+            &mut VoxAmp::with_model(48_000.0, "none-star"),
+            8_000.0,
+            controls,
+        );
+
+        assert!(
+            presence > mid * 0.75,
+            "mid_rms={mid}, presence_rms={presence}"
+        );
+    }
+
+    #[test]
+    fn none_star_clean_signature_differs_from_nox30() {
+        let mut controls = controls();
+        controls.volume = 0.48;
+        controls.bass = 0.56;
+        controls.cut = 0.56;
+        controls.treble = 0.58;
+        controls.drive = 0.0;
+        controls.presence = 0.45;
+        controls.sag = 0.30;
+
+        let none_low = sine_rms(
+            &mut VoxAmp::with_model(48_000.0, "none-star"),
+            180.0,
+            controls,
+        );
+        let none_presence = sine_rms(
+            &mut VoxAmp::with_model(48_000.0, "none-star"),
+            3_200.0,
+            controls,
+        );
+        let nox_low = sine_rms(&mut VoxAmp::with_model(48_000.0, "nox30"), 180.0, controls);
+        let nox_presence = sine_rms(
+            &mut VoxAmp::with_model(48_000.0, "nox30"),
+            3_200.0,
+            controls,
+        );
+
+        let none_balance = none_low / none_presence.max(1.0e-7);
+        let nox_balance = nox_low / nox_presence.max(1.0e-7);
+
+        assert!(
+            (none_balance / nox_balance).log10().abs() > 0.06,
+            "none_balance={none_balance}, nox_balance={nox_balance}"
+        );
+    }
+
+    #[test]
+    fn nox30_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let mut controls = controls();
+        controls.volume = 0.9;
+        controls.bass = 0.6;
+        controls.treble = 0.6;
+        controls.cut = 0.45;
+        controls.sag = 0.8;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
+    fn nox30_supply_sag_reduces_settled_level() {
+        let mut stiff = VoxAmp::with_model(48_000.0, "nox30");
+        let mut saggy = VoxAmp::with_model(48_000.0, "nox30");
+        let mut stiff_controls = controls();
+        stiff_controls.volume = 1.0;
+        stiff_controls.cut = 0.2;
+        stiff_controls.output = 1.0;
+        stiff_controls.sag = 0.0;
+        let mut saggy_controls = stiff_controls;
+        saggy_controls.sag = 1.0;
+
+        let mut stiff_late = 0.0;
+        let mut saggy_late = 0.0;
+        for sample_idx in 0..36_000 {
+            let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.55;
+            let stiff_output = stiff.process(input, stiff_controls);
+            let saggy_output = saggy.process(input, saggy_controls);
+            if sample_idx >= 24_000 {
+                stiff_late += stiff_output * stiff_output;
+                saggy_late += saggy_output * saggy_output;
+            }
+        }
+
+        assert!(
+            saggy_late < stiff_late * 0.97,
+            "stiff={stiff_late}, saggy={saggy_late}"
+        );
+    }
+
+    #[test]
+    fn default_amp_is_nox30() {
+        let mut controls = controls();
+        controls.volume = 0.76;
+        controls.bass = 0.52;
+        controls.treble = 0.61;
+        controls.cut = 0.47;
+        controls.drive = 0.68;
+        controls.presence = 0.44;
+        controls.sag = 0.70;
+
+        let mut default_amp = VoxAmp::new(48_000.0);
+        let mut nox30 = VoxAmp::with_model(48_000.0, "nox30");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..6_144 {
+            let chord = (std::f32::consts::TAU * 196.0 * sample_idx as f32 / 48_000.0).sin()
+                + (std::f32::consts::TAU * 247.0 * sample_idx as f32 / 48_000.0).sin() * 0.7
+                + (std::f32::consts::TAU * 330.0 * sample_idx as f32 / 48_000.0).sin() * 0.45;
+            let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
+            let input = chord * 0.055 * pick;
+            let default_output = default_amp.process(input, controls);
+            let nox30_output = nox30.process(input, controls);
+
+            if sample_idx >= 1_024 {
+                let difference = default_output - nox30_output;
+                difference_sum += difference * difference;
+            }
+        }
+
+        assert!(
+            difference_sum < 1e-9,
+            "default/nox30 mismatch: difference={difference_sum}"
+        );
+    }
+
+    #[test]
+    fn nox30_legacy_experimental_alias_matches_canonical_model() {
+        let mut controls = controls();
+        controls.volume = 0.76;
+        controls.bass = 0.52;
+        controls.treble = 0.61;
+        controls.cut = 0.47;
+        controls.drive = 0.68;
+        controls.presence = 0.44;
+        controls.sag = 0.70;
+
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..6_144 {
+            let chord = (std::f32::consts::TAU * 196.0 * sample_idx as f32 / 48_000.0).sin()
+                + (std::f32::consts::TAU * 247.0 * sample_idx as f32 / 48_000.0).sin() * 0.7
+                + (std::f32::consts::TAU * 330.0 * sample_idx as f32 / 48_000.0).sin() * 0.45;
+            let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
+            let input = chord * 0.055 * pick;
+            let canonical_output = canonical.process(input, controls);
+            let alias_output = legacy_alias.process(input, controls);
+
+            if sample_idx >= 1_024 {
+                let difference = canonical_output - alias_output;
+                difference_sum += difference * difference;
+            }
+        }
+
+        assert!(
+            difference_sum < 1e-9,
+            "canonical/legacy alias mismatch: difference={difference_sum}"
+        );
+    }
+
+    #[test]
+    fn nox30_legacy_experimental_alias_fx_loop_matches_canonical_path() {
+        let mut controls = controls();
+        controls.volume = 0.56;
+        controls.bass = 0.56;
+        controls.treble = 0.58;
+        controls.cut = 0.44;
+        controls.output = 10.0_f32.powf(-9.0 / 20.0);
+        controls.drive = 0.24;
+        controls.presence = 0.34;
+        controls.sag = 0.46;
+
+        let mut canonical = VoxAmp::with_model(44_100.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(44_100.0, "nox30-experimental");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..88_200 {
+            let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 44_100.0).sin() * 0.06
+                + (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 44_100.0).sin() * 0.03;
+            let canonical_output =
+                canonical.process_with_fx_loop(input, controls, |send| send * 0.87);
+            let alias_output =
+                legacy_alias.process_with_fx_loop(input, controls, |send| send * 0.87);
+            if sample_idx >= 44_100 {
+                difference_sum += (canonical_output - alias_output).abs();
+            }
+        }
+
+        assert!(
+            difference_sum < 1e-6,
+            "canonical/legacy alias FX loop mismatch: difference_sum={difference_sum}"
+        );
+    }
+
+    #[test]
+    fn nox30_default_tone_stack_boundary_path_stays_transparent() {
+        let mut controls = controls();
+        controls.volume = 0.64;
+        controls.bass = 0.22;
+        controls.treble = 0.88;
+        controls.cut = 0.37;
+        controls.drive = 0.0;
+        controls.sag = 0.30;
+
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut legacy_alias = VoxAmp::with_model(48_000.0, "nox30-experimental");
+        let mut max_difference = 0.0_f32;
+
+        for sample_idx in 0..24_000 {
+            let t = sample_idx as f32 / 48_000.0;
+            let input = (std::f32::consts::TAU * 82.0 * t).sin() * 0.04
+                + (std::f32::consts::TAU * 997.0 * t).sin() * 0.025
+                + (std::f32::consts::TAU * 5_200.0 * t).sin() * 0.012;
+            let canonical_output = canonical.process(input, controls);
+            let alias_output = legacy_alias.process(input, controls);
+            if sample_idx >= 4_800 {
+                max_difference = max_difference.max((canonical_output - alias_output).abs());
+            }
+        }
+
+        assert!(
+            max_difference < 1e-7,
+            "transparent tone-stack boundary path changed audio: max_difference={max_difference}"
+        );
+    }
+
+    #[test]
+    fn nox30_configured_tone_boundary_impedance_changes_canonical_response() {
+        let mut controls = controls();
+        controls.volume = 0.70;
+        controls.bass = 0.28;
+        controls.treble = 0.82;
+        controls.cut = 0.41;
+        controls.drive = 0.18;
+        controls.presence = 0.36;
+        controls.sag = 0.32;
+
+        let mut canonical = VoxAmp::with_model(48_000.0, "nox30");
+        let mut configured = VoxAmp::with_model(
+            48_000.0,
+            "nox30?tone_source_ohms=47000&tone_load_ohms=47000",
+        );
+        let mut difference_sum = 0.0_f32;
+        let mut output_energy = 0.0_f32;
+
+        for sample_idx in 0..24_000 {
+            let t = sample_idx as f32 / 48_000.0;
+            let input = (std::f32::consts::TAU * 110.0 * t).sin() * 0.035
+                + (std::f32::consts::TAU * 880.0 * t).sin() * 0.026
+                + (std::f32::consts::TAU * 3_520.0 * t).sin() * 0.016;
+            let canonical_output = canonical.process(input, controls);
+            let configured_output = configured.process(input, controls);
+            assert!(configured_output.is_finite());
+            if sample_idx >= 4_800 {
+                let difference = canonical_output - configured_output;
+                difference_sum += difference * difference;
+                output_energy += configured_output * configured_output;
+            }
+        }
+
+        assert!(
+            difference_sum > 1e-5,
+            "configured tone-stack boundary did not alter the canonical path: difference={difference_sum}"
+        );
+        assert!(
+            output_energy > 1e-5,
+            "configured tone-stack boundary path produced suspicious silence: output_energy={output_energy}"
+        );
+    }
+
+    #[test]
+    fn nox30_identity_fx_loop_matches_full_process() {
+        let mut controls = controls();
+        controls.volume = 0.56;
+        controls.bass = 0.56;
+        controls.treble = 0.58;
+        controls.cut = 0.44;
+        controls.output = 10.0_f32.powf(-9.0 / 20.0);
+        controls.drive = 0.24;
+        controls.presence = 0.34;
+        controls.sag = 0.46;
+
+        let mut full = VoxAmp::with_model(44_100.0, "nox30");
+        let mut split = VoxAmp::with_model(44_100.0, "nox30");
+        let mut difference_sum = 0.0;
+
+        for sample_idx in 0..88_200 {
+            let input = (std::f32::consts::TAU * 147.0 * sample_idx as f32 / 44_100.0).sin() * 0.06
+                + (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 44_100.0).sin() * 0.03;
+            let full_output = full.process(input, controls);
+            let split_output = split.process_with_fx_loop(input, controls, |send| send);
+            if sample_idx >= 44_100 {
+                difference_sum += (full_output - split_output).abs();
+            }
+        }
+
+        assert!(difference_sum < 1e-6, "difference_sum={difference_sum}");
+    }
+
+    #[test]
+    fn standalone_nox30_file_rig_stays_in_output_range() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let mut speaker = SpeakerStage::from_embedded_ir(48_000).unwrap();
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let samples = load_test_guitar_wav();
+        let mut sum = 0.0;
+        let mut peak = 0.0_f32;
+        let mut count = 0;
+
+        for input in samples.into_iter().take(44_100 * 2) {
+            let output = speaker.process(amp.process(input, controls), true);
+            assert!(output.is_finite());
+            peak = peak.max(output.abs());
+            sum += output * output;
+            count += 1;
+        }
+
+        let rms = (sum / count as f32).sqrt();
+        assert!(rms > 0.003, "rms={rms}, peak={peak}, count={count}");
+        assert!(peak < 0.95, "rms={rms}, peak={peak}");
+    }
+
+    #[test]
+    fn standalone_nox30_file_rig_keeps_producing_output() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let mut speaker = SpeakerStage::from_embedded_ir(48_000).unwrap();
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let samples = load_test_guitar_wav();
+        let mut second_sums = [0.0; 8];
+        let mut second_counts = [0; 8];
+
+        for (sample_idx, input) in samples.into_iter().cycle().take(48_000 * 8).enumerate() {
+            let output = speaker.process(amp.process(input, controls), true);
+            assert!(output.is_finite());
+            let second = sample_idx / 48_000;
+            second_sums[second] += output * output;
+            second_counts[second] += 1;
+        }
+
+        for (second, (&sum, &count)) in second_sums.iter().zip(&second_counts).enumerate() {
+            let rms = (sum / count as f32).sqrt();
+            assert!(rms > 0.0002, "second={second}, rms={rms}");
+        }
+    }
+
+    #[test]
+    fn nox30_exposes_replaceable_stage_boundaries() {
+        let ids: Vec<_> = NOX30_STAGE_BOUNDARIES
+            .iter()
+            .map(|boundary| boundary.id)
+            .collect();
+
+        for expected in [
+            "input_volume",
+            "first_stage",
+            "cathode_follower",
+            "tone_stack",
+            "drive_stage",
+            "recovery_stage",
+            "phase_inverter",
+            "cut_presence",
+            "power_stage",
+            "supply_network",
+            "output_transformer",
+        ] {
+            assert!(ids.contains(&expected), "missing boundary {expected}");
+        }
+    }
+
+    #[test]
+    fn nox30_operating_point_exposes_shared_state() {
+        let mut amp = VoxAmp::with_model(44_100.0, "nox30");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let samples = load_test_guitar_wav();
+        for input in samples.into_iter().cycle().take(44_100 * 2) {
+            amp.process(input, controls);
+        }
+
+        let operating_point = amp.nox30_operating_point().unwrap();
+        assert!((150.0..=340.0).contains(&operating_point.power_voltage));
+        assert!((150.0..=operating_point.power_voltage)
+            .contains(&operating_point.phase_inverter_voltage));
+        assert!((120.0..=operating_point.phase_inverter_voltage)
+            .contains(&operating_point.preamp_voltage));
+        assert!(operating_point.first_stage_plate_current.is_finite());
+        assert!(operating_point.follower_plate_current.is_finite());
+        assert!(operating_point.phase_inverter_plate_a_current.is_finite());
+        assert!(operating_point.phase_inverter_plate_b_current.is_finite());
+        assert!(operating_point.power_positive_current.is_finite());
+        assert!(operating_point.power_negative_current.is_finite());
+        assert!(operating_point.transformer_core_flux.is_finite());
+    }
+
+    #[test]
+    fn nox30_operating_point_exports_stage_boundary_states() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+
+        for sample_idx in 0..4_096 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            amp.process(input, controls);
+        }
+
+        let states = amp.nox30_operating_point().unwrap().boundary_states();
+        let supply = states
+            .iter()
+            .find(|state| state.id == "supply_network")
+            .unwrap();
+        let transformer = states
+            .iter()
+            .find(|state| state.id == "output_transformer")
+            .unwrap();
+
+        assert_eq!(supply.coupling, StageCoupling::SupplyRail);
+        assert_eq!(transformer.coupling, StageCoupling::Transformer);
+        assert!(states
+            .iter()
+            .all(|state| state.voltage_v.is_finite() && state.headroom_v.is_finite()));
+    }
+
+    #[test]
+    fn nox30_current_path_exports_observed_boundary_states() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+
+        for sample_idx in 0..4_096 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            amp.process(input, controls);
+        }
+
+        let states = amp.nox30_boundary_states().unwrap();
+        let output = states
+            .iter()
+            .find(|state| state.id == "output_transformer")
+            .unwrap();
+
+        assert_eq!(output.coupling, StageCoupling::Transformer);
+        assert!(output.latency_samples > 0);
+        assert!(states.iter().any(|state| state.id == "supply_network"));
+    }
+
+    #[test]
+    fn nox30_sample_render_metrics_stay_in_fixture_band() {
+        let mut amp = VoxAmp::with_model(48_000.0, "nox30");
+        let mut speaker = SpeakerStage::from_embedded_ir(48_000).unwrap();
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let samples = load_test_guitar_wav();
+        let mut sum = 0.0;
+        let mut peak = 0.0_f32;
+        let mut checksum = 0.0_f64;
+        let mut count = 0;
+
+        for (sample_idx, input) in samples.into_iter().cycle().take(48_000 * 4).enumerate() {
+            let output = speaker.process(amp.process(input, controls), true);
+            assert!(output.is_finite());
+            peak = peak.max(output.abs());
+            sum += output * output;
+            checksum += output as f64 * ((sample_idx % 257) as f64 + 1.0);
+            count += 1;
+        }
+
+        let rms = (sum / count as f32).sqrt();
+        let normalized_checksum = checksum / count as f64;
+        assert!(
+            (0.030..0.180).contains(&rms),
+            "rms={rms}, peak={peak}, checksum={normalized_checksum}"
+        );
+        assert!(
+            (0.15..0.95).contains(&peak),
+            "rms={rms}, peak={peak}, checksum={normalized_checksum}"
+        );
+        assert!(
+            (-0.80..0.80).contains(&normalized_checksum),
+            "rms={rms}, peak={peak}, checksum={normalized_checksum}"
+        );
+    }
+
+    #[test]
+    fn nox30_processing_cost_has_realtime_headroom() {
+        let mut amp = VoxAmp::with_model(44_100.0, "nox30");
+        let controls = AmpControls {
+            volume: 0.76,
+            bass: 0.52,
+            treble: 0.61,
+            cut: 0.47,
+            output: 10.0_f32.powf(-18.0 / 20.0),
+            drive: 0.68,
+            presence: 0.44,
+            sag: 0.70,
+        };
+        let mut sum = 0.0;
+        let sample_count = 44_100;
+        let start = std::time::Instant::now();
+
+        for sample_idx in 0..sample_count {
+            let t = sample_idx as f32 / 44_100.0;
+            let chord = (std::f32::consts::TAU * 196.0 * t).sin()
+                + (std::f32::consts::TAU * 247.0 * t).sin() * 0.7
+                + (std::f32::consts::TAU * 330.0 * t).sin() * 0.45;
+            let pick = if sample_idx % 1_571 < 80 { 1.35 } else { 1.0 };
+            sum += amp.process(chord * 0.055 * pick, controls);
+        }
+
+        let elapsed = start.elapsed();
+        assert!(sum.is_finite());
+        assert!(
+            elapsed < std::time::Duration::from_millis(4_000),
+            "elapsed={elapsed:?} for {sample_count} nox30 samples"
+        );
+    }
+
+    #[test]
+    fn reset_preserves_selected_model() {
+        let mut controls = controls();
+        controls.volume = 0.8;
+        controls.drive = 0.6;
+        controls.presence = 0.5;
+
+        let mut reset_boxer = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
+        reset_boxer.reset();
+        let mut fresh_boxer = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
+        let mut nox30 = VoxAmp::new(48_000.0);
+
+        let mut reset_sum = 0.0;
+        let mut fresh_sum = 0.0;
+        let mut nox30_sum = 0.0;
+        for sample_idx in 0..2_048 {
+            let input = (std::f32::consts::TAU * 440.0 * sample_idx as f32 / 48_000.0).sin() * 0.2;
+            let reset_output = reset_boxer.process(input, controls);
+            let fresh_output = fresh_boxer.process(input, controls);
+            let nox30_output = nox30.process(input, controls);
+            if sample_idx >= 512 {
+                reset_sum += reset_output * reset_output;
+                fresh_sum += fresh_output * fresh_output;
+                nox30_sum += nox30_output * nox30_output;
+            }
+        }
+
+        assert!((reset_sum - fresh_sum).abs() < 1e-6);
+        assert!((reset_sum - nox30_sum).abs() > 1e-4);
+    }
+
+    #[test]
+    fn bass_control_changes_low_frequency_response() {
+        let mut low_bass = controls();
+        low_bass.bass = 0.0;
+        let mut high_bass = low_bass;
+        high_bass.bass = 1.0;
+
+        let low = sine_rms(&mut VoxAmp::new(48_000.0), 250.0, low_bass);
+        let high = sine_rms(&mut VoxAmp::new(48_000.0), 250.0, high_bass);
+        assert!(
+            high > low * 1.2,
+            "low-bass level={low}, high-bass level={high}"
+        );
+    }
+
+    #[test]
+    fn cut_control_reduces_high_frequency_response() {
+        let mut open = controls();
+        open.cut = 0.0;
+        let mut cut = open;
+        cut.cut = 1.0;
+
+        let open_level = sine_rms(&mut VoxAmp::new(48_000.0), 5_000.0, open);
+        let cut_level = sine_rms(&mut VoxAmp::new(48_000.0), 5_000.0, cut);
+        assert!(open_level > cut_level * 1.4);
+    }
+
+    #[test]
+    fn treble_control_changes_high_frequency_response() {
+        let mut low_treble = controls();
+        low_treble.volume = 0.1;
+        low_treble.treble = 0.0;
+        let mut high_treble = low_treble;
+        high_treble.treble = 1.0;
+
+        let low = sine_rms(&mut VoxAmp::new(48_000.0), 4_000.0, low_treble);
+        let high = sine_rms(&mut VoxAmp::new(48_000.0), 4_000.0, high_treble);
+        assert!(high > low * 1.2);
+    }
+
+    #[test]
+    fn tone_stack_is_passive() {
+        for frequency in [80.0, 500.0, 2_000.0, 8_000.0] {
+            for bass in [0.0, 0.5, 1.0] {
+                for treble in [0.0, 0.5, 1.0] {
+                    assert!(tone_stack_rms(frequency, bass, treble) <= 1.0 / 2.0_f32.sqrt());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tone_stack_blocks_dc() {
+        let mut stack = TopBoostToneStack::new(96_000.0);
+        let mut output = 0.0;
+        for _ in 0..96_000 {
+            output = stack.process(1.0, 0.5, 0.5);
+        }
+        assert!(output.abs() < 1e-3, "settled_output={output}");
+    }
+
+    #[test]
+    fn tone_stack_controls_are_interactive() {
+        let bass_effect_with_low_treble =
+            tone_stack_rms(90.0, 1.0, 0.0) / tone_stack_rms(90.0, 0.0, 0.0);
+        let bass_effect_with_high_treble =
+            tone_stack_rms(90.0, 1.0, 1.0) / tone_stack_rms(90.0, 0.0, 1.0);
+
+        assert!(
+            (bass_effect_with_low_treble - bass_effect_with_high_treble).abs() > 0.1,
+            "bass effects: low treble={bass_effect_with_low_treble}, high treble={bass_effect_with_high_treble}"
+        );
+    }
+
+    #[test]
+    fn tone_stack_boundary_impedance_changes_response() {
+        let normal = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 220_000.0);
+        let loaded_source = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 50_000.0, 220_000.0);
+        let heavy_load = tone_stack_rms_with_boundary(1_000.0, 0.55, 0.60, 820.0, 47_000.0);
+
+        assert!(
+            (normal - loaded_source).abs() > normal * 0.05,
+            "normal={normal}, loaded_source={loaded_source}"
+        );
+        assert!(
+            (normal - heavy_load).abs() > normal * 0.05,
+            "normal={normal}, heavy_load={heavy_load}"
+        );
+    }
+
+    #[test]
+    fn cathode_follower_preserves_small_signal_dynamics() {
+        let quiet = cathode_follower(0.1);
+        let loud = cathode_follower(0.2);
+        assert!(loud / quiet > 1.95);
+    }
+
+    #[test]
+    fn clean_setting_preserves_pick_dynamics() {
+        let mut clean = controls();
+        clean.volume = 0.28;
+
+        let quiet = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.025, clean);
+        let loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.05, clean);
+        assert!(loud > quiet * 1.8);
+    }
+
+    #[test]
+    fn volume_does_not_change_fixed_power_stage_gain() {
+        let mut low = controls();
+        low.volume = 0.2;
+        let mut high = low;
+        high.volume = 0.4;
+
+        let low_level = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.01, low);
+        let high_level = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.01, high);
+        assert!(high_level > low_level * 2.5);
+        assert!(high_level < low_level * 6.0);
+    }
+
+    #[test]
+    fn fully_driven_setting_compresses_more_than_clean() {
+        let mut clean = controls();
+        clean.volume = 0.32;
+        let mut driven = clean;
+        driven.volume = 1.0;
+
+        let clean_quiet = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.05, clean);
+        let clean_loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.10, clean);
+        let driven_quiet = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.05, driven);
+        let driven_loud = sine_rms_at(&mut VoxAmp::new(48_000.0), 440.0, 0.10, driven);
+
+        assert!(clean_loud / clean_quiet > driven_loud / driven_quiet);
+    }
+
+    #[test]
+    fn oversampling_latency_matches_reported_latency() {
+        let coefficients = half_band_coefficients();
+        let mut upsampler = FirFilter::new(coefficients);
+        let mut downsampler = FirFilter::new(coefficients);
+        let mut output = Vec::new();
+
+        for sample_idx in 0..64 {
+            let first = upsampler.process((sample_idx == 0) as u8 as f32 * OVERSAMPLING_FACTOR);
+            output.push(downsampler.process(first));
+            let second = upsampler.process(0.0);
+            downsampler.process(second);
+        }
+
+        let peak = output
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
+            .unwrap()
+            .0;
+        assert_eq!(peak, AMP_LATENCY);
+    }
+
+    #[test]
+    fn oversampling_reduces_high_frequency_aliasing() {
+        const SAMPLE_RATE: f32 = 48_000.0;
+        const INPUT_FREQUENCY: f32 = 10_000.0;
+        const ALIAS_FREQUENCY: f32 = 18_000.0;
+        const SAMPLES: usize = 24_000;
+
+        let mut driven = controls();
+        driven.volume = 1.0;
+        driven.treble = 1.0;
+        driven.cut = 0.0;
+
+        let mut base_rate = AmpCore::new_with_model(SAMPLE_RATE, "boxer-seven-lead");
+        let mut oversampled = VoxAmp::with_model(SAMPLE_RATE, "boxer-seven-lead");
+        let mut base_output = Vec::with_capacity(SAMPLES);
+        let mut oversampled_output = Vec::with_capacity(SAMPLES);
+        for sample_idx in 0..SAMPLES {
+            let input = (std::f32::consts::TAU * INPUT_FREQUENCY * sample_idx as f32 / SAMPLE_RATE)
+                .sin()
+                * 0.35;
+            base_output.push(base_rate.process(input, driven));
+            oversampled_output.push(oversampled.process(input, driven));
+        }
+
+        let base_alias = tone_magnitude(&base_output[SAMPLES / 2..], ALIAS_FREQUENCY, SAMPLE_RATE);
+        let oversampled_alias = tone_magnitude(
+            &oversampled_output[SAMPLES / 2..],
+            ALIAS_FREQUENCY,
+            SAMPLE_RATE,
+        );
+        assert!(
+            oversampled_alias < base_alias * 0.5,
+            "alias magnitude: base={base_alias}, oversampled={oversampled_alias}"
+        );
+    }
+
+    fn tone_magnitude(samples: &[f32], frequency: f32, sample_rate: f32) -> f32 {
+        let (real, imaginary) =
+            samples
+                .iter()
+                .enumerate()
+                .fold((0.0, 0.0), |(real, imaginary), (index, sample)| {
+                    let phase = std::f32::consts::TAU * frequency * index as f32 / sample_rate;
+                    (
+                        real + sample * phase.cos(),
+                        imaginary - sample * phase.sin(),
+                    )
+                });
+        (real * real + imaginary * imaginary).sqrt() * 2.0 / samples.len() as f32
+    }
+
+    fn load_test_guitar_wav() -> Vec<f32> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lab/references/tone3000-inputs/Brit - Guitar.wav");
+        if !path.exists() {
+            return generated_test_guitar_signal();
+        }
+        let mut reader = hound::WavReader::open(path).unwrap();
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 48_000);
+        let channels = spec.channels as usize;
+        assert!(channels >= 1);
+
+        match spec.sample_format {
+            hound::SampleFormat::Float => reader
+                .samples::<f32>()
+                .enumerate()
+                .filter_map(|(index, sample)| (index % channels == 0).then(|| sample.unwrap()))
+                .collect(),
+            hound::SampleFormat::Int => {
+                let scale = 2.0_f32.powi(spec.bits_per_sample as i32 - 1);
+                reader
+                    .samples::<i32>()
+                    .enumerate()
+                    .filter_map(|(index, sample)| {
+                        (index % channels == 0).then(|| sample.unwrap() as f32 / scale)
+                    })
+                    .collect()
+            }
+        }
+    }
+
+    fn generated_test_guitar_signal() -> Vec<f32> {
+        let sample_rate = 48_000.0;
+        let length = sample_rate as usize;
+        (0..length)
+            .map(|index| {
+                let t = index as f32 / sample_rate;
+                let envelope = (-2.6 * (t % 0.5)).exp();
+                let fundamental = (std::f32::consts::TAU * 110.0 * t).sin();
+                let second = (std::f32::consts::TAU * 220.0 * t + 0.2).sin() * 0.42;
+                let third = (std::f32::consts::TAU * 330.0 * t + 0.7).sin() * 0.18;
+                let pick =
+                    (std::f32::consts::TAU * 1_760.0 * t).sin() * (-80.0 * (t % 0.5)).exp() * 0.08;
+                (fundamental + second + third) * envelope * 0.08 + pick
+            })
+            .collect()
+    }
+}

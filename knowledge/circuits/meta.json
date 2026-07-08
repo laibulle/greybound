@@ -1,0 +1,15 @@
+{
+  "title": "Circuits",
+  "pages": [
+    "index",
+    "modeling-primitives",
+    "nonlinear-solvers",
+    "passive-networks",
+    "tone-stacks",
+    "coupling-and-bias",
+    "tube-stages",
+    "bjt-stages",
+    "supply-sag",
+    "validation"
+  ]
+}
