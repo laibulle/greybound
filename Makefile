@@ -128,6 +128,11 @@ DESKTOP_APP_NAME ?= Greybound Free
 DESKTOP_BUNDLE_ID ?= dev.greybound.free
 DESKTOP_APP_DIR ?= target/release/bundle/macos/$(DESKTOP_APP_NAME).app
 DESKTOP_APP_ICON ?= desktop/assets/husky-app-icon.icns
+DESKTOP_RESOURCES_DIR ?= desktop/resources
+DESKTOP_DIST_DIR ?= target/release/dist
+DESKTOP_DMG_STAGING_DIR ?= $(DESKTOP_DIST_DIR)/dmg
+DESKTOP_DMG ?= $(DESKTOP_DIST_DIR)/$(DESKTOP_APP_NAME).dmg
+DESKTOP_DMG_VOLUME_NAME ?= $(DESKTOP_APP_NAME)
 DESKTOP_CODESIGN_IDENTITY ?= -
 
 IR_FLAG = $(if $(filter 0 false no off,$(IR)),,$(if $(filter 1 true yes on,$(IR)),--ir "$(IR_WAV)",--ir "$(IR)"))
@@ -200,6 +205,9 @@ desktop-package:
 	mkdir -p "$(DESKTOP_APP_DIR)/Contents/MacOS" "$(DESKTOP_APP_DIR)/Contents/Resources"
 	cp "$(DESKTOP)" "$(DESKTOP_APP_DIR)/Contents/MacOS/greybound-free"
 	cp "$(DESKTOP_APP_ICON)" "$(DESKTOP_APP_DIR)/Contents/Resources/husky-app-icon.icns"
+	@if [ -d "$(DESKTOP_RESOURCES_DIR)" ]; then \
+		ditto "$(DESKTOP_RESOURCES_DIR)" "$(DESKTOP_APP_DIR)/Contents/Resources"; \
+	fi
 	@{ \
 		printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'; \
 		printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'; \
@@ -237,6 +245,18 @@ desktop-package:
 	printf 'APPL????' > "$(DESKTOP_APP_DIR)/Contents/PkgInfo"
 	codesign --force --deep --sign "$(DESKTOP_CODESIGN_IDENTITY)" "$(DESKTOP_APP_DIR)"
 	@echo "Packaged $(DESKTOP_APP_DIR)"
+
+desktop-dmg: desktop-package
+	rm -rf "$(DESKTOP_DMG_STAGING_DIR)" "$(DESKTOP_DMG)"
+	mkdir -p "$(DESKTOP_DMG_STAGING_DIR)"
+	ditto "$(DESKTOP_APP_DIR)" "$(DESKTOP_DMG_STAGING_DIR)/$(DESKTOP_APP_NAME).app"
+	ln -s /Applications "$(DESKTOP_DMG_STAGING_DIR)/Applications"
+	hdiutil create -volname "$(DESKTOP_DMG_VOLUME_NAME)" \
+		-srcfolder "$(DESKTOP_DMG_STAGING_DIR)" \
+		-ov -format UDZO "$(DESKTOP_DMG)"
+	@echo "Packaged $(DESKTOP_DMG)"
+
+desktop-dist: desktop-dmg
 
 desktop-package-open: desktop-package
 	open "$(DESKTOP_APP_DIR)"
@@ -554,4 +574,4 @@ site-deploy: landing-deploy docs-deploy
 
 vercel-deploy: landing-deploy
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-render-nam lab-render-none-star-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-render-nam lab-render-none-star-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
