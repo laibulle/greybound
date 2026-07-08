@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::Stream;
 use greybound::ir::SpeakerStage;
@@ -6,8 +6,9 @@ use greybound::{
     AmpControls, DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
     MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
 };
-use greybound_ui::{AppProfile, GreyboundUi, RuntimeDeviceSection};
+use greybound_ui::{AppProfile, AudioInputSource, GreyboundUi, RuntimeDeviceSection};
 use rtrb::{Consumer, RingBuffer};
+use std::path::Path;
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     Arc,
@@ -23,8 +24,9 @@ use crate::audio_devices::{
 const RMS_SCALE: f64 = 1_000_000_000.0;
 
 pub(crate) struct LiveAudioEngine {
-    _input_stream: Stream,
+    _input_stream: Option<Stream>,
     _output_stream: Stream,
+    _file_playback_worker: Option<FilePlaybackWorker>,
     _tuner_worker: TunerAnalysisWorker,
     controls: SharedRuntimeControls,
     meters: Arc<MeterStats>,
@@ -43,11 +45,8 @@ impl LiveAudioEngine {
         let host = cpal::default_host();
         let sample_rate = ui.audio_settings.sample_rate;
         let period_size = ui.audio_settings.period_size;
-        let input_device =
-            selected_or_default_input(&host, ui.audio_settings.selected_input.as_deref())?;
         let output_device =
             selected_or_default_output(&host, ui.audio_settings.selected_output.as_deref())?;
-        let input_device_name = device_name(&input_device);
         let output_device_name = device_name(&output_device);
         let output_range = select_config(
             output_device.supported_output_configs()?,
@@ -55,15 +54,7 @@ impl LiveAudioEngine {
             period_size,
             "output",
         )?;
-        let input_range = select_config(
-            input_device.supported_input_configs()?,
-            sample_rate,
-            period_size,
-            "input",
-        )?;
         let output_config = stream_config(&output_range, sample_rate, period_size);
-        let input_config = stream_config(&input_range, sample_rate, period_size);
-        let input_channels = input_config.channels as usize;
         let output_channels = output_config.channels as usize;
         let (mut producer, consumer) = RingBuffer::<f32>::new(period_size as usize * 16);
         let (mut tuner_producer, tuner_consumer) =
@@ -78,19 +69,55 @@ impl LiveAudioEngine {
             tuner.clone(),
         );
 
-        let input_name = input_device_name.clone();
-        let input_stream = input_device.build_input_stream(
-            &input_config,
-            move |data: &[f32], _| {
-                for frame in data.chunks_exact(input_channels) {
-                    let sample = frame[0];
-                    let _ = producer.push(sample);
-                    let _ = tuner_producer.push(sample);
-                }
-            },
-            move |error| eprintln!("Greybound input stream error on {input_name}: {error}"),
-            None,
-        )?;
+        let (input_stream, file_playback_worker, input_device_name) = match ui
+            .audio_settings
+            .input_source
+        {
+            AudioInputSource::LiveInput => {
+                let input_device =
+                    selected_or_default_input(&host, ui.audio_settings.selected_input.as_deref())?;
+                let input_device_name = device_name(&input_device);
+                let input_range = select_config(
+                    input_device.supported_input_configs()?,
+                    sample_rate,
+                    period_size,
+                    "input",
+                )?;
+                let input_config = stream_config(&input_range, sample_rate, period_size);
+                let input_channels = input_config.channels as usize;
+                let input_name = input_device_name.clone();
+                let input_stream = input_device.build_input_stream(
+                    &input_config,
+                    move |data: &[f32], _| {
+                        for frame in data.chunks_exact(input_channels) {
+                            let sample = frame[0];
+                            let _ = producer.push(sample);
+                            let _ = tuner_producer.push(sample);
+                        }
+                    },
+                    move |error| eprintln!("Greybound input stream error on {input_name}: {error}"),
+                    None,
+                )?;
+                (Some(input_stream), None, input_device_name)
+            }
+            AudioInputSource::WavFile => {
+                let path = ui
+                    .audio_settings
+                    .wav_path
+                    .as_ref()
+                    .context("choose a WAV file before switching to WAV source")?;
+                let file = WavPlaybackBuffer::load(path, sample_rate)?;
+                let label = file.label.clone();
+                let worker = FilePlaybackWorker::start(
+                    file,
+                    producer,
+                    tuner_producer,
+                    sample_rate,
+                    period_size,
+                );
+                (None, Some(worker), format!("WAV {label}"))
+            }
+        };
 
         let output_controls = controls.clone();
         let output_meters = meters.clone();
@@ -116,12 +143,15 @@ impl LiveAudioEngine {
             None,
         )?;
 
-        input_stream.play()?;
+        if let Some(input_stream) = &input_stream {
+            input_stream.play()?;
+        }
         output_stream.play()?;
 
         Ok(Self {
             _input_stream: input_stream,
             _output_stream: output_stream,
+            _file_playback_worker: file_playback_worker,
             _tuner_worker: tuner_worker,
             controls,
             meters,
@@ -163,9 +193,158 @@ impl LiveAudioEngine {
 
     pub(crate) fn shutdown(self) {
         let _ = self._output_stream.pause();
-        let _ = self._input_stream.pause();
+        if let Some(input_stream) = &self._input_stream {
+            let _ = input_stream.pause();
+        }
         drop(self);
         thread::sleep(Duration::from_millis(50));
+    }
+}
+
+struct WavPlaybackBuffer {
+    label: String,
+    samples: Vec<f32>,
+}
+
+impl WavPlaybackBuffer {
+    fn load(path: &Path, target_sample_rate: u32) -> Result<Self> {
+        let mut reader = hound::WavReader::open(path)
+            .with_context(|| format!("failed to open WAV file {}", path.display()))?;
+        let spec = reader.spec();
+        let channels = spec.channels.max(1) as usize;
+        let mono = match spec.sample_format {
+            hound::SampleFormat::Float => {
+                let samples = reader
+                    .samples::<f32>()
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .context("failed to read floating-point WAV samples")?;
+                mix_interleaved_to_mono(&samples, channels)
+            }
+            hound::SampleFormat::Int => {
+                if spec.bits_per_sample <= 16 {
+                    let samples = reader
+                        .samples::<i16>()
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                        .context("failed to read 16-bit WAV samples")?;
+                    let samples: Vec<f32> = samples
+                        .into_iter()
+                        .map(|sample| sample as f32 / i16::MAX as f32)
+                        .collect();
+                    mix_interleaved_to_mono(&samples, channels)
+                } else {
+                    let scale = ((1_i64 << (spec.bits_per_sample - 1)) - 1) as f32;
+                    let samples = reader
+                        .samples::<i32>()
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                        .context("failed to read high-bit-depth WAV samples")?;
+                    let samples: Vec<f32> = samples
+                        .into_iter()
+                        .map(|sample| sample as f32 / scale)
+                        .collect();
+                    mix_interleaved_to_mono(&samples, channels)
+                }
+            }
+        };
+        let samples = resample_linear(&mono, spec.sample_rate, target_sample_rate);
+        if samples.is_empty() {
+            anyhow::bail!("WAV file {} contains no audio samples", path.display());
+        }
+
+        Ok(Self {
+            label: path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("file")
+                .to_string(),
+            samples,
+        })
+    }
+}
+
+fn mix_interleaved_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
+    if channels <= 1 {
+        return samples
+            .iter()
+            .copied()
+            .map(|sample| sample.clamp(-1.0, 1.0))
+            .collect();
+    }
+
+    samples
+        .chunks_exact(channels)
+        .map(|frame| (frame.iter().sum::<f32>() / channels as f32).clamp(-1.0, 1.0))
+        .collect()
+}
+
+fn resample_linear(samples: &[f32], source_sample_rate: u32, target_sample_rate: u32) -> Vec<f32> {
+    if samples.is_empty() || source_sample_rate == 0 || target_sample_rate == 0 {
+        return Vec::new();
+    }
+    if source_sample_rate == target_sample_rate {
+        return samples.to_vec();
+    }
+
+    let output_len = ((samples.len() as u64 * target_sample_rate as u64)
+        / source_sample_rate as u64)
+        .max(1) as usize;
+    let ratio = source_sample_rate as f64 / target_sample_rate as f64;
+    (0..output_len)
+        .map(|index| {
+            let source_position = index as f64 * ratio;
+            let base = source_position.floor() as usize;
+            let next = (base + 1).min(samples.len() - 1);
+            let fraction = (source_position - base as f64) as f32;
+            samples[base] * (1.0 - fraction) + samples[next] * fraction
+        })
+        .collect()
+}
+
+struct FilePlaybackWorker {
+    stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl FilePlaybackWorker {
+    fn start(
+        file: WavPlaybackBuffer,
+        mut producer: rtrb::Producer<f32>,
+        mut tuner_producer: rtrb::Producer<f32>,
+        sample_rate: u32,
+        period_size: u32,
+    ) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop.clone();
+        let handle = thread::spawn(move || {
+            let samples = file.samples;
+            let mut position = 0usize;
+            let chunk_size = period_size.max(16) as usize;
+            let chunk_duration =
+                Duration::from_secs_f64(chunk_size as f64 / sample_rate.max(1) as f64);
+
+            while !worker_stop.load(Ordering::Relaxed) {
+                for _ in 0..chunk_size {
+                    let sample = samples[position];
+                    let _ = producer.push(sample);
+                    let _ = tuner_producer.push(sample);
+                    position = (position + 1) % samples.len();
+                }
+                thread::sleep(chunk_duration);
+            }
+        });
+
+        Self {
+            stop,
+            handle: Some(handle),
+        }
+    }
+}
+
+impl Drop for FilePlaybackWorker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
     }
 }
 

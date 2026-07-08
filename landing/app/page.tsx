@@ -215,6 +215,27 @@ const subtletyPoints = [
   },
 ];
 
+const productScreens = [
+  {
+    title: "Pedal chain",
+    text: "Gain stages, bypass state, and level choices stay visible while the model runs.",
+    src: "/product/desktop-minotaur.webp",
+    alt: "Greybound desktop Minotaur pedal view",
+  },
+  {
+    title: "FX loop",
+    text: "Time and ambience blocks live in the same inspectable signal path.",
+    src: "/product/desktop-springfield.webp",
+    alt: "Greybound desktop Springfield reverb view",
+  },
+  {
+    title: "Tone shaping",
+    text: "Output EQ and filtering are part of the repeatable demo workflow.",
+    src: "/product/desktop-eq.webp",
+    alt: "Greybound desktop equalizer view",
+  },
+];
+
 export default function Home() {
   return (
     <main>
@@ -246,6 +267,7 @@ export default function Home() {
             <span>Greybound</span>
           </a>
           <nav aria-label="Primary navigation">
+            <a href="#desktop-alpha">App</a>
             <a href="#engine">Engine</a>
             <a href="#method">Method</a>
             <a href="#rigs">Rigs</a>
@@ -320,6 +342,60 @@ export default function Home() {
             <span>{item.label}</span>
           </div>
         ))}
+      </section>
+
+      <section className="desktopShowcase" id="desktop-alpha" aria-labelledby="desktop-title">
+        <div className="desktopCopy">
+          <p className="sectionKicker">Desktop alpha</p>
+          <h2 id="desktop-title">A real app for testing the greybox chain.</h2>
+          <p>
+            Load the macOS alpha, route live guitar or a WAV file through the
+            current rig, and record repeatable demo passes while changing amp,
+            pedal, cab, doubler, and EQ controls.
+          </p>
+          <div className="desktopActions">
+            <a
+              className="button primary downloadButton"
+              href={DOWNLOAD_URL}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <DownloadIcon size={20} />
+              <span>
+                Download for macOS
+                <small>Apple Silicon alpha</small>
+              </span>
+            </a>
+            <a
+              className="button secondary"
+              href="https://github.com/laibulle/greybound/releases/tag/0.0.1-alpha1"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Release notes
+            </a>
+          </div>
+        </div>
+        <div className="desktopVisuals" aria-label="Greybound desktop screenshots">
+          <figure className="desktopMainShot">
+            <img
+              src="/product/desktop-amp.webp"
+              alt="Greybound desktop amp view showing the Nox30 amp controls"
+            />
+            <figcaption>Nox30 amp view</figcaption>
+          </figure>
+          <div className="desktopShotGrid">
+            {productScreens.map((screen) => (
+              <figure key={screen.title} className="desktopShot">
+                <img src={screen.src} alt={screen.alt} />
+                <figcaption>
+                  <strong>{screen.title}</strong>
+                  <span>{screen.text}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="section intro" id="engine">

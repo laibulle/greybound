@@ -5,10 +5,13 @@ mod windowing;
 
 use audio::LiveAudioEngine;
 use audio_devices::refresh_audio_devices;
-use greybound_ui::{preload_render_assets, GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH};
+use greybound_ui::{
+    preload_render_assets, AudioInputSource, GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH,
+};
 use iced::{Application, Command, Element, Settings, Subscription};
 use mcp_sidecar::AudioLabMcpSidecar;
 use std::io::Cursor;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use windowing::aspect_corrected_size;
 
@@ -136,6 +139,11 @@ impl Application for Desktop {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
+        if matches!(message, Message::LoadWavRequested) {
+            self.ui.update(message);
+            return Command::perform(pick_wav_file(), Message::WavFileSelected);
+        }
+
         if matches!(message, Message::ShutdownRequested) {
             self.shutting_down = true;
             self.stop_audio();
@@ -208,14 +216,19 @@ impl Application for Desktop {
             return Command::none();
         }
 
-        let restart_audio = matches!(
-            &message,
+        let restart_audio = match &message {
             Message::AudioInputSelected(_)
-                | Message::AudioOutputSelected(_)
-                | Message::AudioSampleRateSelected(_)
-                | Message::AudioBufferSizeSelected(_)
-                | Message::SelectAmpModel(_)
-        );
+            | Message::AudioOutputSelected(_)
+            | Message::AudioSampleRateSelected(_)
+            | Message::AudioBufferSizeSelected(_)
+            | Message::WavFileSelected(Some(_))
+            | Message::SelectAmpModel(_) => true,
+            Message::AudioInputSourceSelected(AudioInputSource::LiveInput) => true,
+            Message::AudioInputSourceSelected(AudioInputSource::WavFile) => {
+                self.ui.audio_settings.wav_path.is_some()
+            }
+            _ => false,
+        };
         self.ui.update(message);
         if restart_audio {
             self.stop_audio();
@@ -272,4 +285,12 @@ fn tuner_subscription(open: bool) -> Subscription<Message> {
     } else {
         Subscription::none()
     }
+}
+
+async fn pick_wav_file() -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .add_filter("WAV audio", &["wav", "wave"])
+        .pick_file()
+        .await
+        .map(|file| file.path().to_path_buf())
 }
