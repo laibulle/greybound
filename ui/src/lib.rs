@@ -20,6 +20,7 @@ use iced::widget::{button, column, container, pick_list, row, text, Space};
 use iced::{
     mouse, Alignment, Background, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
 };
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::OnceLock;
 
@@ -360,9 +361,12 @@ pub enum Message {
         value: f32,
     },
     AudioInputSelected(String),
+    AudioInputSourceSelected(AudioInputSource),
     AudioOutputSelected(String),
     AudioSampleRateSelected(String),
     AudioBufferSizeSelected(String),
+    LoadWavRequested,
+    WavFileSelected(Option<PathBuf>),
     AudioDevicesChanged {
         inputs: Vec<String>,
         outputs: Vec<String>,
@@ -1588,10 +1592,12 @@ impl Default for EqState {
 #[derive(Debug, Clone)]
 pub struct AudioSettingsState {
     pub open: bool,
+    pub input_source: AudioInputSource,
     pub inputs: Vec<String>,
     pub outputs: Vec<String>,
     pub selected_input: Option<String>,
     pub selected_output: Option<String>,
+    pub wav_path: Option<PathBuf>,
     pub status: String,
     pub sample_rate: u32,
     pub period_size: u32,
@@ -1603,10 +1609,12 @@ impl Default for AudioSettingsState {
     fn default() -> Self {
         Self {
             open: false,
+            input_source: AudioInputSource::LiveInput,
             inputs: Vec::new(),
             outputs: Vec::new(),
             selected_input: None,
             selected_output: None,
+            wav_path: None,
             status: "Audio engine starting".to_string(),
             sample_rate: 48_000,
             period_size: 32,
@@ -1626,6 +1634,12 @@ impl Default for AudioSettingsState {
             ],
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioInputSource {
+    LiveInput,
+    WavFile,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1824,7 +1838,18 @@ impl GreyboundUi {
             }
             Message::AudioInputSelected(device) => {
                 self.audio_settings.selected_input = Some(device);
+                self.audio_settings.input_source = AudioInputSource::LiveInput;
                 self.audio_settings.status = "Restarting audio engine".to_string();
+            }
+            Message::AudioInputSourceSelected(source) => {
+                self.audio_settings.input_source = source;
+                self.audio_settings.status = match (source, self.audio_settings.wav_path.as_ref()) {
+                    (AudioInputSource::LiveInput, _) => "Restarting audio engine".to_string(),
+                    (AudioInputSource::WavFile, Some(_)) => "Restarting audio engine".to_string(),
+                    (AudioInputSource::WavFile, None) => {
+                        "Choose a WAV file to use file playback".to_string()
+                    }
+                };
             }
             Message::AudioOutputSelected(device) => {
                 self.audio_settings.selected_output = Some(device);
@@ -1840,6 +1865,18 @@ impl GreyboundUi {
                 if let Some(period_size) = parse_prefixed_u32(&value) {
                     self.audio_settings.period_size = period_size;
                     self.audio_settings.status = "Restarting audio engine".to_string();
+                }
+            }
+            Message::LoadWavRequested => {
+                self.audio_settings.status = "Opening WAV file picker".to_string();
+            }
+            Message::WavFileSelected(path) => {
+                if let Some(path) = path {
+                    self.audio_settings.wav_path = Some(path);
+                    self.audio_settings.input_source = AudioInputSource::WavFile;
+                    self.audio_settings.status = "Restarting audio engine".to_string();
+                } else {
+                    self.audio_settings.status = "WAV file selection canceled".to_string();
                 }
             }
             Message::AudioDevicesChanged {
@@ -2168,6 +2205,41 @@ impl GreyboundUi {
         .text_size(self.font(17.0) as f32)
         .padding([self.s(12.0), self.s(14.0)])
         .width(Length::Fixed(self.s(185.0)));
+        let live_selected = settings.input_source == AudioInputSource::LiveInput;
+        let wav_selected = settings.input_source == AudioInputSource::WavFile;
+        let wav_name = settings
+            .wav_path
+            .as_ref()
+            .and_then(|path| path.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or("No WAV loaded");
+        let input_source = row![
+            button(text("LIVE INPUT").size(self.font(15.0)).style(Color::WHITE))
+                .on_press(Message::AudioInputSourceSelected(
+                    AudioInputSource::LiveInput
+                ))
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: live_selected
+                }))
+                .padding([self.s(13.0), self.s(18.0)]),
+            button(text("WAV FILE").size(self.font(15.0)).style(Color::WHITE))
+                .on_press(Message::AudioInputSourceSelected(AudioInputSource::WavFile))
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: wav_selected
+                }))
+                .padding([self.s(13.0), self.s(18.0)]),
+            button(text("LOAD WAV").size(self.font(15.0)).style(Color::WHITE))
+                .on_press(Message::LoadWavRequested)
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: false
+                }))
+                .padding([self.s(13.0), self.s(18.0)]),
+            container(text(wav_name).size(self.font(15.0)).style(Color::WHITE))
+                .width(Length::Fill)
+                .center_y(),
+        ]
+        .spacing(self.s(12.0))
+        .align_items(Alignment::Center);
 
         let content = column![
             row![
@@ -2188,6 +2260,7 @@ impl GreyboundUi {
             ]
             .spacing(self.s(44.0)),
             self.settings_separator(),
+            self.settings_select_field("Input Source", input_source.into(), 846.0),
             row![
                 self.settings_select_field("Audio Input Device", input.into(), 390.0),
                 self.settings_select_field("Audio Output Device", output.into(), 390.0),

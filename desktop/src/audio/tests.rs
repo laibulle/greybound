@@ -182,3 +182,23 @@ fn fully_bypassed_runtime_preserves_live_input() {
         );
     }
 }
+
+#[test]
+fn wav_mix_interleaved_stereo_to_mono_averages_channels() {
+    let mono = mix_interleaved_to_mono(&[1.0, -1.0, 0.5, 0.25], 2);
+
+    assert_eq!(mono.len(), 2);
+    assert!((mono[0] - 0.0).abs() < 1.0e-7);
+    assert!((mono[1] - 0.375).abs() < 1.0e-7);
+}
+
+#[test]
+fn wav_resampler_converts_sample_count_to_target_rate() {
+    let samples = [0.0, 1.0, 0.0, -1.0];
+    let resampled = resample_linear(&samples, 4, 8);
+
+    assert_eq!(resampled.len(), 8);
+    assert!((resampled[0] - 0.0).abs() < 1.0e-7);
+    assert!((resampled[1] - 0.5).abs() < 1.0e-7);
+    assert!((resampled[2] - 1.0).abs() < 1.0e-7);
+}
