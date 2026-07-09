@@ -1,8 +1,12 @@
+mod audio;
+
 use greybound_ui::{preload_render_assets, GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH};
 use iced::{Application, Command, Element, Settings, Subscription};
+use std::time::Duration;
 use wasm_bindgen::prelude::*;
 
 const UI_FONT: &[u8] = include_bytes!("../assets/fonts/Geist-Regular.ttf");
+const METER_REFRESH_MS: u64 = 250;
 
 #[wasm_bindgen]
 pub fn run() {
@@ -49,17 +53,25 @@ impl Application for WebApp {
             width: flags.0,
             height: flags.1,
         });
+        ui.update(Message::AudioDevicesChanged {
+            inputs: vec!["Browser live input".to_string()],
+            outputs: vec!["Browser output".to_string()],
+            selected_input: Some("Browser live input".to_string()),
+            selected_output: Some("Browser output".to_string()),
+            status: "Requesting browser audio permission".to_string(),
+        });
         ui.update(Message::AudioStatusChanged(
-            "Web alpha: shared iced UI running in the browser. Audio engine wiring is next."
-                .to_string(),
+            "Requesting browser audio permission".to_string(),
         ));
+        let snapshot = audio::WebAudioSnapshot::from_ui(&ui);
         (
             Self { ui },
-            iced::font::load(UI_FONT).map(|_| {
-                Message::AudioStatusChanged(
-                    "Web alpha: shared iced UI running in the browser.".to_string(),
-                )
-            }),
+            Command::batch([
+                iced::font::load(UI_FONT).map(|_| {
+                    Message::AudioStatusChanged("Starting WebAudio live input".to_string())
+                }),
+                start_audio_command(snapshot),
+            ]),
         )
     }
 
@@ -68,13 +80,36 @@ impl Application for WebApp {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
+        if let Message::MeterProbeTick(_) = message {
+            let (input, output_left, output_right) = audio::meter_levels();
+            self.ui.update(Message::MeterLevelsChanged {
+                input,
+                output_left,
+                output_right,
+            });
+            return Command::none();
+        }
+
+        let restart_audio = should_restart_audio(&message);
+        let update_audio_controls = should_update_audio_controls(&message);
         match message {
             Message::LoadWavRequested => {
                 self.ui.update(Message::AudioStatusChanged(
-                    "Browser WAV loading will be wired through Web Audio.".to_string(),
+                    "Browser WAV playback is not wired yet; live input is active.".to_string(),
                 ));
             }
-            Message::ShutdownRequested => {}
+            Message::AudioInputSourceSelected(greybound_ui::AudioInputSource::WavFile) => {
+                self.ui.update(Message::AudioInputSourceSelected(
+                    greybound_ui::AudioInputSource::WavFile,
+                ));
+                audio::stop();
+                self.ui.update(Message::AudioStatusChanged(
+                    "Browser WAV playback is not wired yet; live input stopped.".to_string(),
+                ));
+            }
+            Message::ShutdownRequested => {
+                audio::stop();
+            }
             Message::WindowResized { width, height } => {
                 self.ui.update(Message::WindowResized { width, height });
             }
@@ -82,6 +117,18 @@ impl Application for WebApp {
                 self.ui.update(message);
             }
         }
+
+        if restart_audio {
+            self.ui.update(Message::AudioStatusChanged(
+                "Restarting WebAudio live input".to_string(),
+            ));
+            return start_audio_command(audio::WebAudioSnapshot::from_ui(&self.ui));
+        }
+
+        if update_audio_controls {
+            audio::store_controls_from_ui(&self.ui);
+        }
+
         Command::none()
     }
 
@@ -90,11 +137,61 @@ impl Application for WebApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        iced::subscription::events_with(|event, _status| match event {
-            iced::Event::Window(iced::window::Event::Resized { width, height }) => {
-                Some(Message::WindowResized { width, height })
-            }
-            _ => None,
-        })
+        Subscription::batch([
+            iced::subscription::events_with(|event, _status| match event {
+                iced::Event::Window(iced::window::Event::Resized { width, height }) => {
+                    Some(Message::WindowResized { width, height })
+                }
+                _ => None,
+            }),
+            iced::time::every(Duration::from_millis(METER_REFRESH_MS))
+                .map(|_| Message::MeterProbeTick(std::time::Instant::now())),
+        ])
     }
+}
+
+fn start_audio_command(snapshot: audio::WebAudioSnapshot) -> Command<Message> {
+    Command::perform(audio::start(snapshot), |result| {
+        Message::AudioStatusChanged(match result {
+            Ok(status) => status,
+            Err(error) => format!("WebAudio unavailable: {error}"),
+        })
+    })
+}
+
+fn should_restart_audio(message: &Message) -> bool {
+    match message {
+        Message::AudioInputSelected(_)
+        | Message::AudioOutputSelected(_)
+        | Message::AudioSampleRateSelected(_)
+        | Message::AudioBufferSizeSelected(_)
+        | Message::SelectAmpModel(_) => true,
+        Message::AudioInputSourceSelected(source) => {
+            *source == greybound_ui::AudioInputSource::LiveInput
+        }
+        _ => false,
+    }
+}
+
+fn should_update_audio_controls(message: &Message) -> bool {
+    matches!(
+        message,
+        Message::ToggleDoubler
+            | Message::ToggleEq
+            | Message::SetEqHpf(_)
+            | Message::SetEqLpf(_)
+            | Message::SetEqBand { .. }
+            | Message::ToggleDeviceBypass(_)
+            | Message::ToggleBypass(_)
+            | Message::SetDeviceControl { .. }
+            | Message::SetGlobalControl { .. }
+            | Message::GainChanged(_)
+            | Message::DriveChanged(_)
+            | Message::BassChanged(_)
+            | Message::TrebleChanged(_)
+            | Message::CutChanged(_)
+            | Message::PresenceChanged(_)
+            | Message::SagChanged(_)
+            | Message::MasterChanged(_)
+    )
 }

@@ -2245,7 +2245,7 @@ impl GreyboundUi {
             row![
                 self.settings_field(
                     "Audio Device Type",
-                    text("CoreAudio")
+                    text(audio_device_type_label(settings))
                         .size(self.font(18.0))
                         .style(Color::WHITE)
                         .into()
@@ -2879,6 +2879,22 @@ fn snap_eq_filter_value(value: f32) -> f32 {
         0.0
     } else {
         value
+    }
+}
+
+fn audio_device_type_label(settings: &AudioSettingsState) -> &'static str {
+    if settings
+        .selected_input
+        .as_deref()
+        .is_some_and(|input| input.starts_with("Browser "))
+        || settings
+            .selected_output
+            .as_deref()
+            .is_some_and(|output| output.starts_with("Browser "))
+    {
+        "WebAudio"
+    } else {
+        "CoreAudio"
     }
 }
 

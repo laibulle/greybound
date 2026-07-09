@@ -1858,9 +1858,12 @@ name = "greybound-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "greybound",
  "greybound-ui",
  "iced",
+ "js-sys",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
