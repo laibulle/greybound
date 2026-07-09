@@ -4,6 +4,7 @@ use greybound::{
     MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
 };
 use greybound_ui::{AppProfile, GreyboundUi, RuntimeDeviceSection};
+use js_sys::{Object, Reflect};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -88,7 +89,7 @@ impl WebAudioEngine {
             web_sys::window().ok_or_else(|| JsValue::from_str("missing browser window"))?;
         let media_devices = window.navigator().media_devices()?;
         let constraints = MediaStreamConstraints::new();
-        constraints.set_audio(&JsValue::TRUE);
+        constraints.set_audio(&raw_audio_constraints()?);
         constraints.set_video(&JsValue::FALSE);
         let stream_value =
             JsFuture::from(media_devices.get_user_media_with_constraints(&constraints)?).await?;
@@ -202,14 +203,37 @@ fn process_audio_event(
 
 fn supported_script_processor_size(period_size: u32) -> u32 {
     match period_size {
-        0..=256 => 256,
-        257..=512 => 512,
-        513..=1024 => 1024,
+        0..=1024 => 1024,
         1025..=2048 => 2048,
         2049..=4096 => 4096,
         4097..=8192 => 8192,
         _ => 16_384,
     }
+}
+
+fn raw_audio_constraints() -> Result<JsValue, JsValue> {
+    let audio = Object::new();
+    Reflect::set(
+        &audio,
+        &JsValue::from_str("echoCancellation"),
+        &JsValue::FALSE,
+    )?;
+    Reflect::set(
+        &audio,
+        &JsValue::from_str("noiseSuppression"),
+        &JsValue::FALSE,
+    )?;
+    Reflect::set(
+        &audio,
+        &JsValue::from_str("autoGainControl"),
+        &JsValue::FALSE,
+    )?;
+    Reflect::set(
+        &audio,
+        &JsValue::from_str("channelCount"),
+        &JsValue::from_f64(1.0),
+    )?;
+    Ok(audio.into())
 }
 
 fn js_error_message(error: JsValue) -> String {
