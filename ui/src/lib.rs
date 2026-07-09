@@ -2245,7 +2245,7 @@ impl GreyboundUi {
             row![
                 self.settings_field(
                     "Audio Device Type",
-                    text("CoreAudio")
+                    text(audio_device_type_label(settings))
                         .size(self.font(18.0))
                         .style(Color::WHITE)
                         .into()
@@ -2882,6 +2882,22 @@ fn snap_eq_filter_value(value: f32) -> f32 {
     }
 }
 
+fn audio_device_type_label(settings: &AudioSettingsState) -> &'static str {
+    if settings
+        .selected_input
+        .as_deref()
+        .is_some_and(|input| input.starts_with("Browser "))
+        || settings
+            .selected_output
+            .as_deref()
+            .is_some_and(|output| output.starts_with("Browser "))
+    {
+        "WebAudio"
+    } else {
+        "CoreAudio"
+    }
+}
+
 fn log_lerp(min: f32, max: f32, t: f32) -> f32 {
     min * (max / min).powf(t.clamp(0.0, 1.0))
 }
@@ -3354,7 +3370,7 @@ impl<'a> From<EqCanvas> for Element<'a, Message> {
 }
 
 fn draw_board_assets(renderer: &mut iced::Renderer, art: &BoardArt, bounds: Size) {
-    if art.circuit_view {
+    if art.circuit_view || !render_assets_enabled() {
         return;
     }
 
@@ -3383,7 +3399,7 @@ fn draw_board_assets(renderer: &mut iced::Renderer, art: &BoardArt, bounds: Size
 }
 
 fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, bounds: Size) {
-    if art.circuit_view {
+    if art.circuit_view || !render_assets_enabled() {
         return;
     }
 
@@ -3451,6 +3467,10 @@ fn draw_eq_background(renderer: &iced::Renderer, art: &EqArt, bounds: Size) -> G
 }
 
 fn draw_eq_panel_asset(renderer: &mut iced::Renderer, scale: f32) {
+    if !render_assets_enabled() {
+        return;
+    }
+
     let asset = RenderAssetSpec {
         path: "assets/effects/eq-rose-gold-clean-v2@2x.png",
         format: RenderAssetFormat::PngRgba,
@@ -3473,6 +3493,10 @@ fn draw_eq_panel_asset(renderer: &mut iced::Renderer, scale: f32) {
 }
 
 fn draw_eq_slider_cap_assets(renderer: &mut iced::Renderer, art: &EqArt) {
+    if !render_assets_enabled() {
+        return;
+    }
+
     let asset = RenderAssetSpec {
         path: "assets/effects/eq-slider-cap-v2@2x.png",
         format: RenderAssetFormat::PngRgba,
@@ -3504,6 +3528,10 @@ fn draw_eq_slider_cap_assets(renderer: &mut iced::Renderer, art: &EqArt) {
 }
 
 fn draw_eq_filter_knob_assets(renderer: &mut iced::Renderer, art: &EqArt) {
+    if !render_assets_enabled() {
+        return;
+    }
+
     let asset = RenderAssetSpec {
         path: "assets/effects/eq-filter-knob-v2@2x.png",
         format: RenderAssetFormat::PngRgba,
@@ -3530,6 +3558,10 @@ fn draw_eq_filter_knob_assets(renderer: &mut iced::Renderer, art: &EqArt) {
 }
 
 fn draw_eq_power_led_asset(renderer: &mut iced::Renderer, art: &EqArt) {
+    if !render_assets_enabled() {
+        return;
+    }
+
     let asset = RenderAssetSpec {
         path: if art.eq.enabled {
             "assets/effects/eq-power-led-on-v2@2x.png"
@@ -3559,6 +3591,10 @@ fn draw_eq_power_led_asset(renderer: &mut iced::Renderer, art: &EqArt) {
 }
 
 fn draw_eq_power_switch_asset(renderer: &mut iced::Renderer, scale: f32) {
+    if !render_assets_enabled() {
+        return;
+    }
+
     let asset = RenderAssetSpec {
         path: "assets/effects/eq-power-switch-v2@2x.png",
         format: RenderAssetFormat::PngRgba,
@@ -3583,7 +3619,7 @@ fn draw_eq_power_switch_asset(renderer: &mut iced::Renderer, scale: f32) {
 }
 
 fn draw_amp_asset(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
-    if art.circuit_view {
+    if art.circuit_view || !render_assets_enabled() {
         return;
     }
 
@@ -3600,7 +3636,7 @@ fn draw_amp_asset(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
 }
 
 fn draw_amp_control_assets(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
-    if art.circuit_view {
+    if art.circuit_view || !render_assets_enabled() {
         return;
     }
 
@@ -3649,6 +3685,10 @@ fn scaled_rectangle(rect: Rectangle, scale: f32) -> Rectangle {
 }
 
 pub fn preload_render_assets() {
+    if !render_assets_enabled() {
+        return;
+    }
+
     const PRELOAD_ASSETS: &[RenderAssetSpec] = &[
         RenderAssetSpec {
             path: "assets/pedals/minotaur-v2@4x.png",
@@ -3767,6 +3807,10 @@ pub fn preload_render_assets() {
     let _ = minotaur_ivory_knob_handles().len();
     let _ = nox30_black_dial_knob_handles().len();
     let _ = springfield_stainless_knob_handles().len();
+}
+
+fn render_assets_enabled() -> bool {
+    true
 }
 
 fn decoded_embedded_png_handle(
@@ -4371,7 +4415,7 @@ impl canvas::Program<Message> for AmpArt {
         let render_spec = amp_render_spec(self.app_profile, self.amp_model);
         if self.circuit_view {
             draw_amp_circuit(&mut frame, logical_size, self.app_profile, self.amp_model);
-        } else if render_spec.asset.is_none() {
+        } else if render_spec.asset.is_none() || !render_assets_enabled() {
             draw_amp_head(&mut frame, logical_size, &self.amp);
         }
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
@@ -6991,7 +7035,7 @@ fn draw_pedal(
     circuit_view: bool,
 ) {
     let render_spec = device_render_spec(app_profile, device.model);
-    let uses_asset = render_spec.asset.is_some() && !circuit_view;
+    let uses_asset = render_assets_enabled() && render_spec.asset.is_some() && !circuit_view;
 
     if !uses_asset {
         let shadow = rounded_rect(

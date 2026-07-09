@@ -122,6 +122,8 @@ LANDING_VERCEL_BUILD_ARGS ?= $(VERCEL_BUILD_ARGS)
 DOCS_VERCEL_BUILD_ARGS ?= $(VERCEL_BUILD_ARGS)
 LANDING_VERCEL_DEPLOY_ARGS ?= $(VERCEL_DEPLOY_ARGS)
 DOCS_VERCEL_DEPLOY_ARGS ?= $(VERCEL_DEPLOY_ARGS)
+WEB_WASM_PUBLIC_OUT ?= landing/public/greybound-web/pkg
+WEB_WASM_OUT ?= ../$(WEB_WASM_PUBLIC_OUT)
 CLI := target/release/greybound-cli
 DESKTOP :=target/release/greybound-free
 DESKTOP_APP_NAME ?= Greybound Free
@@ -577,6 +579,12 @@ lab-evaluate-analytic-common-cathode:
 		--stride "$(ANALYTIC_STRIDE)" \
 		--split "$(NEURAL_EVAL_SPLIT)"
 
+web-wasm:
+	wasm-pack build wasm --target web --out-dir "$(WEB_WASM_OUT)" --release
+	rm -f "$(WEB_WASM_PUBLIC_OUT)/.gitignore"
+
+web-build: web-wasm landing-build
+
 landing-build:
 	npm --prefix landing run build
 
@@ -603,4 +611,4 @@ site-deploy: landing-deploy docs-deploy
 
 vercel-deploy: landing-deploy
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-render-nam lab-render-none-star-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-render-nam lab-render-none-star-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy

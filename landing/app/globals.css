@@ -526,6 +526,44 @@ h1 {
   line-height: 1.48;
 }
 
+.webEmbed {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.38fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 54px);
+  align-items: center;
+  width: min(1360px, calc(100% - 40px));
+  margin-inline: auto;
+  padding: 104px 0 112px;
+  border-bottom: 1px solid var(--line);
+}
+
+.webEmbedCopy {
+  min-width: 0;
+}
+
+.webEmbedCopy p:not(.sectionKicker) {
+  margin: 22px 0 0;
+  color: var(--soft);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.webEmbedCopy .button {
+  margin-top: 28px;
+}
+
+.webEmbedFrame {
+  width: 100%;
+  aspect-ratio: 2048 / 1155;
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0c0f0f;
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(246, 239, 226, 0.06);
+}
+
 .section {
   width: min(1160px, calc(100% - 40px));
   margin-inline: auto;
@@ -1600,6 +1638,7 @@ footer span {
   .boxModelsHeader,
   .boxModelGrid,
   .desktopShowcase,
+  .webEmbed,
   .modelDepth,
   .pillars,
   .signal ol {
@@ -1620,6 +1659,10 @@ footer span {
   }
 
   .desktopShowcase {
+    padding: 72px 0 76px;
+  }
+
+  .webEmbed {
     padding: 72px 0 76px;
   }
 
@@ -1734,6 +1777,10 @@ footer span {
     min-height: 174px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .webEmbedFrame {
+    min-height: 260px;
   }
 
   .waveform {

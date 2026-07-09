@@ -1,0 +1,17 @@
+{
+  "name": "greybound-wasm",
+  "type": "module",
+  "description": "Greybound web app host using the shared iced UI.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "greybound_wasm_bg.wasm",
+    "greybound_wasm.js",
+    "greybound_wasm.d.ts"
+  ],
+  "main": "greybound_wasm.js",
+  "types": "greybound_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

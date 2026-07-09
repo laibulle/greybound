@@ -7,5 +7,5 @@ description = "Shared Greybound desktop UI layer for iced."
 
 [dependencies]
 greybound = { path = "../core", default-features = false }
-iced = { version = "0.10", features = ["advanced", "canvas", "image"] }
+iced = { version = "0.10", default-features = false, features = ["advanced", "canvas", "image"] }
 image = { version = "0.24", default-features = false, features = ["png"] }
