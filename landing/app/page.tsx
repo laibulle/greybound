@@ -268,6 +268,7 @@ export default function Home() {
           </a>
           <nav aria-label="Primary navigation">
             <a href="#web-alpha">Web</a>
+            <a href="/playground">Playground</a>
             <a href="#desktop-alpha">App</a>
             <a href="#engine">Engine</a>
             <a href="#method">Method</a>
@@ -319,7 +320,7 @@ export default function Home() {
             <a className="button secondary" href="#engine">
               Explore the experiment
             </a>
-            <a className="button secondary" href="#web-alpha">
+            <a className="button secondary" href="/playground">
               Try the web app
             </a>
             <a
@@ -357,15 +358,14 @@ export default function Home() {
             and layout logic as the desktop app. No parallel HTML mockup, no
             duplicated Greybound application.
           </p>
-          <a className="button secondary" href="/greybound-web/index.html" target="_blank" rel="noopener noreferrer">
-            Open full screen
+          <a className="button secondary" href="/playground">
+            Open playground
           </a>
         </div>
-        <iframe
-          className="webEmbedFrame"
-          title="Greybound web app"
-          src="/greybound-web/index.html"
-        />
+        <a className="webEmbedPreview" href="/playground" aria-label="Open Greybound playground">
+          <img src="/product/desktop-minotaur.webp" alt="Greybound web playground preview" />
+          <span>Launch the browser playground</span>
+        </a>
       </section>
 
       <section className="desktopShowcase" id="desktop-alpha" aria-labelledby="desktop-title">

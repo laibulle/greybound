@@ -593,7 +593,7 @@ docs-build:
 
 site-build: landing-build docs-build
 
-landing-vercel-build:
+landing-vercel-build: web-wasm
 	cd landing && $(VERCEL) build $(LANDING_VERCEL_BUILD_ARGS)
 
 docs-vercel-build:
