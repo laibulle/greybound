@@ -49,6 +49,12 @@ impl Application for WebApp {
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         preload_render_assets();
         let mut ui = GreyboundUi::default();
+        ui.audio_settings.period_size = 1024;
+        ui.audio_settings.period_sizes = vec![
+            "1024 samples".to_string(),
+            "2048 samples".to_string(),
+            "4096 samples".to_string(),
+        ];
         ui.update(Message::WindowResized {
             width: flags.0,
             height: flags.1,
