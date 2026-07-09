@@ -1,7 +1,7 @@
 # Greybound Free
 
 Rust real-time graybox model of Nox30, a circuit-informed approximation of a JMI-era AC30/6 with the OS/010 Top Boost unit,
-implemented as a CLAP/VST3/standalone plugin with
+implemented as a CLAP plugin and standalone runtime with
 [NIH-plug](https://github.com/robbert-vdh/nih-plug) and
 [`rill-core-wdf`](https://docs.rs/rill-core-wdf).
 
@@ -47,8 +47,20 @@ cargo build --release
 ```
 
 The release build produces the plugin library and a `greybound-cli` binary.
-For convenient plugin bundles, install NIH-plug's `cargo xtask` bundler or add
-the standard NIH-plug `xtask` crate later.
+
+Bundle the CLAP plugin for the current machine:
+
+```sh
+make plugin-clap
+```
+
+On macOS, install it for the current user:
+
+```sh
+make plugin-clap-install
+```
+
+The installed bundle is copied to `~/Library/Audio/Plug-Ins/CLAP/Greybound.clap`.
 
 ## Real-time use on macOS
 
@@ -81,7 +93,7 @@ target/release/greybound-cli --rig rigs/grey-nox.json5 --device 'Scarlett 18i8 U
   --sample-rate 48000 --period-size 128
 ```
 
-The CLAP/VST3 plugin always uses the sample rate selected by its host.
+The CLAP plugin always uses the sample rate selected by its host.
 
 If CoreAudio rejects a configuration, use an interface-supported sample rate
 such as `44100`, `48000`, or `96000` and try period sizes such as `128`, `256`,
@@ -97,7 +109,7 @@ target/release/greybound-cli --device 'Scarlett 18i8 USB' \
   --sample-rate 48000 --period-size 128 --ir
 ```
 
-The CLAP/VST3 plugin exposes the same feature as the default-off `Speaker IR`
+The CLAP plugin exposes the same feature as the default-off `Speaker IR`
 parameter. It reports the fixed amp-oversampling plus 256-sample speaker-stage
 latency, so switching the IR on does not change timing; when the IR is off,
 convolution is skipped and only the matching dry delay runs.

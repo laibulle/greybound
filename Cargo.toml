@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "cli", "ui", "wasm", "desktop", "audio-lab-mcp"]
+members = ["core", "cli", "ui", "wasm", "desktop", "audio-lab-mcp", "xtask"]
 resolver = "2"
 
 [profile.release]

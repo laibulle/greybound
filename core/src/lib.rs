@@ -400,13 +400,4 @@ impl ClapPlugin for Greybound {
 }
 
 #[cfg(feature = "plugin")]
-impl Vst3Plugin for Greybound {
-    const VST3_CLASS_ID: [u8; 16] = *b"GreyboundGrayAmp";
-    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
-        &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
-}
-
-#[cfg(feature = "plugin")]
 nih_export_clap!(Greybound);
-#[cfg(feature = "plugin")]
-nih_export_vst3!(Greybound);

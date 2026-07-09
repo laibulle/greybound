@@ -134,6 +134,10 @@ DESKTOP_DMG_STAGING_DIR ?= $(DESKTOP_DIST_DIR)/dmg
 DESKTOP_DMG ?= $(DESKTOP_DIST_DIR)/$(DESKTOP_APP_NAME).dmg
 DESKTOP_DMG_VOLUME_NAME ?= $(DESKTOP_APP_NAME)
 DESKTOP_CODESIGN_IDENTITY ?= -
+PLUGIN_PACKAGE ?= greybound
+CLAP_BUNDLE_NAME ?= Greybound.clap
+CLAP_BUNDLE ?= target/bundled/$(CLAP_BUNDLE_NAME)
+CLAP_INSTALL_DIR ?= $(HOME)/Library/Audio/Plug-Ins/CLAP
 
 IR_FLAG = $(if $(filter 0 false no off,$(IR)),,$(if $(filter 1 true yes on,$(IR)),--ir "$(IR_WAV)",--ir "$(IR)"))
 MONITOR_FLAG = $(if $(filter 1 true yes on,$(MONITOR)),--monitor,)
@@ -143,6 +147,17 @@ REQUIRE_RIG = $(if $(strip $(RIG)),true,echo "RIG is required, for example: make
 
 build:
 	cargo build --release
+
+plugin-clap:
+	cargo xtask bundle $(PLUGIN_PACKAGE) --release
+	@test -d "$(CLAP_BUNDLE)" || (echo "Expected CLAP bundle at $(CLAP_BUNDLE)" >&2; exit 2)
+	@echo "Packaged $(CLAP_BUNDLE)"
+
+plugin-clap-install: plugin-clap
+	mkdir -p "$(CLAP_INSTALL_DIR)"
+	rm -rf "$(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
+	ditto "$(CLAP_BUNDLE)" "$(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
+	@echo "Installed $(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
 
 standalone: build
 	@$(REQUIRE_RIG)
