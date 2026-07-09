@@ -3,15 +3,17 @@ name = "greybound-wasm"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "WebAssembly bindings for the Greybound DSP engine."
+description = "Greybound web app host using the shared iced UI."
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-greybound = { path = "../core", default-features = false }
-js-sys = "0.3"
+console_error_panic_hook = "0.1"
+greybound-ui = { path = "../ui" }
+iced = { version = "0.10", default-features = false, features = ["canvas", "image", "web-colors"] }
 wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window"] }
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false

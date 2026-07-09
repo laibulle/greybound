@@ -267,6 +267,7 @@ export default function Home() {
             <span>Greybound</span>
           </a>
           <nav aria-label="Primary navigation">
+            <a href="#web-alpha">Web</a>
             <a href="#desktop-alpha">App</a>
             <a href="#engine">Engine</a>
             <a href="#method">Method</a>
@@ -318,6 +319,9 @@ export default function Home() {
             <a className="button secondary" href="#engine">
               Explore the experiment
             </a>
+            <a className="button secondary" href="#web-alpha">
+              Try the web app
+            </a>
             <a
               className="button secondary"
               href="https://github.com/laibulle/greybound"
@@ -342,6 +346,26 @@ export default function Home() {
             <span>{item.label}</span>
           </div>
         ))}
+      </section>
+
+      <section className="webEmbed" id="web-alpha" aria-labelledby="web-alpha-title">
+        <div className="webEmbedCopy">
+          <p className="sectionKicker">Web alpha</p>
+          <h2 id="web-alpha-title">The desktop UI, running in the browser.</h2>
+          <p>
+            The web target reuses the same iced interface, canvases, controls,
+            and layout logic as the desktop app. No parallel HTML mockup, no
+            duplicated Greybound application.
+          </p>
+          <a className="button secondary" href="/greybound-web/index.html" target="_blank" rel="noopener noreferrer">
+            Open full screen
+          </a>
+        </div>
+        <iframe
+          className="webEmbedFrame"
+          title="Greybound web app"
+          src="/greybound-web/index.html"
+        />
       </section>
 
       <section className="desktopShowcase" id="desktop-alpha" aria-labelledby="desktop-title">
