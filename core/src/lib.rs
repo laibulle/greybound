@@ -5,6 +5,8 @@ pub mod circuit_descriptor;
 pub mod ir;
 pub mod neural_cell;
 pub mod pedal;
+#[cfg(feature = "plugin")]
+mod plugin_editor;
 pub mod rig;
 
 pub use amp::{
@@ -46,6 +48,8 @@ use ir::{SpeakerStage, CONVOLUTION_LATENCY};
 #[cfg(feature = "plugin")]
 use nih_plug::prelude::*;
 #[cfg(feature = "plugin")]
+use nih_plug_iced::IcedState;
+#[cfg(feature = "plugin")]
 use std::sync::Arc;
 
 #[cfg(feature = "plugin")]
@@ -61,6 +65,9 @@ pub struct Greybound {
 #[cfg(feature = "plugin")]
 #[derive(Params)]
 struct GreyboundParams {
+    #[persist = "editor-state"]
+    editor_state: Arc<IcedState>,
+
     #[id = "gain"]
     gain: FloatParam,
     #[id = "bass"]
@@ -109,6 +116,7 @@ impl Default for Greybound {
 impl Default for GreyboundParams {
     fn default() -> Self {
         Self {
+            editor_state: IcedState::from_size(940, 680),
             gain: FloatParam::new(
                 "Top Boost Volume",
                 0.55,
@@ -230,6 +238,10 @@ impl Plugin for Greybound {
 
     fn params(&self) -> Arc<dyn Params> {
         self.params.clone()
+    }
+
+    fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        plugin_editor::create(self.params.clone())
     }
 
     fn initialize(
@@ -400,4 +412,13 @@ impl ClapPlugin for Greybound {
 }
 
 #[cfg(feature = "plugin")]
+impl Vst3Plugin for Greybound {
+    const VST3_CLASS_ID: [u8; 16] = *b"GreyboundGrayAmp";
+    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
+        &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
+}
+
+#[cfg(feature = "plugin")]
 nih_export_clap!(Greybound);
+#[cfg(feature = "plugin")]
+nih_export_vst3!(Greybound);

@@ -7,7 +7,7 @@ description = "stdio MCP server for Greybound audio lab orchestration."
 
 [dependencies]
 anyhow = "1.0"
-greybound = { path = "../core" }
+greybound = { path = "../core", default-features = false }
 hound = "3.5"
 json5 = "0.4"
 serde = { version = "1.0", features = ["derive"] }
