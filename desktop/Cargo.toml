@@ -8,7 +8,7 @@ description = "Greybound Free desktop app using iced."
 [dependencies]
 iced = { version = "0.10", features = ["canvas", "tokio"] }
 greybound-ui = { path = "../ui" }
-greybound = { path = "../core" }
+greybound = { path = "../core", default-features = false }
 anyhow = "1.0"
 cpal = "0.15"
 hound = "3.5"

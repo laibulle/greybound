@@ -134,6 +134,13 @@ DESKTOP_DMG_STAGING_DIR ?= $(DESKTOP_DIST_DIR)/dmg
 DESKTOP_DMG ?= $(DESKTOP_DIST_DIR)/$(DESKTOP_APP_NAME).dmg
 DESKTOP_DMG_VOLUME_NAME ?= $(DESKTOP_APP_NAME)
 DESKTOP_CODESIGN_IDENTITY ?= -
+PLUGIN_PACKAGE ?= greybound
+CLAP_BUNDLE_NAME ?= Greybound.clap
+CLAP_BUNDLE ?= target/bundled/$(CLAP_BUNDLE_NAME)
+CLAP_INSTALL_DIR ?= $(HOME)/Library/Audio/Plug-Ins/CLAP
+VST3_BUNDLE_NAME ?= Greybound.vst3
+VST3_BUNDLE ?= target/bundled/$(VST3_BUNDLE_NAME)
+VST3_INSTALL_DIR ?= $(HOME)/Library/Audio/Plug-Ins/VST3
 
 IR_FLAG = $(if $(filter 0 false no off,$(IR)),,$(if $(filter 1 true yes on,$(IR)),--ir "$(IR_WAV)",--ir "$(IR)"))
 MONITOR_FLAG = $(if $(filter 1 true yes on,$(MONITOR)),--monitor,)
@@ -143,6 +150,28 @@ REQUIRE_RIG = $(if $(strip $(RIG)),true,echo "RIG is required, for example: make
 
 build:
 	cargo build --release
+
+plugin-clap:
+	cargo xtask bundle $(PLUGIN_PACKAGE) --release
+	@test -d "$(CLAP_BUNDLE)" || (echo "Expected CLAP bundle at $(CLAP_BUNDLE)" >&2; exit 2)
+	@echo "Packaged $(CLAP_BUNDLE)"
+
+plugin-clap-install: plugin-clap
+	mkdir -p "$(CLAP_INSTALL_DIR)"
+	rm -rf "$(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
+	ditto "$(CLAP_BUNDLE)" "$(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
+	@echo "Installed $(CLAP_INSTALL_DIR)/$(CLAP_BUNDLE_NAME)"
+
+plugin-vst3:
+	cargo xtask bundle $(PLUGIN_PACKAGE) --release
+	@test -d "$(VST3_BUNDLE)" || (echo "Expected VST3 bundle at $(VST3_BUNDLE)" >&2; exit 2)
+	@echo "Packaged $(VST3_BUNDLE)"
+
+plugin-vst3-install: plugin-vst3
+	mkdir -p "$(VST3_INSTALL_DIR)"
+	rm -rf "$(VST3_INSTALL_DIR)/$(VST3_BUNDLE_NAME)"
+	ditto "$(VST3_BUNDLE)" "$(VST3_INSTALL_DIR)/$(VST3_BUNDLE_NAME)"
+	@echo "Installed $(VST3_INSTALL_DIR)/$(VST3_BUNDLE_NAME)"
 
 standalone: build
 	@$(REQUIRE_RIG)

@@ -1500,6 +1500,7 @@ fn chain_slot_config(
         .map(|slot| (global_index, slot))
 }
 
+#[cfg(test)]
 fn format_pedalboard_text(config: &SignalChainConfig, controls: &[DeviceSlotControls]) -> String {
     format_pedalboard_text_with_cab(config, controls, true, None)
 }

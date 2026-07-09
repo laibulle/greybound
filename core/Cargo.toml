@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "f36931f7af4646065488a9845d8f8c2f95252c23", optional = true }
+nih_plug_iced = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "f36931f7af4646065488a9845d8f8c2f95252c23", optional = true, features = ["opengl_canvas"] }
 realfft = "3.5"
 hound = "3.5"
 rill-core-wdf = "0.3.0"
@@ -19,4 +20,4 @@ serde = { version = "1.0", features = ["derive"] }
 
 [features]
 default = ["plugin"]
-plugin = ["dep:nih_plug"]
+plugin = ["dep:nih_plug", "dep:nih_plug_iced"]
