@@ -2,6 +2,7 @@ use greybound::ir::SpeakerStage;
 use greybound::{
     AmpControls, DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
     MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
+    StudioVerbAlgorithm, StudioVerbControls,
 };
 use greybound_ui::{AppProfile, GreyboundUi, RuntimeDeviceSection};
 use js_sys::{Object, Reflect};
@@ -271,7 +272,7 @@ impl WebAudioRuntime {
             chain: SignalChain::new(sample_rate, config),
             speaker: SpeakerStage::from_embedded_ir(sample_rate as u32)
                 .unwrap_or_else(|_| SpeakerStage::bypassed()),
-            device_controls: Vec::with_capacity(2),
+            device_controls: Vec::with_capacity(3),
         }
     }
 
@@ -319,6 +320,13 @@ struct RuntimeControls {
     springfield_dwell: f32,
     springfield_tone: f32,
     springfield_mix: f32,
+    reverb_bypassed: bool,
+    reverb_decay: f32,
+    reverb_size: f32,
+    reverb_diffusion: f32,
+    reverb_tone: f32,
+    reverb_low_cut: f32,
+    reverb_mix: f32,
     runtime_devices: &'static [greybound_ui::RuntimeDeviceSlot],
     cab_mix: f32,
 }
@@ -347,6 +355,13 @@ impl RuntimeControls {
             springfield_dwell: 0.48,
             springfield_tone: 0.58,
             springfield_mix: 0.26,
+            reverb_bypassed: false,
+            reverb_decay: 0.42,
+            reverb_size: 0.46,
+            reverb_diffusion: 0.64,
+            reverb_tone: 0.54,
+            reverb_low_cut: 0.36,
+            reverb_mix: 0.24,
             runtime_devices: ui.app_profile.runtime_devices,
             cab_mix: if !ui.cab.bypassed {
                 ui.cab.master.clamp(0.0, 1.0)
@@ -377,6 +392,20 @@ impl RuntimeControls {
             controls.springfield_mix = device.master;
         }
 
+        if let Some(device) = ui
+            .devices
+            .iter()
+            .find(|device| device.model == greybound_ui::DeviceModel::ReverbFx)
+        {
+            controls.reverb_bypassed = device.bypassed;
+            controls.reverb_decay = device.gain;
+            controls.reverb_size = device.bass;
+            controls.reverb_diffusion = device.cut;
+            controls.reverb_tone = device.treble;
+            controls.reverb_low_cut = device.presence;
+            controls.reverb_mix = device.master;
+        }
+
         controls
     }
 
@@ -398,6 +427,20 @@ impl RuntimeControls {
                         dwell: self.springfield_dwell,
                         tone: self.springfield_tone,
                         mix: self.springfield_mix,
+                    }),
+                }),
+                DeviceConfig::StudioVerb => target.push(DeviceSlotControls {
+                    bypassed: self.reverb_bypassed,
+                    controls: DeviceControls::StudioVerb(StudioVerbControls {
+                        algorithm: StudioVerbAlgorithm::Room,
+                        decay: self.reverb_decay,
+                        size: self.reverb_size,
+                        pre_delay_ms: 12.0,
+                        diffusion: self.reverb_diffusion,
+                        tone: self.reverb_tone,
+                        low_cut: self.reverb_low_cut,
+                        mod_depth: 0.18,
+                        mix: self.reverb_mix,
                     }),
                 }),
                 _ => {}

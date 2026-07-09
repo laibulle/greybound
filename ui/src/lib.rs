@@ -375,7 +375,7 @@ pub enum Message {
         status: String,
     },
     AudioStatusChanged(String),
-    MeterProbeTick(std::time::Instant),
+    MeterProbeTick,
     TunerProbeTick(std::time::Instant),
     MeterLevelsChanged {
         input: f32,
@@ -1274,6 +1274,15 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
         circuit: springfield_circuit_descriptor,
     },
+    AppDeviceModelDescriptor {
+        id: "studioverb",
+        label: "Reverb",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::ReverbFx,
+        runtime_config: Some(CoreDeviceConfig::StudioVerb),
+        render: &REVERB_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
 ];
 const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
     RuntimeDeviceSlot {
@@ -1287,6 +1296,12 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         section: RuntimeDeviceSection::PostAmp,
         config: CoreDeviceConfig::Springfield,
         bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "studioverb",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::StudioVerb,
+        bypassed: false,
     },
 ];
 
@@ -1895,7 +1910,7 @@ impl GreyboundUi {
             Message::AudioStatusChanged(status) => {
                 self.audio_settings.status = status;
             }
-            Message::MeterProbeTick(_) => {}
+            Message::MeterProbeTick => {}
             Message::TunerProbeTick(_) => {}
             Message::MeterLevelsChanged {
                 input,

@@ -5,6 +5,7 @@ use greybound::ir::SpeakerStage;
 use greybound::{
     AmpControls, DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
     MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
+    StudioVerbAlgorithm, StudioVerbControls,
 };
 use greybound_ui::{AppProfile, AudioInputSource, GreyboundUi, RuntimeDeviceSection};
 use rtrb::{Consumer, RingBuffer};
@@ -382,7 +383,7 @@ impl AudioRuntime {
             input,
             chain: SignalChain::new(sample_rate, config),
             speaker: reference_speaker_or_bypass(sample_rate as u32),
-            device_controls: Vec::with_capacity(2),
+            device_controls: Vec::with_capacity(3),
             eq: GraphicEqProcessor::new(sample_rate),
             metronome: MetronomeGenerator::new(sample_rate),
             doubler: DoublerProcessor::new(sample_rate),
@@ -494,6 +495,13 @@ struct SharedRuntimeControls {
     springfield_dwell: Arc<AtomicU32>,
     springfield_tone: Arc<AtomicU32>,
     springfield_mix: Arc<AtomicU32>,
+    reverb_bypassed: Arc<AtomicBool>,
+    reverb_decay: Arc<AtomicU32>,
+    reverb_size: Arc<AtomicU32>,
+    reverb_diffusion: Arc<AtomicU32>,
+    reverb_tone: Arc<AtomicU32>,
+    reverb_low_cut: Arc<AtomicU32>,
+    reverb_mix: Arc<AtomicU32>,
     runtime_devices: &'static [greybound_ui::RuntimeDeviceSlot],
     cab_enabled: Arc<AtomicBool>,
     cab_mix: Arc<AtomicU32>,
@@ -536,6 +544,13 @@ impl SharedRuntimeControls {
             springfield_dwell: atomic_f32(0.48),
             springfield_tone: atomic_f32(0.58),
             springfield_mix: atomic_f32(0.26),
+            reverb_bypassed: Arc::new(AtomicBool::new(false)),
+            reverb_decay: atomic_f32(0.42),
+            reverb_size: atomic_f32(0.46),
+            reverb_diffusion: atomic_f32(0.64),
+            reverb_tone: atomic_f32(0.54),
+            reverb_low_cut: atomic_f32(0.36),
+            reverb_mix: atomic_f32(0.24),
             runtime_devices: ui.app_profile.runtime_devices,
             cab_enabled: Arc::new(AtomicBool::new(true)),
             cab_mix: atomic_f32(1.0),
@@ -633,6 +648,21 @@ impl SharedRuntimeControls {
             store_f32(&self.springfield_tone, device.treble);
             store_f32(&self.springfield_mix, device.master);
         }
+
+        if let Some(device) = ui
+            .devices
+            .iter()
+            .find(|device| device.model == greybound_ui::DeviceModel::ReverbFx)
+        {
+            self.reverb_bypassed
+                .store(device.bypassed, Ordering::Relaxed);
+            store_f32(&self.reverb_decay, device.gain);
+            store_f32(&self.reverb_size, device.bass);
+            store_f32(&self.reverb_diffusion, device.cut);
+            store_f32(&self.reverb_tone, device.treble);
+            store_f32(&self.reverb_low_cut, device.presence);
+            store_f32(&self.reverb_mix, device.master);
+        }
     }
 
     fn load_amp_controls(&self) -> AmpControls {
@@ -686,6 +716,20 @@ impl SharedRuntimeControls {
                         dwell: load_f32(&self.springfield_dwell),
                         tone: load_f32(&self.springfield_tone),
                         mix: load_f32(&self.springfield_mix),
+                    }),
+                }),
+                DeviceConfig::StudioVerb => target.push(DeviceSlotControls {
+                    bypassed: self.reverb_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::StudioVerb(StudioVerbControls {
+                        algorithm: StudioVerbAlgorithm::Room,
+                        decay: load_f32(&self.reverb_decay),
+                        size: load_f32(&self.reverb_size),
+                        pre_delay_ms: 12.0,
+                        diffusion: load_f32(&self.reverb_diffusion),
+                        tone: load_f32(&self.reverb_tone),
+                        low_cut: load_f32(&self.reverb_low_cut),
+                        mod_depth: 0.18,
+                        mix: load_f32(&self.reverb_mix),
                     }),
                 }),
                 _ => {}

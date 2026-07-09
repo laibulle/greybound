@@ -86,7 +86,7 @@ impl Application for WebApp {
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
-        if let Message::MeterProbeTick(_) = message {
+        if matches!(message, Message::MeterProbeTick) {
             let (input, output_left, output_right) = audio::meter_levels();
             self.ui.update(Message::MeterLevelsChanged {
                 input,
@@ -151,7 +151,7 @@ impl Application for WebApp {
                 _ => None,
             }),
             iced::time::every(Duration::from_millis(METER_REFRESH_MS))
-                .map(|_| Message::MeterProbeTick(std::time::Instant::now())),
+                .map(|_| Message::MeterProbeTick),
         ])
     }
 }

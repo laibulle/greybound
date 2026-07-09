@@ -166,7 +166,8 @@ impl Application for Desktop {
             return Command::none();
         }
 
-        if let Message::MeterProbeTick(now) = message {
+        if matches!(message, Message::MeterProbeTick) {
+            let now = Instant::now();
             if self.shutting_down {
                 return Command::none();
             }
@@ -266,7 +267,8 @@ impl Application for Desktop {
                 }
                 _ => None,
             }),
-            iced::time::every(Duration::from_millis(METER_REFRESH_MS)).map(Message::MeterProbeTick),
+            iced::time::every(Duration::from_millis(METER_REFRESH_MS))
+                .map(|_| Message::MeterProbeTick),
             tuner_subscription(self.ui.tuner.open),
         ])
     }

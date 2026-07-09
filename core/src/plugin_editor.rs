@@ -8,10 +8,7 @@ use nih_plug_iced::{
 use std::sync::Arc;
 
 pub fn create(params: Arc<GreyboundParams>) -> Option<Box<dyn Editor>> {
-    nih_plug_iced::create_iced_editor::<GreyboundPluginEditor>(
-        params.editor_state.clone(),
-        params,
-    )
+    nih_plug_iced::create_iced_editor::<GreyboundPluginEditor>(params.editor_state.clone(), params)
 }
 
 struct GreyboundPluginEditor {
@@ -162,8 +159,16 @@ impl IcedEditor for GreyboundPluginEditor {
                     &mut self.fuzz_sustain,
                     &self.params.fuzz_sustain,
                 ))
-                .push(param_row("Tone", &mut self.fuzz_tone, &self.params.fuzz_tone))
-                .push(param_row("Level", &mut self.fuzz_level, &self.params.fuzz_level)),
+                .push(param_row(
+                    "Tone",
+                    &mut self.fuzz_tone,
+                    &self.params.fuzz_tone,
+                ))
+                .push(param_row(
+                    "Level",
+                    &mut self.fuzz_level,
+                    &self.params.fuzz_level,
+                )),
         );
 
         Container::new(
@@ -201,10 +206,7 @@ impl IcedEditor for GreyboundPluginEditor {
     }
 }
 
-fn panel<'a>(
-    title: &'static str,
-    content: Column<'a, Message>,
-) -> Container<'a, Message> {
+fn panel<'a>(title: &'static str, content: Column<'a, Message>) -> Container<'a, Message> {
     Container::new(
         Column::new()
             .spacing(12)
