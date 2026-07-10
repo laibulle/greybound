@@ -1255,6 +1255,10 @@ impl AppProfile {
         GREYBOUND_FREE_PROFILE
     }
 
+    pub fn greybound_glass() -> Self {
+        GREYBOUND_GLASS_PROFILE
+    }
+
     fn has_amp_model(self, model: AmpModel) -> bool {
         self.amp_models
             .iter()
@@ -1275,6 +1279,14 @@ impl AppProfile {
             .iter()
             .find(|descriptor| descriptor.visual == model)
     }
+}
+
+fn none_star_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("none-star")
+}
+
+fn boxer_seven_lead_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("boxer-seven-lead")
 }
 
 const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[AppAmpModelDescriptor {
@@ -1324,6 +1336,103 @@ pub const GREYBOUND_FREE_PROFILE: AppProfile = AppProfile {
     amp_models: FREE_AMP_MODELS,
     devices: FREE_DEVICE_MODELS,
     runtime_devices: FREE_RUNTIME_DEVICES,
+};
+
+const GLASS_AMP_MODELS: &[AppAmpModelDescriptor] = &[
+    AppAmpModelDescriptor {
+        id: "nox30",
+        label: "Nox30",
+        visual: AmpModel::Nox30,
+        render: &NOX30_AMP_RENDER_SPEC,
+        circuit: nox30_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "none-star",
+        label: "None Star",
+        visual: AmpModel::WideCombo,
+        render: &WIDE_COMBO_AMP_RENDER_SPEC,
+        circuit: none_star_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "boxer-seven-lead",
+        label: "Boxer Seven Lead",
+        visual: AmpModel::LeadHead,
+        render: &LEAD_HEAD_AMP_RENDER_SPEC,
+        circuit: boxer_seven_lead_circuit_descriptor,
+    },
+];
+
+const GLASS_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
+    AppDeviceModelDescriptor {
+        id: "minotaur",
+        label: "Minotaur",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::Minotaur,
+        runtime_config: Some(CoreDeviceConfig::Minotaur),
+        render: &MINOTAUR_PEDAL_RENDER_SPEC,
+        circuit: minotaur_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "studio-delay",
+        label: "StudioDelay",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::DelayFx,
+        runtime_config: Some(CoreDeviceConfig::StudioDelay),
+        render: &DELAY_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "springfield",
+        label: "Springfield",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::Springfield,
+        runtime_config: Some(CoreDeviceConfig::Springfield),
+        render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
+        circuit: springfield_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "studio-verb",
+        label: "StudioVerb",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::ReverbFx,
+        runtime_config: Some(CoreDeviceConfig::StudioVerb),
+        render: &REVERB_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+];
+
+const GLASS_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
+    RuntimeDeviceSlot {
+        model_id: "minotaur",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::Minotaur,
+        bypassed: false,
+    },
+    RuntimeDeviceSlot {
+        model_id: "studio-delay",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::StudioDelay,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "springfield",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::Springfield,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "studio-verb",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::StudioVerb,
+        bypassed: false,
+    },
+];
+
+pub const GREYBOUND_GLASS_PROFILE: AppProfile = AppProfile {
+    name: "Greybound Glass",
+    amp_models: GLASS_AMP_MODELS,
+    devices: GLASS_DEVICE_MODELS,
+    runtime_devices: GLASS_RUNTIME_DEVICES,
 };
 
 #[derive(Debug, Clone)]
