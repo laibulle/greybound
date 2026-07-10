@@ -9,14 +9,19 @@ use greybound_ui::{
 };
 use nih_plug::prelude::*;
 use std::num::NonZeroU32;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 const NOX30_OUTPUT_GAIN: f32 = 0.58;
 const OUTPUT_MIN_DB: f32 = -24.0;
 const OUTPUT_MAX_DB: f32 = 6.0;
+const METER_RMS_SCALE: f64 = 1_000_000_000.0;
 
 pub struct GreyboundPlugin {
     params: Arc<GreyboundParams>,
+    meters: Arc<PluginMeters>,
     channels: Vec<SignalChain>,
     speakers: Vec<SpeakerStage>,
     chain_config: SignalChainConfig,
@@ -61,6 +66,7 @@ impl Default for GreyboundPlugin {
     fn default() -> Self {
         Self {
             params: Arc::new(GreyboundParams::default()),
+            meters: Arc::new(PluginMeters::default()),
             channels: Vec::new(),
             speakers: Vec::new(),
             chain_config: plugin_signal_chain_config(AppProfile::greybound_free(), "nox30"),
@@ -192,6 +198,7 @@ impl Plugin for GreyboundPlugin {
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         let params = self.params.clone();
+        let meters = self.meters.clone();
 
         greybound_plugin_ui::create_iced_editor(
             PluginUiConfig {
@@ -200,7 +207,7 @@ impl Plugin for GreyboundPlugin {
                 height: DESIGN_HEIGHT as u32,
                 background: iced::Color::from_rgb(0.72, 0.78, 0.91),
             },
-            move |context| GreyboundPluginApp::new(params.clone(), context),
+            move |context| GreyboundPluginApp::new(params.clone(), meters.clone(), context),
         )
     }
 
@@ -285,9 +292,11 @@ impl Plugin for GreyboundPlugin {
                 OUTPUT_MIN_DB,
                 OUTPUT_MAX_DB,
             );
+            self.meters.record_input(input);
             let amp_output = self.channels[0].process(input, chain_controls);
             let cabbed = self.speakers[0].process(amp_output, self.params.speaker_ir.value());
             let output = cabbed * output_gain;
+            self.meters.record_output(output, output);
 
             for sample in channel_samples.iter_mut() {
                 *sample = output;
@@ -296,6 +305,60 @@ impl Plugin for GreyboundPlugin {
 
         ProcessStatus::Normal
     }
+}
+
+#[derive(Default)]
+struct PluginMeters {
+    input_sum_squares: AtomicU64,
+    input_count: AtomicU64,
+    output_left_sum_squares: AtomicU64,
+    output_right_sum_squares: AtomicU64,
+    output_left_count: AtomicU64,
+    output_right_count: AtomicU64,
+}
+
+impl PluginMeters {
+    fn record_input(&self, sample: f32) {
+        self.input_sum_squares
+            .fetch_add(meter_square(sample), Ordering::Relaxed);
+        self.input_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_output(&self, left: f32, right: f32) {
+        self.output_left_sum_squares
+            .fetch_add(meter_square(left), Ordering::Relaxed);
+        self.output_right_sum_squares
+            .fetch_add(meter_square(right), Ordering::Relaxed);
+        self.output_left_count.fetch_add(1, Ordering::Relaxed);
+        self.output_right_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn snapshot_levels(&self) -> (f32, f32, f32) {
+        (
+            meter_from_accumulators(&self.input_sum_squares, &self.input_count),
+            meter_from_accumulators(&self.output_left_sum_squares, &self.output_left_count),
+            meter_from_accumulators(&self.output_right_sum_squares, &self.output_right_count),
+        )
+    }
+}
+
+fn meter_square(sample: f32) -> u64 {
+    let magnitude = sample.abs() as f64;
+    (magnitude * magnitude * METER_RMS_SCALE).round() as u64
+}
+
+fn meter_from_accumulators(sum_squares: &AtomicU64, count: &AtomicU64) -> f32 {
+    let sum = sum_squares.swap(0, Ordering::Relaxed) as f64 / METER_RMS_SCALE;
+    let count = count.swap(0, Ordering::Relaxed);
+    if count == 0 {
+        return 0.0;
+    }
+    rms_to_meter((sum / count as f64).sqrt() as f32)
+}
+
+fn rms_to_meter(rms: f32) -> f32 {
+    let db = 20.0 * rms.max(0.000_001).log10();
+    ((db + 54.0) / 54.0).clamp(0.0, 1.0)
 }
 
 fn plugin_signal_chain_config(app_profile: AppProfile, amp_model: &str) -> SignalChainConfig {
@@ -345,11 +408,16 @@ fn output_trim_db(value: f32) -> f32 {
 struct GreyboundPluginApp {
     ui: GreyboundUi,
     params: Arc<GreyboundParams>,
+    meters: Arc<PluginMeters>,
     context: Arc<dyn GuiContext>,
 }
 
 impl GreyboundPluginApp {
-    fn new(params: Arc<GreyboundParams>, context: Arc<dyn GuiContext>) -> Self {
+    fn new(
+        params: Arc<GreyboundParams>,
+        meters: Arc<PluginMeters>,
+        context: Arc<dyn GuiContext>,
+    ) -> Self {
         preload_render_assets();
         let mut ui = GreyboundUi::new(AppProfile::greybound_free());
         ui.update(Message::WindowResized {
@@ -359,6 +427,7 @@ impl GreyboundPluginApp {
         let app = Self {
             ui,
             params,
+            meters,
             context,
         };
         app.sync_params_from_ui();
@@ -442,6 +511,15 @@ impl GreyboundPluginApp {
 
 impl PluginIcedApp for GreyboundPluginApp {
     type Message = Message;
+
+    fn on_frame(&mut self) {
+        let (input, output_left, output_right) = self.meters.snapshot_levels();
+        self.ui.update(Message::MeterLevelsChanged {
+            input,
+            output_left,
+            output_right,
+        });
+    }
 
     fn update(&mut self, message: Self::Message) {
         let should_sync = !matches!(
@@ -573,5 +651,20 @@ mod tests {
             tail_energy > 0.01,
             "springfield should produce a reverb tail"
         );
+    }
+
+    #[test]
+    fn plugin_meters_snapshot_and_reset_rms_levels() {
+        let meters = PluginMeters::default();
+
+        meters.record_input(0.5);
+        meters.record_input(-0.5);
+        meters.record_output(0.25, -0.75);
+        let (input, left, right) = meters.snapshot_levels();
+
+        assert!(input > 0.0);
+        assert!(left > 0.0);
+        assert!(right > left);
+        assert_eq!(meters.snapshot_levels(), (0.0, 0.0, 0.0));
     }
 }

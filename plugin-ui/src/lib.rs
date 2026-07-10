@@ -37,6 +37,7 @@ impl Default for PluginUiConfig {
 pub trait PluginIcedApp: Send + 'static {
     type Message: Clone + std::fmt::Debug + Send + 'static;
 
+    fn on_frame(&mut self) {}
     fn update(&mut self, message: Self::Message);
     fn view(&self) -> iced::Element<'_, Self::Message>;
 }
@@ -219,6 +220,8 @@ impl<App: PluginIcedApp> IcedPluginWindow<App> {
     }
 
     fn draw(&mut self) {
+        self.app.on_frame();
+
         let mut ui = UserInterface::build(
             self.app.view(),
             self.viewport.logical_size(),
