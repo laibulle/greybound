@@ -3,12 +3,12 @@ pub mod components;
 use components::{KnobSkin, KnobSpec};
 use greybound::{
     amp_circuit_descriptor, device_circuit_descriptor, AmpControls as CoreAmpControls,
-    CircuitConfidence, CircuitDescriptor, CircuitDescriptorKind, CircuitNodeDescriptor,
-    CircuitNodeKind, CircuitSignalKind, DeviceConfig as CoreDeviceConfig,
-    DeviceControls as CoreDeviceControls, DeviceSlotControls as CoreDeviceSlotControls,
-    MinotaurControls as CoreMinotaurControls, SpringfieldControls as CoreSpringfieldControls,
-    StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
-    StudioVerbControls as CoreStudioVerbControls,
+    AuralithControls as CoreAuralithControls, CircuitConfidence, CircuitDescriptor,
+    CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
+    DeviceConfig as CoreDeviceConfig, DeviceControls as CoreDeviceControls,
+    DeviceSlotControls as CoreDeviceSlotControls, MinotaurControls as CoreMinotaurControls,
+    SpringfieldControls as CoreSpringfieldControls, StudioDelayControls as CoreStudioDelayControls,
+    StudioVerbAlgorithm as CoreStudioVerbAlgorithm, StudioVerbControls as CoreStudioVerbControls,
 };
 use iced::advanced::image as advanced_image;
 use iced::advanced::layout::{self, Layout};
@@ -1307,13 +1307,13 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         circuit: minotaur_circuit_descriptor,
     },
     AppDeviceModelDescriptor {
-        id: "springfield",
-        label: "Springfield",
+        id: "auralith",
+        label: "Auralith",
         kind: DeviceKind::FxLoop,
-        visual: DeviceModel::Springfield,
-        runtime_config: Some(CoreDeviceConfig::Springfield),
-        render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
-        circuit: springfield_circuit_descriptor,
+        visual: DeviceModel::ReverbFx,
+        runtime_config: Some(CoreDeviceConfig::Auralith),
+        render: &REVERB_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
     },
 ];
 const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
@@ -1324,9 +1324,9 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         bypassed: false,
     },
     RuntimeDeviceSlot {
-        model_id: "springfield",
+        model_id: "auralith",
         section: RuntimeDeviceSection::PostAmp,
-        config: CoreDeviceConfig::Springfield,
+        config: CoreDeviceConfig::Auralith,
         bypassed: true,
     },
 ];
@@ -1549,6 +1549,23 @@ impl DeviceState {
             treble: 0.54,
             cut: 0.64,
             presence: 0.36,
+            sag: 0.0,
+            master: 0.24,
+        }
+    }
+
+    pub fn auralith() -> Self {
+        Self {
+            name: "AURALITH".to_string(),
+            kind: DeviceKind::FxLoop,
+            model: DeviceModel::ReverbFx,
+            bypassed: true,
+            gain: 0.52,
+            drive: 0.0,
+            bass: 0.55,
+            treble: 0.55,
+            cut: 0.68,
+            presence: 0.32,
             sag: 0.0,
             master: 0.24,
         }
@@ -1841,7 +1858,10 @@ fn default_devices(app_profile: AppProfile) -> Vec<DeviceState> {
 }
 
 fn device_state_for_descriptor(descriptor: &AppDeviceModelDescriptor) -> DeviceState {
-    let mut state = device_state_for_model(descriptor.visual);
+    let mut state = match descriptor.runtime_config {
+        Some(CoreDeviceConfig::Auralith) => DeviceState::auralith(),
+        _ => device_state_for_model(descriptor.visual),
+    };
     state.name = descriptor.label.to_string();
     state.kind = descriptor.kind;
     state
@@ -2361,6 +2381,7 @@ impl GreyboundUi {
             CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
             CoreDeviceConfig::StudioDelay => DeviceModel::DelayFx,
             CoreDeviceConfig::Springfield => DeviceModel::Springfield,
+            CoreDeviceConfig::Auralith => DeviceModel::ReverbFx,
             CoreDeviceConfig::StudioVerb => DeviceModel::ReverbFx,
             _ => return None,
         };
@@ -2413,6 +2434,17 @@ impl GreyboundUi {
                     mix: device.master,
                 })
             }
+            CoreDeviceConfig::Auralith => {
+                let device = device.cloned().unwrap_or_else(DeviceState::auralith);
+                CoreDeviceControls::Auralith(CoreAuralithControls {
+                    decay: device.gain,
+                    size: device.bass,
+                    texture: device.cut,
+                    tone: device.treble,
+                    low_cut: device.presence,
+                    mix: device.master,
+                })
+            }
             _ => CoreDeviceControls::Default,
         }
     }
@@ -2427,7 +2459,7 @@ impl GreyboundUi {
             .iter()
             .find(|slot| slot.section == RuntimeDeviceSection::PostAmp)
             .map(|slot| slot.config)
-            .unwrap_or(CoreDeviceConfig::Springfield)
+            .unwrap_or(CoreDeviceConfig::Auralith)
     }
 
     fn audio_settings_panel(&self) -> Element<'_, Message> {

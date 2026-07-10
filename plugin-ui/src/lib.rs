@@ -297,6 +297,7 @@ impl<App: PluginIcedApp> IcedPluginWindow<App> {
         )
         .expect("could not create plugin UI pixmap");
 
+        #[allow(unreachable_patterns)]
         match &mut self.renderer {
             iced_renderer::Renderer::TinySkia(renderer) => {
                 renderer.with_primitives(|backend, primitives| {
@@ -311,6 +312,7 @@ impl<App: PluginIcedApp> IcedPluginWindow<App> {
                     );
                 });
             }
+            _ => {}
         }
 
         buffer

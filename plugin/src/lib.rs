@@ -1,6 +1,6 @@
 use greybound::{
-    ir::SpeakerStage, AmpControls, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
-    MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
+    ir::SpeakerStage, AmpControls, AuralithControls, DeviceControls, DeviceSlotConfig,
+    DeviceSlotControls, MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls,
 };
 use greybound_plugin_ui::{PluginIcedApp, PluginUiConfig};
 use greybound_ui::{
@@ -52,14 +52,20 @@ struct GreyboundParams {
     overdrive_treble: FloatParam,
     #[id = "overdrive_output"]
     overdrive_output: FloatParam,
-    #[id = "springfield"]
-    springfield: BoolParam,
-    #[id = "springfield_dwell"]
-    springfield_dwell: FloatParam,
-    #[id = "springfield_tone"]
-    springfield_tone: FloatParam,
-    #[id = "springfield_mix"]
-    springfield_mix: FloatParam,
+    #[id = "auralith"]
+    auralith: BoolParam,
+    #[id = "auralith_decay"]
+    auralith_decay: FloatParam,
+    #[id = "auralith_size"]
+    auralith_size: FloatParam,
+    #[id = "auralith_texture"]
+    auralith_texture: FloatParam,
+    #[id = "auralith_tone"]
+    auralith_tone: FloatParam,
+    #[id = "auralith_low_cut"]
+    auralith_low_cut: FloatParam,
+    #[id = "auralith_mix"]
+    auralith_mix: FloatParam,
 }
 
 impl Default for GreyboundPlugin {
@@ -136,26 +142,50 @@ impl Default for GreyboundParams {
             .with_unit(" %")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
             .with_string_to_value(formatters::s2v_f32_percentage()),
-            springfield: BoolParam::new("Springfield Reverb", false),
-            springfield_dwell: FloatParam::new(
-                "Springfield Dwell",
-                0.48,
+            auralith: BoolParam::new("Auralith Reverb", false),
+            auralith_decay: FloatParam::new(
+                "Auralith Decay",
+                AuralithControls::default().decay,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             )
             .with_unit(" %")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
             .with_string_to_value(formatters::s2v_f32_percentage()),
-            springfield_tone: FloatParam::new(
-                "Springfield Tone",
-                0.58,
+            auralith_size: FloatParam::new(
+                "Auralith Size",
+                AuralithControls::default().size,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             )
             .with_unit(" %")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
             .with_string_to_value(formatters::s2v_f32_percentage()),
-            springfield_mix: FloatParam::new(
-                "Springfield Mix",
-                0.26,
+            auralith_texture: FloatParam::new(
+                "Auralith Texture",
+                AuralithControls::default().texture,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            auralith_tone: FloatParam::new(
+                "Auralith Tone",
+                AuralithControls::default().tone,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            auralith_low_cut: FloatParam::new(
+                "Auralith Low Cut",
+                AuralithControls::default().low_cut,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            auralith_mix: FloatParam::new(
+                "Auralith Mix",
+                AuralithControls::default().mix,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             )
             .with_unit(" %")
@@ -268,10 +298,13 @@ impl Plugin for GreyboundPlugin {
                 treble: self.params.overdrive_treble.smoothed.next(),
                 output: self.params.overdrive_output.smoothed.next(),
             };
-            let springfield_controls = SpringfieldControls {
-                dwell: self.params.springfield_dwell.smoothed.next(),
-                tone: self.params.springfield_tone.smoothed.next(),
-                mix: self.params.springfield_mix.smoothed.next(),
+            let auralith_controls = AuralithControls {
+                decay: self.params.auralith_decay.smoothed.next(),
+                size: self.params.auralith_size.smoothed.next(),
+                texture: self.params.auralith_texture.smoothed.next(),
+                tone: self.params.auralith_tone.smoothed.next(),
+                low_cut: self.params.auralith_low_cut.smoothed.next(),
+                mix: self.params.auralith_mix.smoothed.next(),
             };
             let device_controls = [
                 DeviceSlotControls {
@@ -279,8 +312,8 @@ impl Plugin for GreyboundPlugin {
                     controls: DeviceControls::Minotaur(overdrive_controls),
                 },
                 DeviceSlotControls {
-                    bypassed: !self.params.springfield.value(),
-                    controls: DeviceControls::Springfield(springfield_controls),
+                    bypassed: !self.params.auralith.value(),
+                    controls: DeviceControls::Auralith(auralith_controls),
                 },
             ];
             let chain_controls = SignalChainControls {
@@ -481,28 +514,40 @@ impl GreyboundPluginApp {
             }
         }
 
-        if let Some(springfield) = self
+        if let Some(auralith) = self
             .ui
             .devices
             .iter()
-            .find(|device| device.model == DeviceModel::Springfield)
+            .find(|device| device.model == DeviceModel::ReverbFx)
         {
             unsafe {
                 self.context.raw_set_parameter_normalized(
-                    self.params.springfield.as_ptr(),
-                    if springfield.bypassed { 0.0 } else { 1.0 },
+                    self.params.auralith.as_ptr(),
+                    if auralith.bypassed { 0.0 } else { 1.0 },
                 );
                 self.context.raw_set_parameter_normalized(
-                    self.params.springfield_dwell.as_ptr(),
-                    springfield.gain,
+                    self.params.auralith_decay.as_ptr(),
+                    auralith.gain,
                 );
                 self.context.raw_set_parameter_normalized(
-                    self.params.springfield_tone.as_ptr(),
-                    springfield.treble,
+                    self.params.auralith_size.as_ptr(),
+                    auralith.bass,
                 );
                 self.context.raw_set_parameter_normalized(
-                    self.params.springfield_mix.as_ptr(),
-                    springfield.master,
+                    self.params.auralith_texture.as_ptr(),
+                    auralith.cut,
+                );
+                self.context.raw_set_parameter_normalized(
+                    self.params.auralith_tone.as_ptr(),
+                    auralith.treble,
+                );
+                self.context.raw_set_parameter_normalized(
+                    self.params.auralith_low_cut.as_ptr(),
+                    auralith.presence,
+                );
+                self.context.raw_set_parameter_normalized(
+                    self.params.auralith_mix.as_ptr(),
+                    auralith.master,
                 );
             }
         }
@@ -575,10 +620,7 @@ mod tests {
         assert!(!config.pre_amp[0].bypassed);
         assert!(config.fx_loop.is_empty());
         assert_eq!(config.post_amp.len(), 1);
-        assert_eq!(
-            config.post_amp[0].device,
-            greybound::DeviceConfig::Springfield
-        );
+        assert_eq!(config.post_amp[0].device, greybound::DeviceConfig::Auralith);
         assert!(config.post_amp[0].bypassed);
     }
 
@@ -596,11 +638,11 @@ mod tests {
         assert_eq!(params.master.value(), ui.output_gain);
         assert_eq!(params.speaker_ir.value(), snapshot.cab_mix > 0.0);
         assert!(params.overdrive.value());
-        assert!(!params.springfield.value());
+        assert!(!params.auralith.value());
     }
 
     #[test]
-    fn active_springfield_produces_tail_without_exploding() {
+    fn active_auralith_produces_tail_without_exploding() {
         let config = plugin_signal_chain_config(AppProfile::greybound_free(), "nox30");
         let mut chain = SignalChain::new(48_000.0, config);
         let controls = AmpControls {
@@ -620,9 +662,12 @@ mod tests {
             },
             DeviceSlotControls {
                 bypassed: false,
-                controls: DeviceControls::Springfield(SpringfieldControls {
-                    dwell: 0.48,
-                    tone: 0.58,
+                controls: DeviceControls::Auralith(AuralithControls {
+                    decay: 0.52,
+                    size: 0.55,
+                    texture: 0.68,
+                    tone: 0.55,
+                    low_cut: 0.32,
                     mix: 0.75,
                 }),
             },
@@ -641,16 +686,13 @@ mod tests {
             };
             let output = chain.process(input, chain_controls);
             assert!(output.is_finite());
-            assert!(output.abs() < 16.0, "unstable springfield output: {output}");
+            assert!(output.abs() < 16.0, "unstable Auralith output: {output}");
             if sample_idx > 12_000 {
                 tail_energy += output.abs();
             }
         }
 
-        assert!(
-            tail_energy > 0.01,
-            "springfield should produce a reverb tail"
-        );
+        assert!(tail_energy > 0.01, "Auralith should produce a reverb tail");
     }
 
     #[test]

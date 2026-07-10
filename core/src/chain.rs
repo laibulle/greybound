@@ -1,10 +1,10 @@
 use crate::amp::{AmpControls, VoxAmp};
 use crate::pedal::{
-    Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,
-    DartfordControls, ElectricalSignal, GodessOne, GodessOneControls, Jetstream, JetstreamControls,
-    Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch, MonarchControls, Muffin,
-    MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls, StudioDelay,
-    StudioDelayControls, StudioVerb, StudioVerbControls, Tron, TronControls,
+    Auralith, AuralithControls, Brigade, BrigadeControls, Celeste, CelesteControls,
+    ConnectionState, Dartford, DartfordControls, ElectricalSignal, GodessOne, GodessOneControls,
+    Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch,
+    MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
+    StudioDelay, StudioDelayControls, StudioVerb, StudioVerbControls, Tron, TronControls,
     AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
 };
 
@@ -75,6 +75,7 @@ pub enum DeviceConfig {
     Celeste,
     Brigade,
     Springfield,
+    Auralith,
     StudioDelay,
     StudioVerb,
 }
@@ -203,6 +204,14 @@ const DARTFORD_CONTROLS: &[ControlDescriptor] = &[
 const SPRINGFIELD_CONTROLS: &[ControlDescriptor] = &[
     unit_pot("dwell", "dwell"),
     unit_pot("tone", "tone"),
+    unit_pot("mix", "mix"),
+];
+const AURALITH_CONTROLS: &[ControlDescriptor] = &[
+    unit_pot("decay", "decay"),
+    unit_pot("size", "size"),
+    unit_pot("texture", "texture"),
+    unit_pot("tone", "tone"),
+    unit_pot("low_cut", "low cut"),
     unit_pot("mix", "mix"),
 ];
 const STUDIODELAY_CONTROLS: &[ControlDescriptor] = &[
@@ -460,6 +469,16 @@ impl DeviceConfig {
                 },
                 controls: SPRINGFIELD_CONTROLS,
             },
+            Self::Auralith => DeviceModelDescriptor {
+                id: "auralith",
+                label: "Auralith",
+                category: "reverb",
+                visual: DeviceVisualDescriptor {
+                    color: "midnight-blue",
+                    ..STANDARD_PEDAL_VISUAL
+                },
+                controls: AURALITH_CONTROLS,
+            },
             Self::StudioDelay => DeviceModelDescriptor {
                 id: "studiodelay",
                 label: "StudioDelay",
@@ -564,6 +583,7 @@ pub enum DeviceControls {
     Celeste(CelesteControls),
     Brigade(BrigadeControls),
     Springfield(SpringfieldControls),
+    Auralith(AuralithControls),
     StudioDelay(StudioDelayControls),
     StudioVerb(StudioVerbControls),
 }
@@ -777,6 +797,7 @@ enum DeviceProcessor {
     Celeste(Celeste),
     Brigade(Brigade),
     Springfield(Springfield),
+    Auralith(Auralith),
     StudioDelay(StudioDelay),
     StudioVerb(StudioVerb),
 }
@@ -796,6 +817,7 @@ impl DeviceProcessor {
             DeviceConfig::Celeste => Self::Celeste(Celeste::new(sample_rate)),
             DeviceConfig::Brigade => Self::Brigade(Brigade::new(sample_rate)),
             DeviceConfig::Springfield => Self::Springfield(Springfield::new(sample_rate)),
+            DeviceConfig::Auralith => Self::Auralith(Auralith::new(sample_rate)),
             DeviceConfig::StudioDelay => Self::StudioDelay(StudioDelay::new(sample_rate)),
             DeviceConfig::StudioVerb => Self::StudioVerb(StudioVerb::new(sample_rate)),
         }
@@ -815,6 +837,7 @@ impl DeviceProcessor {
             Self::Celeste(pedal) => pedal.reset(),
             Self::Brigade(pedal) => pedal.reset(),
             Self::Springfield(pedal) => pedal.reset(),
+            Self::Auralith(pedal) => pedal.reset(),
             Self::StudioDelay(pedal) => pedal.reset(),
             Self::StudioVerb(pedal) => pedal.reset(),
         }
@@ -834,6 +857,7 @@ impl DeviceProcessor {
             Self::Celeste(_) => Celeste::INPUT_IMPEDANCE_OHMS,
             Self::Brigade(_) => Brigade::INPUT_IMPEDANCE_OHMS,
             Self::Springfield(_) => Springfield::INPUT_IMPEDANCE_OHMS,
+            Self::Auralith(_) => Auralith::INPUT_IMPEDANCE_OHMS,
             Self::StudioDelay(_) => StudioDelay::INPUT_IMPEDANCE_OHMS,
             Self::StudioVerb(_) => StudioVerb::INPUT_IMPEDANCE_OHMS,
         }
@@ -861,6 +885,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => LumenControls::default(),
                     DeviceControls::Brigade(_) => LumenControls::default(),
                     DeviceControls::Springfield(_) => LumenControls::default(),
+                    DeviceControls::Auralith(_) => LumenControls::default(),
                     DeviceControls::StudioVerb(_) => LumenControls::default(),
                     DeviceControls::StudioDelay(_) => LumenControls::default(),
                 },
@@ -881,6 +906,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MuonControls::default(),
                     DeviceControls::Brigade(_) => MuonControls::default(),
                     DeviceControls::Springfield(_) => MuonControls::default(),
+                    DeviceControls::Auralith(_) => MuonControls::default(),
                     DeviceControls::StudioVerb(_) => MuonControls::default(),
                     DeviceControls::StudioDelay(_) => MuonControls::default(),
                 },
@@ -901,6 +927,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MuffinControls::default(),
                     DeviceControls::Brigade(_) => MuffinControls::default(),
                     DeviceControls::Springfield(_) => MuffinControls::default(),
+                    DeviceControls::Auralith(_) => MuffinControls::default(),
                     DeviceControls::StudioVerb(_) => MuffinControls::default(),
                     DeviceControls::StudioDelay(_) => MuffinControls::default(),
                 },
@@ -921,6 +948,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MinotaurControls::default(),
                     DeviceControls::Brigade(_) => MinotaurControls::default(),
                     DeviceControls::Springfield(_) => MinotaurControls::default(),
+                    DeviceControls::Auralith(_) => MinotaurControls::default(),
                     DeviceControls::StudioVerb(_) => MinotaurControls::default(),
                     DeviceControls::StudioDelay(_) => MinotaurControls::default(),
                 },
@@ -941,6 +969,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => MonarchControls::default(),
                     DeviceControls::Brigade(_) => MonarchControls::default(),
                     DeviceControls::Springfield(_) => MonarchControls::default(),
+                    DeviceControls::Auralith(_) => MonarchControls::default(),
                     DeviceControls::StudioVerb(_) => MonarchControls::default(),
                     DeviceControls::StudioDelay(_) => MonarchControls::default(),
                 },
@@ -961,6 +990,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => GodessOneControls::default(),
                     DeviceControls::Brigade(_) => GodessOneControls::default(),
                     DeviceControls::Springfield(_) => GodessOneControls::default(),
+                    DeviceControls::Auralith(_) => GodessOneControls::default(),
                     DeviceControls::StudioVerb(_) => GodessOneControls::default(),
                     DeviceControls::StudioDelay(_) => GodessOneControls::default(),
                 },
@@ -981,6 +1011,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => DartfordControls::default(),
                     DeviceControls::Brigade(_) => DartfordControls::default(),
                     DeviceControls::Springfield(_) => DartfordControls::default(),
+                    DeviceControls::Auralith(_) => DartfordControls::default(),
                     DeviceControls::StudioVerb(_) => DartfordControls::default(),
                     DeviceControls::StudioDelay(_) => DartfordControls::default(),
                 },
@@ -1001,6 +1032,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => TronControls::default(),
                     DeviceControls::Brigade(_) => TronControls::default(),
                     DeviceControls::Springfield(_) => TronControls::default(),
+                    DeviceControls::Auralith(_) => TronControls::default(),
                     DeviceControls::StudioVerb(_) => TronControls::default(),
                     DeviceControls::StudioDelay(_) => TronControls::default(),
                 },
@@ -1021,6 +1053,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => JetstreamControls::default(),
                     DeviceControls::Brigade(_) => JetstreamControls::default(),
                     DeviceControls::Springfield(_) => JetstreamControls::default(),
+                    DeviceControls::Auralith(_) => JetstreamControls::default(),
                     DeviceControls::StudioVerb(_) => JetstreamControls::default(),
                     DeviceControls::StudioDelay(_) => JetstreamControls::default(),
                 },
@@ -1041,6 +1074,7 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => CelesteControls::default(),
                     DeviceControls::Brigade(_) => CelesteControls::default(),
                     DeviceControls::Springfield(_) => CelesteControls::default(),
+                    DeviceControls::Auralith(_) => CelesteControls::default(),
                     DeviceControls::StudioVerb(_) => CelesteControls::default(),
                     DeviceControls::StudioDelay(_) => CelesteControls::default(),
                 },
@@ -1061,6 +1095,7 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => BrigadeControls::default(),
                     DeviceControls::Celeste(_) => BrigadeControls::default(),
                     DeviceControls::Springfield(_) => BrigadeControls::default(),
+                    DeviceControls::Auralith(_) => BrigadeControls::default(),
                     DeviceControls::StudioVerb(_) => BrigadeControls::default(),
                     DeviceControls::StudioDelay(_) => BrigadeControls::default(),
                 },
@@ -1081,8 +1116,30 @@ impl DeviceProcessor {
                     DeviceControls::Jetstream(_) => SpringfieldControls::default(),
                     DeviceControls::Celeste(_) => SpringfieldControls::default(),
                     DeviceControls::Brigade(_) => SpringfieldControls::default(),
+                    DeviceControls::Auralith(_) => SpringfieldControls::default(),
                     DeviceControls::StudioVerb(_) => SpringfieldControls::default(),
                     DeviceControls::StudioDelay(_) => SpringfieldControls::default(),
+                },
+            ),
+            Self::Auralith(pedal) => pedal.process_loaded_voltage(
+                input_voltage,
+                match controls {
+                    DeviceControls::Auralith(controls) => controls,
+                    DeviceControls::Default => AuralithControls::default(),
+                    DeviceControls::Lumen(_) => AuralithControls::default(),
+                    DeviceControls::Muon(_) => AuralithControls::default(),
+                    DeviceControls::Muffin(_) => AuralithControls::default(),
+                    DeviceControls::Minotaur(_) => AuralithControls::default(),
+                    DeviceControls::Monarch(_) => AuralithControls::default(),
+                    DeviceControls::GodessOne(_) => AuralithControls::default(),
+                    DeviceControls::Dartford(_) => AuralithControls::default(),
+                    DeviceControls::Tron(_) => AuralithControls::default(),
+                    DeviceControls::Jetstream(_) => AuralithControls::default(),
+                    DeviceControls::Celeste(_) => AuralithControls::default(),
+                    DeviceControls::Brigade(_) => AuralithControls::default(),
+                    DeviceControls::Springfield(_) => AuralithControls::default(),
+                    DeviceControls::StudioVerb(_) => AuralithControls::default(),
+                    DeviceControls::StudioDelay(_) => AuralithControls::default(),
                 },
             ),
             Self::StudioDelay(pedal) => pedal.process_loaded_voltage(
@@ -1102,6 +1159,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => StudioDelayControls::default(),
                     DeviceControls::Brigade(_) => StudioDelayControls::default(),
                     DeviceControls::Springfield(_) => StudioDelayControls::default(),
+                    DeviceControls::Auralith(_) => StudioDelayControls::default(),
                     DeviceControls::StudioVerb(_) => StudioDelayControls::default(),
                 },
             ),
@@ -1122,6 +1180,7 @@ impl DeviceProcessor {
                     DeviceControls::Celeste(_) => StudioVerbControls::default(),
                     DeviceControls::Brigade(_) => StudioVerbControls::default(),
                     DeviceControls::Springfield(_) => StudioVerbControls::default(),
+                    DeviceControls::Auralith(_) => StudioVerbControls::default(),
                     DeviceControls::StudioDelay(_) => StudioVerbControls::default(),
                 },
             ),
@@ -1203,6 +1262,10 @@ mod tests {
         assert_eq!(
             DeviceConfig::Springfield.model_descriptor().visual.color,
             "surf-green"
+        );
+        assert_eq!(
+            DeviceConfig::Auralith.model_descriptor().visual.color,
+            "midnight-blue"
         );
         assert_eq!(amp_model_descriptor("nox30").visual.color, "copper");
         assert_eq!(amp_model_descriptor("none-star").label, "None Star");
