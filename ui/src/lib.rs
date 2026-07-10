@@ -2,9 +2,13 @@ pub mod components;
 
 use components::{KnobSkin, KnobSpec};
 use greybound::{
-    amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitDescriptor,
-    CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
-    DeviceConfig as CoreDeviceConfig,
+    amp_circuit_descriptor, device_circuit_descriptor, AmpControls as CoreAmpControls,
+    CircuitConfidence, CircuitDescriptor, CircuitDescriptorKind, CircuitNodeDescriptor,
+    CircuitNodeKind, CircuitSignalKind, DeviceConfig as CoreDeviceConfig,
+    DeviceControls as CoreDeviceControls, DeviceSlotControls as CoreDeviceSlotControls,
+    MinotaurControls as CoreMinotaurControls, SpringfieldControls as CoreSpringfieldControls,
+    StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
+    StudioVerbControls as CoreStudioVerbControls,
 };
 use iced::advanced::image as advanced_image;
 use iced::advanced::layout::{self, Layout};
@@ -1213,6 +1217,31 @@ pub struct RuntimeDeviceSlot {
     pub bypassed: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct RuntimeAudioSnapshot {
+    pub input_gain: f32,
+    pub output_gain: f32,
+    pub amp: CoreAmpControls,
+    pub amp_enabled: bool,
+    pub devices: Vec<CoreDeviceSlotControls>,
+    pub cab_mix: f32,
+    pub metronome_enabled: bool,
+    pub metronome_bpm: f32,
+    pub metronome_volume: f32,
+    pub metronome_pan: f32,
+    pub metronome_beats_per_bar: u32,
+    pub metronome_rhythm_division: u32,
+    pub eq_enabled: bool,
+    pub eq_hpf_hz: Option<f32>,
+    pub eq_lpf_hz: Option<f32>,
+    pub eq_band_gains_db: [f32; EQ_BAND_COUNT],
+    pub doubler_enabled: bool,
+    pub doubler_delay_ms: f32,
+    pub tuner_live: bool,
+    pub tuner_muted: bool,
+    pub tuner_reference_hz: f32,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AppProfile {
     pub name: &'static str,
@@ -1224,6 +1253,10 @@ pub struct AppProfile {
 impl AppProfile {
     pub fn greybound_free() -> Self {
         GREYBOUND_FREE_PROFILE
+    }
+
+    pub fn greybound_glass() -> Self {
+        GREYBOUND_GLASS_PROFILE
     }
 
     fn has_amp_model(self, model: AmpModel) -> bool {
@@ -1246,6 +1279,14 @@ impl AppProfile {
             .iter()
             .find(|descriptor| descriptor.visual == model)
     }
+}
+
+fn none_star_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("none-star")
+}
+
+fn boxer_seven_lead_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("boxer-seven-lead")
 }
 
 const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[AppAmpModelDescriptor {
@@ -1274,15 +1315,6 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
         circuit: springfield_circuit_descriptor,
     },
-    AppDeviceModelDescriptor {
-        id: "studioverb",
-        label: "Reverb",
-        kind: DeviceKind::FxLoop,
-        visual: DeviceModel::ReverbFx,
-        runtime_config: Some(CoreDeviceConfig::StudioVerb),
-        render: &REVERB_PEDAL_RENDER_SPEC,
-        circuit: no_circuit_descriptor,
-    },
 ];
 const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
     RuntimeDeviceSlot {
@@ -1297,12 +1329,6 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         config: CoreDeviceConfig::Springfield,
         bypassed: true,
     },
-    RuntimeDeviceSlot {
-        model_id: "studioverb",
-        section: RuntimeDeviceSection::PostAmp,
-        config: CoreDeviceConfig::StudioVerb,
-        bypassed: false,
-    },
 ];
 
 pub const GREYBOUND_FREE_PROFILE: AppProfile = AppProfile {
@@ -1310,6 +1336,103 @@ pub const GREYBOUND_FREE_PROFILE: AppProfile = AppProfile {
     amp_models: FREE_AMP_MODELS,
     devices: FREE_DEVICE_MODELS,
     runtime_devices: FREE_RUNTIME_DEVICES,
+};
+
+const GLASS_AMP_MODELS: &[AppAmpModelDescriptor] = &[
+    AppAmpModelDescriptor {
+        id: "nox30",
+        label: "Nox30",
+        visual: AmpModel::Nox30,
+        render: &NOX30_AMP_RENDER_SPEC,
+        circuit: nox30_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "none-star",
+        label: "None Star",
+        visual: AmpModel::WideCombo,
+        render: &WIDE_COMBO_AMP_RENDER_SPEC,
+        circuit: none_star_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "boxer-seven-lead",
+        label: "Boxer Seven Lead",
+        visual: AmpModel::LeadHead,
+        render: &LEAD_HEAD_AMP_RENDER_SPEC,
+        circuit: boxer_seven_lead_circuit_descriptor,
+    },
+];
+
+const GLASS_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
+    AppDeviceModelDescriptor {
+        id: "minotaur",
+        label: "Minotaur",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::Minotaur,
+        runtime_config: Some(CoreDeviceConfig::Minotaur),
+        render: &MINOTAUR_PEDAL_RENDER_SPEC,
+        circuit: minotaur_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "studio-delay",
+        label: "StudioDelay",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::DelayFx,
+        runtime_config: Some(CoreDeviceConfig::StudioDelay),
+        render: &DELAY_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "springfield",
+        label: "Springfield",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::Springfield,
+        runtime_config: Some(CoreDeviceConfig::Springfield),
+        render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
+        circuit: springfield_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
+        id: "studio-verb",
+        label: "StudioVerb",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::ReverbFx,
+        runtime_config: Some(CoreDeviceConfig::StudioVerb),
+        render: &REVERB_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+];
+
+const GLASS_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
+    RuntimeDeviceSlot {
+        model_id: "minotaur",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::Minotaur,
+        bypassed: false,
+    },
+    RuntimeDeviceSlot {
+        model_id: "studio-delay",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::StudioDelay,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "springfield",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::Springfield,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "studio-verb",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::StudioVerb,
+        bypassed: false,
+    },
+];
+
+pub const GREYBOUND_GLASS_PROFILE: AppProfile = AppProfile {
+    name: "Greybound Glass",
+    amp_models: GLASS_AMP_MODELS,
+    devices: GLASS_DEVICE_MODELS,
+    runtime_devices: GLASS_RUNTIME_DEVICES,
 };
 
 #[derive(Debug, Clone)]
@@ -2167,6 +2290,131 @@ impl GreyboundUi {
             .amp_descriptor_for_model(self.amp_model)
             .map(|descriptor| descriptor.id)
             .unwrap_or_else(|| self.amp_model.id())
+    }
+
+    pub fn runtime_audio_snapshot(&self) -> RuntimeAudioSnapshot {
+        RuntimeAudioSnapshot {
+            input_gain: normalized_gain(self.input_gain, -24.0, 24.0),
+            output_gain: normalized_gain(self.output_gain, -24.0, 6.0),
+            amp: self.runtime_amp_controls(),
+            amp_enabled: !self.amp.bypassed,
+            devices: self.runtime_device_controls(),
+            cab_mix: if !self.cab.bypassed {
+                self.cab.master.clamp(0.0, 1.0)
+            } else {
+                0.0
+            },
+            metronome_enabled: self.metronome.enabled,
+            metronome_bpm: self.metronome.bpm.clamp(30.0, 260.0),
+            metronome_volume: self.metronome.volume.clamp(0.0, 1.0),
+            metronome_pan: self.metronome.pan.clamp(0.0, 1.0),
+            metronome_beats_per_bar: 4,
+            metronome_rhythm_division: 1,
+            eq_enabled: self.eq.enabled,
+            eq_hpf_hz: eq_hpf_frequency_hz(self.eq.hpf),
+            eq_lpf_hz: eq_lpf_frequency_hz(self.eq.lpf),
+            eq_band_gains_db: self.eq.bands.map(eq_band_gain_db),
+            doubler_enabled: self.doubler.enabled,
+            doubler_delay_ms: self.doubler.delay_ms.clamp(0.0, 20.0),
+            tuner_live: self.tuner.open && self.tuner.live,
+            tuner_muted: self.tuner.muted,
+            tuner_reference_hz: self.tuner.reference_hz.clamp(415.0, 466.0),
+        }
+    }
+
+    fn runtime_amp_controls(&self) -> CoreAmpControls {
+        let output = match self.amp_model_id() {
+            "none-star" => 0.40 + self.amp.master * 1.20,
+            "boxer-seven-lead" => 0.20 + self.amp.master * 1.15,
+            _ => 0.58,
+        };
+        CoreAmpControls {
+            volume: self.amp.gain,
+            bass: self.amp.bass,
+            treble: self.amp.treble,
+            cut: self.amp.cut,
+            output,
+            drive: self.amp.drive,
+            presence: self.amp.presence,
+            sag: self.amp.sag,
+        }
+    }
+
+    fn runtime_device_controls(&self) -> Vec<CoreDeviceSlotControls> {
+        self.app_profile
+            .runtime_devices
+            .iter()
+            .map(|slot| {
+                let device = self.device_for_runtime_slot(slot);
+                CoreDeviceSlotControls {
+                    bypassed: device
+                        .map(|device| device.bypassed)
+                        .unwrap_or(slot.bypassed),
+                    controls: self.runtime_controls_for_slot(slot, device),
+                }
+            })
+            .collect()
+    }
+
+    fn device_for_runtime_slot(&self, slot: &RuntimeDeviceSlot) -> Option<&DeviceState> {
+        let model = match slot.config {
+            CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
+            CoreDeviceConfig::StudioDelay => DeviceModel::DelayFx,
+            CoreDeviceConfig::Springfield => DeviceModel::Springfield,
+            CoreDeviceConfig::StudioVerb => DeviceModel::ReverbFx,
+            _ => return None,
+        };
+        self.devices.iter().find(|device| device.model == model)
+    }
+
+    fn runtime_controls_for_slot(
+        &self,
+        slot: &RuntimeDeviceSlot,
+        device: Option<&DeviceState>,
+    ) -> CoreDeviceControls {
+        match slot.config {
+            CoreDeviceConfig::Minotaur => {
+                let device = device.cloned().unwrap_or_else(DeviceState::minotaur);
+                CoreDeviceControls::Minotaur(CoreMinotaurControls {
+                    gain: device.gain,
+                    treble: device.treble,
+                    output: device.master,
+                })
+            }
+            CoreDeviceConfig::StudioDelay => {
+                let device = device.cloned().unwrap_or_else(DeviceState::delay_fx);
+                CoreDeviceControls::StudioDelay(CoreStudioDelayControls {
+                    time_ms: 40.0 + device.gain * 1_160.0,
+                    feedback: device.treble,
+                    tone: 0.58,
+                    mod_depth: device.presence,
+                    mix: device.master,
+                })
+            }
+            CoreDeviceConfig::Springfield => {
+                let device = device.cloned().unwrap_or_else(DeviceState::springfield);
+                CoreDeviceControls::Springfield(CoreSpringfieldControls {
+                    dwell: device.gain,
+                    tone: device.treble,
+                    mix: device.master,
+                })
+            }
+            CoreDeviceConfig::StudioVerb => {
+                let device = device.cloned().unwrap_or_else(DeviceState::reverb_fx);
+                CoreDeviceControls::StudioVerb(CoreStudioVerbControls {
+                    algorithm: CoreStudioVerbAlgorithm::Room,
+                    decay: device.gain,
+                    size: device.bass,
+                    pre_delay_ms: 12.0,
+                    diffusion: device.cut,
+                    tone: device.treble,
+                    low_cut: device.presence,
+                    mod_depth: 0.18,
+                    mix: device.master,
+                })
+            }
+            _ => CoreDeviceControls::Default,
+        }
     }
 
     pub fn minotaur_device_config(&self) -> CoreDeviceConfig {

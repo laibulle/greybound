@@ -1,0 +1,20 @@
+[package]
+name = "greybound-plugin-ui"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Greybound custom plugin editor host layer for CLAP/VST wrappers."
+
+[dependencies]
+baseview = { git = "https://github.com/RustAudio/baseview.git", rev = "9a0b42c09d712777b2edb4c5e0cb6baf21e988f0", features = ["opengl"] }
+crossbeam = "0.8"
+iced = { version = "0.10", default-features = false, features = ["advanced", "canvas", "image"] }
+iced_graphics = "0.9"
+iced_renderer = { version = "0.1", features = ["geometry", "image"] }
+iced_runtime = "0.1"
+iced_tiny_skia = { version = "0.1", features = ["geometry", "image"] }
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "f36931f7af4646065488a9845d8f8c2f95252c23", default-features = false }
+raw-window-handle = "0.5"
+raw-window-handle-06 = { package = "raw-window-handle", version = "0.6" }
+softbuffer = { version = "0.4.6", default-features = false, features = ["kms", "x11"] }
+tiny-skia = "0.10"
