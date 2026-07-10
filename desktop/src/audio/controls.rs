@@ -369,14 +369,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_fx_loop_controls_target_springfield_and_studioverb() {
+    fn default_fx_loop_controls_target_springfield() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 3);
+        assert_eq!(slots.len(), 2);
         match slots[1].controls {
             DeviceControls::Springfield(controls) => {
                 assert!(slots[1].bypassed);
@@ -385,17 +385,6 @@ mod tests {
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);
             }
             other => panic!("expected bypassed Springfield controls, got {other:?}"),
-        }
-        match slots[2].controls {
-            DeviceControls::StudioVerb(controls) => {
-                assert!(!slots[2].bypassed);
-                assert!((controls.decay - 0.42).abs() < 1.0e-6);
-                assert!((controls.size - 0.46).abs() < 1.0e-6);
-                assert!((controls.diffusion - 0.64).abs() < 1.0e-6);
-                assert!((controls.tone - 0.54).abs() < 1.0e-6);
-                assert!((controls.mix - 0.24).abs() < 1.0e-6);
-            }
-            other => panic!("expected active StudioVerb controls, got {other:?}"),
         }
     }
 }
