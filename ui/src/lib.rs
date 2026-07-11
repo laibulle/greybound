@@ -715,6 +715,52 @@ pub const NOX30_BLACK_DIAL_KNOB_ASSET: RenderControlAssetSpec = RenderControlAss
     }),
 };
 
+pub const AURALITH_BLACK_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/auralith-black@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1024,
+        pixel_height: 1024,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: Some(RenderRotationSpec {
+        min_degrees: -135.0,
+        max_degrees: 135.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const AURALITH_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/auralith-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const AURALITH_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/auralith-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/auralith-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
 pub const NOX30_POWER_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/leds/nox30-power-off@2x.png",
@@ -1080,6 +1126,97 @@ pub const REVERB_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     },
 ];
 
+pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Decay",
+        anchor_x: 0.25,
+        anchor_y: 0.17,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Bass),
+        widget: RenderControlWidget::Pot,
+        label: "Size",
+        anchor_x: 0.50,
+        anchor_y: 0.17,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Cut),
+        widget: RenderControlWidget::Pot,
+        label: "Texture",
+        anchor_x: 0.75,
+        anchor_y: 0.17,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Treble),
+        widget: RenderControlWidget::Pot,
+        label: "Tone",
+        anchor_x: 0.25,
+        anchor_y: 0.37,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Presence),
+        widget: RenderControlWidget::Pot,
+        label: "Low Cut",
+        anchor_x: 0.50,
+        anchor_y: 0.37,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Mix",
+        anchor_x: 0.75,
+        anchor_y: 0.37,
+        radius: 29.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(AURALITH_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "Status",
+        anchor_x: 0.50,
+        anchor_y: 0.60,
+        radius: 21.0,
+        hit_radius: 0.0,
+        skin: KnobSkin::Teal,
+        asset: Some(AURALITH_JEWEL_LED_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Footswitch,
+        label: "Bypass",
+        anchor_x: 0.50,
+        anchor_y: 0.78,
+        radius: 40.0,
+        hit_radius: 58.0,
+        skin: KnobSkin::Teal,
+        asset: Some(AURALITH_FOOTSWITCH_ASSET),
+    },
+];
+
 pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "pedal.minotaur",
     surface: STANDARD_PEDAL_SURFACE,
@@ -1144,6 +1281,19 @@ pub const REVERB_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     asset: None,
     typography: RenderTypographyPolicy::DrawnByUi,
     controls: REVERB_PEDAL_CONTROLS,
+};
+
+pub const AURALITH_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "pedal.auralith",
+    surface: STANDARD_PEDAL_SURFACE,
+    asset: Some(RenderAssetSpec {
+        path: "assets/pedals/auralith@4x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1200,
+        pixel_height: 2172,
+    }),
+    typography: RenderTypographyPolicy::DrawnByUi,
+    controls: AURALITH_PEDAL_CONTROLS,
 };
 
 pub const CAB_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
@@ -1312,7 +1462,7 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         kind: DeviceKind::FxLoop,
         visual: DeviceModel::ReverbFx,
         runtime_config: Some(CoreDeviceConfig::Auralith),
-        render: &REVERB_PEDAL_RENDER_SPEC,
+        render: &AURALITH_PEDAL_RENDER_SPEC,
         circuit: no_circuit_descriptor,
     },
 ];
@@ -3998,6 +4148,12 @@ pub fn preload_render_assets() {
             pixel_height: 2260,
         },
         RenderAssetSpec {
+            path: "assets/pedals/auralith@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        },
+        RenderAssetSpec {
             path: "assets/amps/nox30-cropped@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1620,
@@ -4052,6 +4208,30 @@ pub fn preload_render_assets() {
             pixel_height: 1024,
         },
         RenderAssetSpec {
+            path: "assets/controls/knobs/auralith-black@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1024,
+            pixel_height: 1024,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/buttons/auralith-footswitch@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/auralith-jewel-off@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/auralith-jewel-on@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
+        },
+        RenderAssetSpec {
             path: "assets/controls/knobs/springfield-stainless@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 512,
@@ -4101,6 +4281,7 @@ pub fn preload_render_assets() {
 
     let _ = minotaur_ivory_knob_handles().len();
     let _ = nox30_black_dial_knob_handles().len();
+    let _ = auralith_black_knob_handles().len();
     let _ = springfield_stainless_knob_handles().len();
 }
 
@@ -4150,6 +4331,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/pedals/springfield@4x.png" => {
             decoded_handle!("../assets/pedals/springfield@4x.png", 1200, 2260)
         }
+        "assets/pedals/auralith@4x.png" => {
+            decoded_handle!("../assets/pedals/auralith@4x.png", 1200, 2172)
+        }
         "assets/amps/nox30-cropped@2x.png" => {
             decoded_handle!("../assets/amps/nox30-cropped@2x.png", 1620, 856)
         }
@@ -4185,6 +4369,22 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
             1024,
             1024
         ),
+        "assets/controls/knobs/auralith-black@2x.png" => {
+            decoded_handle!("../assets/controls/knobs/auralith-black@2x.png", 1024, 1024)
+        }
+        "assets/controls/buttons/auralith-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/auralith-footswitch@2x.png",
+            512,
+            512
+        ),
+        "assets/controls/leds/auralith-jewel-off@2x.png" => decoded_handle!(
+            "../assets/controls/leds/auralith-jewel-off@2x.png",
+            256,
+            256
+        ),
+        "assets/controls/leds/auralith-jewel-on@2x.png" => {
+            decoded_handle!("../assets/controls/leds/auralith-jewel-on@2x.png", 256, 256)
+        }
         "assets/controls/knobs/springfield-stainless@2x.png" => decoded_handle!(
             "../assets/controls/knobs/springfield-stainless@2x.png",
             512,
@@ -4234,6 +4434,12 @@ fn render_control_asset_handle(
         const FRAME_COUNT: usize = 121;
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return nox30_black_dial_knob_handles().get(index).cloned();
+    }
+    if asset.image.path == "assets/controls/knobs/auralith-black@2x.png" && asset.rotation.is_some()
+    {
+        const FRAME_COUNT: usize = 121;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return auralith_black_knob_handles().get(index).cloned();
     }
     if asset.image.path == "assets/controls/knobs/springfield-stainless@2x.png"
         && asset.rotation.is_some()
@@ -4296,6 +4502,34 @@ fn nox30_black_dial_knob_handles() -> &'static [advanced_image::Handle] {
                 let rotation = NOX30_BLACK_DIAL_KNOB_ASSET
                     .rotation
                     .expect("nox30 knob asset must define a rotation range");
+                let angle = (rotation.min_degrees
+                    + (rotation.max_degrees - rotation.min_degrees) * t)
+                    .to_radians();
+                let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn auralith_black_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/auralith-black@2x.png"
+        ))
+        .expect("embedded auralith knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let t = index as f32 / (FRAME_COUNT - 1) as f32;
+                let rotation = AURALITH_BLACK_KNOB_ASSET
+                    .rotation
+                    .expect("auralith knob asset must define a rotation range");
                 let angle = (rotation.min_degrees
                     + (rotation.max_degrees - rotation.min_degrees) * t)
                     .to_radians();
@@ -7454,6 +7688,17 @@ fn draw_pedal_controls(
             continue;
         }
         if control.asset.is_some() {
+            if draw_labels {
+                let center = render_control_center(control, origin, size);
+                draw_text(
+                    frame,
+                    control.label,
+                    Point::new(center.x, center.y + control.radius + 20.0),
+                    14.0,
+                    Color::from_rgba(0.86, 0.90, 0.94, 0.88),
+                    Horizontal::Center,
+                );
+            }
             continue;
         }
         draw_component_knob(
