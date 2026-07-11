@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 const DOWNLOAD_URL =
-  "https://github.com/laibulle/greybound/releases/download/0.0.1-alpha1/Greybound.Free.dmg";
+  "https://github.com/laibulle/greybound/releases/download/0.0.1-alpha2/Greybound.Free.dmg";
 
 function GitHubMark({ size }: { size: number }) {
   return (
@@ -161,8 +161,16 @@ const modelTypes = [
     short: "Equations first",
     description:
       "A model built from explicit equations. In practice it often captures the linear part of components well, while the messy nonlinear feel still needs careful choices.",
-    pros: ["Readable assumptions", "Stable linear behavior", "Good for design questions"],
-    cons: ["Can miss organic feel", "Can sound too ideal", "Nonlinear parts are hard"],
+    pros: [
+      "Readable assumptions",
+      "Stable linear behavior",
+      "Good for design questions",
+    ],
+    cons: [
+      "Can miss organic feel",
+      "Can sound too ideal",
+      "Nonlinear parts are hard",
+    ],
     className: "whiteBox",
     diagram: "white",
   },
@@ -171,8 +179,16 @@ const modelTypes = [
     short: "Examples first",
     description:
       "A neural network trained from input and output examples. It can imitate what it has heard, but its internal reasoning is not a circuit you can inspect.",
-    pros: ["Can capture complex tone", "Fast once trained", "Works without schematics"],
-    cons: ["Replays existing sounds", "Hard to inspect", "Needs strong datasets"],
+    pros: [
+      "Can capture complex tone",
+      "Fast once trained",
+      "Works without schematics",
+    ],
+    cons: [
+      "Replays existing sounds",
+      "Hard to inspect",
+      "Needs strong datasets",
+    ],
     className: "blackBox",
     diagram: "black",
   },
@@ -181,8 +197,16 @@ const modelTypes = [
     short: "Circuit state plus micro-nets",
     description:
       "A circuit-level model where nonlinear components can use tiny neural networks, while voltage drops are reported back into the global circuit as shared state.",
-    pros: ["Keeps circuit context", "Learns nonlinear feel locally", "Auditable signal flow"],
-    cons: ["Requires careful coupling", "Needs component validation", "More design judgment"],
+    pros: [
+      "Keeps circuit context",
+      "Learns nonlinear feel locally",
+      "Auditable signal flow",
+    ],
+    cons: [
+      "Requires careful coupling",
+      "Needs component validation",
+      "More design judgment",
+    ],
     className: "greyBox",
     diagram: "grey",
   },
@@ -300,8 +324,8 @@ export default function Home() {
           <h1 id="hero-title">Greybound</h1>
           <p className="heroText">
             A public research base for guitar amp and pedal modeling, built
-            around greybox thinking: analog circuits as a map, measurements as
-            a check, and local learned laws that still report back into the
+            around greybox thinking: analog circuits as a map, measurements as a
+            check, and local learned laws that still report back into the
             circuit.
           </p>
           <div className="heroActions" aria-label="Primary actions">
@@ -349,7 +373,11 @@ export default function Home() {
         ))}
       </section>
 
-      <section className="webEmbed" id="web-alpha" aria-labelledby="web-alpha-title">
+      <section
+        className="webEmbed"
+        id="web-alpha"
+        aria-labelledby="web-alpha-title"
+      >
         <div className="webEmbedCopy">
           <p className="sectionKicker">Web alpha</p>
           <h2 id="web-alpha-title">The desktop UI, running in the browser.</h2>
@@ -362,13 +390,24 @@ export default function Home() {
             Open playground
           </a>
         </div>
-        <a className="webEmbedPreview" href="/playground" aria-label="Open Greybound playground">
-          <img src="/product/desktop-minotaur.webp" alt="Greybound web playground preview" />
+        <a
+          className="webEmbedPreview"
+          href="/playground"
+          aria-label="Open Greybound playground"
+        >
+          <img
+            src="/product/desktop-minotaur.webp"
+            alt="Greybound web playground preview"
+          />
           <span>Launch the browser playground</span>
         </a>
       </section>
 
-      <section className="desktopShowcase" id="desktop-alpha" aria-labelledby="desktop-title">
+      <section
+        className="desktopShowcase"
+        id="desktop-alpha"
+        aria-labelledby="desktop-title"
+      >
         <div className="desktopCopy">
           <p className="sectionKicker">Desktop alpha</p>
           <h2 id="desktop-title">A real app for testing the greybox chain.</h2>
@@ -392,7 +431,7 @@ export default function Home() {
             </a>
             <a
               className="button secondary"
-              href="https://github.com/laibulle/greybound/releases/tag/0.0.1-alpha1"
+              href="https://github.com/laibulle/greybound/releases/tag/0.0.1-alpha2"
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -400,7 +439,10 @@ export default function Home() {
             </a>
           </div>
         </div>
-        <div className="desktopVisuals" aria-label="Greybound desktop screenshots">
+        <div
+          className="desktopVisuals"
+          aria-label="Greybound desktop screenshots"
+        >
           <figure className="desktopMainShot">
             <img
               src="/product/desktop-amp.webp"
@@ -435,7 +477,11 @@ export default function Home() {
         </p>
       </section>
 
-      <section className="thesisStrip" id="method" aria-labelledby="method-title">
+      <section
+        className="thesisStrip"
+        id="method"
+        aria-labelledby="method-title"
+      >
         <div className="thesisIntro">
           <p className="sectionKicker">Method</p>
           <h2 id="method-title">Not a captured amp. Not a frozen schematic.</h2>
@@ -511,13 +557,15 @@ export default function Home() {
         </div>
         <div className="modelDepthCopy">
           <p className="sectionKicker">The subtle part</p>
-          <h2 id="model-depth-title">The model is not a capture. It is a circuit with learned local laws.</h2>
+          <h2 id="model-depth-title">
+            The model is not a capture. It is a circuit with learned local laws.
+          </h2>
           <p>
             Many amp models choose one extreme: solve simplified equations and
             lose the messy feel, or train one large network that can only echo
             the sounds in its dataset. Greybound keeps the circuit as the
-            organizing structure, then learns the small nonlinear behaviors
-            that deserve it.
+            organizing structure, then learns the small nonlinear behaviors that
+            deserve it.
           </p>
           <div className="subtletyGrid">
             {subtletyPoints.map((point) => (
@@ -533,7 +581,9 @@ export default function Home() {
       <section className="section signal" aria-labelledby="signal-title">
         <div className="signalHeader">
           <p className="sectionKicker">Signal chain</p>
-          <h2 id="signal-title">From string to speaker, every stage has a job.</h2>
+          <h2 id="signal-title">
+            From string to speaker, every stage has a job.
+          </h2>
         </div>
         <ol>
           {chain.map((item) => (
@@ -545,7 +595,11 @@ export default function Home() {
         </ol>
       </section>
 
-      <section className="section pillars" id="rigs" aria-label="Greybound pillars">
+      <section
+        className="section pillars"
+        id="rigs"
+        aria-label="Greybound pillars"
+      >
         {pillars.map((pillar) => (
           <article key={pillar.title}>
             <p>{pillar.eyebrow}</p>
@@ -590,7 +644,10 @@ export default function Home() {
         <img src="/greybound-robine-mark.svg" alt="" />
         <div>
           <strong>Greybound</strong>
-          <span>Made for loud questions, quiet measurement, and responsive guitar tone.</span>
+          <span>
+            Made for loud questions, quiet measurement, and responsive guitar
+            tone.
+          </span>
         </div>
       </footer>
     </main>
