@@ -3,10 +3,10 @@ use crate::chain::{
     DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls, SignalChainConfig,
 };
 use crate::pedal::{
-    BrigadeControls, CelesteControls, DartfordControls, DartfordWave, GodessOneControls,
-    GodessOneMode, JetstreamControls, LumenControls, MinotaurControls, MonarchControls,
-    MuffinControls, MuonControls, SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm,
-    StudioVerbControls, TronControls,
+    AuralithControls, BrigadeControls, CelesteControls, DartfordControls, DartfordWave,
+    GodessOneControls, GodessOneMode, JetstreamControls, LumenControls, MinotaurControls,
+    MonarchControls, MuffinControls, MuonControls, SpringfieldControls, StudioDelayControls,
+    StudioVerbAlgorithm, StudioVerbControls, TronControls,
 };
 use anyhow::{bail, Result};
 use serde::Deserialize;
@@ -187,6 +187,7 @@ impl RigDeviceSlot {
             DeviceConfig::Celeste => DeviceControls::Celeste(self.controls.celeste()),
             DeviceConfig::Brigade => DeviceControls::Brigade(self.controls.brigade()),
             DeviceConfig::Springfield => DeviceControls::Springfield(self.controls.springfield()),
+            DeviceConfig::Auralith => DeviceControls::Auralith(self.controls.auralith()),
             DeviceConfig::StudioDelay => DeviceControls::StudioDelay(self.controls.studiodelay()),
             DeviceConfig::StudioVerb => DeviceControls::StudioVerb(self.controls.studioverb()),
         };
@@ -384,6 +385,17 @@ impl RigDeviceControls {
         }
     }
 
+    fn auralith(self) -> AuralithControls {
+        AuralithControls {
+            decay: self.decay.clamp(0.0, 1.0),
+            size: self.size.clamp(0.0, 1.0),
+            texture: self.diffusion.clamp(0.0, 1.0),
+            tone: self.tone.clamp(0.0, 1.0),
+            low_cut: self.low_cut.clamp(0.0, 1.0),
+            mix: self.mix.clamp(0.0, 1.0),
+        }
+    }
+
     fn studiodelay(self) -> StudioDelayControls {
         StudioDelayControls {
             time_ms: self.time_ms.clamp(40.0, 1_200.0),
@@ -423,6 +435,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
         "celeste" => Ok(DeviceConfig::Celeste),
         "brigade" => Ok(DeviceConfig::Brigade),
         "springfield" | "springfield-experimental" => Ok(DeviceConfig::Springfield),
+        "auralith" => Ok(DeviceConfig::Auralith),
         "studiodelay" | "studio-delay" => Ok(DeviceConfig::StudioDelay),
         "studioverb" => Ok(DeviceConfig::StudioVerb),
         _ => bail!("unknown rig device '{device}'"),
@@ -990,6 +1003,55 @@ mod tests {
             }) if (dwell - 0.52).abs() < 1e-6
                 && (tone - 0.66).abs() < 1e-6
                 && (mix - 0.31).abs() < 1e-6
+        ));
+    }
+
+    #[test]
+    fn parses_auralith_reverb_controls() {
+        let rig = RigConfig::from_json5(
+            r#"
+            {
+              name: 'unit-test-rig',
+              fx_loop: [{
+                id: 'space-reverb',
+                device: 'auralith',
+                controls: {
+                  decay: 0.61,
+                  size: 0.72,
+                  diffusion: 0.83,
+                  tone: 0.56,
+                  low_cut: 0.36,
+                  mix: 0.29,
+                },
+              }],
+              amp: { model: 'nox30' },
+            }
+            "#,
+        )
+        .unwrap();
+
+        let chain = rig.signal_chain_config().unwrap();
+        let controls = rig.device_controls().unwrap();
+
+        assert_eq!(
+            chain.fx_loop,
+            vec![DeviceSlotConfig::active(DeviceConfig::Auralith)]
+        );
+        assert!(matches!(
+            controls[0].controls,
+            DeviceControls::Auralith(AuralithControls {
+                decay,
+                size,
+                texture,
+                tone,
+                low_cut,
+                mix,
+            }) if (decay - 0.61).abs() < 1e-6
+                && (size - 0.72).abs() < 1e-6
+                && (texture - 0.83).abs() < 1e-6
+                && (tone - 0.56).abs() < 1e-6
+                && (low_cut - 0.36).abs() < 1e-6
+                && (mix - 0.29).abs() < 1e-6
         ));
     }
 

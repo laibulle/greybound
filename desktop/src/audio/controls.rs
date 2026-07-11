@@ -1,6 +1,7 @@
 use greybound::{
-    AmpControls, DeviceConfig, DeviceControls, DeviceSlotControls, MinotaurControls,
-    SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm, StudioVerbControls,
+    AmpControls, AuralithControls, DeviceConfig, DeviceControls, DeviceSlotControls,
+    MinotaurControls, SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm,
+    StudioVerbControls,
 };
 use greybound_ui::{GreyboundUi, RuntimeAudioSnapshot};
 use std::sync::{
@@ -37,6 +38,13 @@ pub(super) struct SharedRuntimeControls {
     springfield_dwell: Arc<AtomicU32>,
     springfield_tone: Arc<AtomicU32>,
     springfield_mix: Arc<AtomicU32>,
+    auralith_bypassed: Arc<AtomicBool>,
+    auralith_decay: Arc<AtomicU32>,
+    auralith_size: Arc<AtomicU32>,
+    auralith_texture: Arc<AtomicU32>,
+    auralith_tone: Arc<AtomicU32>,
+    auralith_low_cut: Arc<AtomicU32>,
+    auralith_mix: Arc<AtomicU32>,
     studioverb_bypassed: Arc<AtomicBool>,
     studioverb_decay: Arc<AtomicU32>,
     studioverb_size: Arc<AtomicU32>,
@@ -92,6 +100,13 @@ impl SharedRuntimeControls {
             springfield_dwell: atomic_f32(0.48),
             springfield_tone: atomic_f32(0.58),
             springfield_mix: atomic_f32(0.26),
+            auralith_bypassed: Arc::new(AtomicBool::new(false)),
+            auralith_decay: atomic_f32(0.52),
+            auralith_size: atomic_f32(0.55),
+            auralith_texture: atomic_f32(0.68),
+            auralith_tone: atomic_f32(0.55),
+            auralith_low_cut: atomic_f32(0.32),
+            auralith_mix: atomic_f32(0.24),
             studioverb_bypassed: Arc::new(AtomicBool::new(false)),
             studioverb_decay: atomic_f32(0.42),
             studioverb_size: atomic_f32(0.46),
@@ -196,6 +211,16 @@ impl SharedRuntimeControls {
                     store_f32(&self.springfield_tone, controls.tone);
                     store_f32(&self.springfield_mix, controls.mix);
                 }
+                DeviceControls::Auralith(controls) => {
+                    self.auralith_bypassed
+                        .store(slot.bypassed, Ordering::Relaxed);
+                    store_f32(&self.auralith_decay, controls.decay);
+                    store_f32(&self.auralith_size, controls.size);
+                    store_f32(&self.auralith_texture, controls.texture);
+                    store_f32(&self.auralith_tone, controls.tone);
+                    store_f32(&self.auralith_low_cut, controls.low_cut);
+                    store_f32(&self.auralith_mix, controls.mix);
+                }
                 DeviceControls::StudioVerb(controls) => {
                     self.studioverb_bypassed
                         .store(slot.bypassed, Ordering::Relaxed);
@@ -272,6 +297,17 @@ impl SharedRuntimeControls {
                         dwell: load_f32(&self.springfield_dwell),
                         tone: load_f32(&self.springfield_tone),
                         mix: load_f32(&self.springfield_mix),
+                    }),
+                }),
+                DeviceConfig::Auralith => target.push(DeviceSlotControls {
+                    bypassed: self.auralith_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::Auralith(AuralithControls {
+                        decay: load_f32(&self.auralith_decay),
+                        size: load_f32(&self.auralith_size),
+                        texture: load_f32(&self.auralith_texture),
+                        tone: load_f32(&self.auralith_tone),
+                        low_cut: load_f32(&self.auralith_low_cut),
+                        mix: load_f32(&self.auralith_mix),
                     }),
                 }),
                 DeviceConfig::StudioVerb => target.push(DeviceSlotControls {
@@ -369,17 +405,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_fx_loop_controls_target_springfield() {
+    fn default_fx_loop_controls_keep_auralith_active_and_springfield_bypassed() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 2);
+        assert_eq!(slots.len(), 3);
         match slots[1].controls {
+            DeviceControls::Auralith(controls) => {
+                assert!(!slots[1].bypassed);
+                assert!((controls.decay - 0.52).abs() < 1.0e-6);
+                assert!((controls.size - 0.55).abs() < 1.0e-6);
+                assert!((controls.texture - 0.68).abs() < 1.0e-6);
+                assert!((controls.tone - 0.55).abs() < 1.0e-6);
+                assert!((controls.low_cut - 0.32).abs() < 1.0e-6);
+                assert!((controls.mix - 0.24).abs() < 1.0e-6);
+            }
+            other => panic!("expected active Auralith controls, got {other:?}"),
+        }
+        match slots[2].controls {
             DeviceControls::Springfield(controls) => {
-                assert!(slots[1].bypassed);
+                assert!(slots[2].bypassed);
                 assert!((controls.dwell - 0.48).abs() < 1.0e-6);
                 assert!((controls.tone - 0.58).abs() < 1.0e-6);
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);

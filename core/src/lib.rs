@@ -29,12 +29,12 @@ pub use circuit_descriptor::{
     CIRCUIT_DESCRIPTOR_SCHEMA, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
 };
 pub use pedal::{
-    configure_minotaur_clip_neural, configure_minotaur_tone_neural, Brigade, BrigadeControls,
-    Celeste, CelesteControls, ConnectionState, Dartford, DartfordControls, DartfordWave,
-    ElectricalSignal, GodessOne, GodessOneControls, GodessOneMode, Jetstream, JetstreamControls,
-    Load, Lumen, LumenControls, Minotaur, MinotaurControls, MinotaurNodeVoltages, Monarch,
-    MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
-    StudioDelay, StudioDelayControls, StudioVerb, StudioVerbAlgorithm, StudioVerbControls, Tron,
-    TronControls,
+    configure_minotaur_clip_neural, configure_minotaur_tone_neural, Auralith, AuralithControls,
+    Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,
+    DartfordControls, DartfordWave, ElectricalSignal, GodessOne, GodessOneControls, GodessOneMode,
+    Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls,
+    MinotaurNodeVoltages, Monarch, MonarchControls, Muffin, MuffinControls, Muon, MuonControls,
+    Springfield, SpringfieldControls, StudioDelay, StudioDelayControls, StudioVerb,
+    StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls,
 };
 pub use rig::RigConfig;
