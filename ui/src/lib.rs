@@ -1465,6 +1465,15 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         render: &AURALITH_PEDAL_RENDER_SPEC,
         circuit: no_circuit_descriptor,
     },
+    AppDeviceModelDescriptor {
+        id: "springfield",
+        label: "Springfield",
+        kind: DeviceKind::FxLoop,
+        visual: DeviceModel::Springfield,
+        runtime_config: Some(CoreDeviceConfig::Springfield),
+        render: &SPRINGFIELD_PEDAL_RENDER_SPEC,
+        circuit: springfield_circuit_descriptor,
+    },
 ];
 const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
     RuntimeDeviceSlot {
@@ -1478,6 +1487,12 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         section: RuntimeDeviceSection::PostAmp,
         config: CoreDeviceConfig::Auralith,
         bypassed: false,
+    },
+    RuntimeDeviceSlot {
+        model_id: "springfield",
+        section: RuntimeDeviceSection::PostAmp,
+        config: CoreDeviceConfig::Springfield,
+        bypassed: true,
     },
 ];
 

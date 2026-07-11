@@ -405,14 +405,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_fx_loop_controls_target_auralith() {
+    fn default_fx_loop_controls_keep_auralith_active_and_springfield_bypassed() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 2);
+        assert_eq!(slots.len(), 3);
         match slots[1].controls {
             DeviceControls::Auralith(controls) => {
                 assert!(!slots[1].bypassed);
@@ -424,6 +424,15 @@ mod tests {
                 assert!((controls.mix - 0.24).abs() < 1.0e-6);
             }
             other => panic!("expected active Auralith controls, got {other:?}"),
+        }
+        match slots[2].controls {
+            DeviceControls::Springfield(controls) => {
+                assert!(slots[2].bypassed);
+                assert!((controls.dwell - 0.48).abs() < 1.0e-6);
+                assert!((controls.tone - 0.58).abs() < 1.0e-6);
+                assert!((controls.mix - 0.26).abs() < 1.0e-6);
+            }
+            other => panic!("expected bypassed Springfield controls, got {other:?}"),
         }
     }
 }

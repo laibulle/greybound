@@ -1,6 +1,7 @@
 use greybound::{
     ir::SpeakerStage, AmpControls, AuralithControls, DeviceControls, DeviceSlotConfig,
     DeviceSlotControls, MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls,
+    SpringfieldControls,
 };
 use greybound_plugin_ui::{PluginIcedApp, PluginUiConfig};
 use greybound_ui::{
@@ -315,6 +316,10 @@ impl Plugin for GreyboundPlugin {
                     bypassed: !self.params.auralith.value(),
                     controls: DeviceControls::Auralith(auralith_controls),
                 },
+                DeviceSlotControls {
+                    bypassed: true,
+                    controls: DeviceControls::Springfield(SpringfieldControls::default()),
+                },
             ];
             let chain_controls = SignalChainControls {
                 amp: controls,
@@ -619,9 +624,14 @@ mod tests {
         assert_eq!(config.pre_amp[0].device, greybound::DeviceConfig::Minotaur);
         assert!(!config.pre_amp[0].bypassed);
         assert!(config.fx_loop.is_empty());
-        assert_eq!(config.post_amp.len(), 1);
+        assert_eq!(config.post_amp.len(), 2);
         assert_eq!(config.post_amp[0].device, greybound::DeviceConfig::Auralith);
         assert!(!config.post_amp[0].bypassed);
+        assert_eq!(
+            config.post_amp[1].device,
+            greybound::DeviceConfig::Springfield
+        );
+        assert!(config.post_amp[1].bypassed);
     }
 
     #[test]
@@ -670,6 +680,10 @@ mod tests {
                     low_cut: 0.32,
                     mix: 0.75,
                 }),
+            },
+            DeviceSlotControls {
+                bypassed: true,
+                controls: DeviceControls::Springfield(SpringfieldControls::default()),
             },
         ];
         let chain_controls = SignalChainControls {
