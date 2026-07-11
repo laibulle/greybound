@@ -1,7 +1,7 @@
 use greybound::{
     ir::SpeakerStage, AmpControls, AuralithControls, DeviceControls, DeviceSlotConfig,
-    DeviceSlotControls, MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls,
-    SpringfieldControls,
+    DeviceSlotControls, LumenControls, MinotaurControls, SignalChain, SignalChainConfig,
+    SignalChainControls, SpringfieldControls,
 };
 use greybound_plugin_ui::{PluginIcedApp, PluginUiConfig};
 use greybound_ui::{
@@ -45,6 +45,16 @@ struct GreyboundParams {
     master: FloatParam,
     #[id = "speaker_ir"]
     speaker_ir: BoolParam,
+    #[id = "lumen"]
+    lumen: BoolParam,
+    #[id = "lumen_peak_reduction"]
+    lumen_peak_reduction: FloatParam,
+    #[id = "lumen_gain"]
+    lumen_gain: FloatParam,
+    #[id = "lumen_emphasis"]
+    lumen_emphasis: FloatParam,
+    #[id = "lumen_mix"]
+    lumen_mix: FloatParam,
     #[id = "overdrive"]
     overdrive: BoolParam,
     #[id = "overdrive_gain"]
@@ -118,6 +128,39 @@ impl Default for GreyboundParams {
             .with_value_to_string(output_trim_to_string())
             .with_string_to_value(output_trim_from_string()),
             speaker_ir: BoolParam::new("Speaker IR", true),
+            lumen: BoolParam::new("Lumen Compressor", false),
+            lumen_peak_reduction: FloatParam::new(
+                "Lumen Peak",
+                LumenControls::default().peak_reduction,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            lumen_gain: FloatParam::new(
+                "Lumen Gain",
+                LumenControls::default().gain,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            lumen_emphasis: FloatParam::new(
+                "Lumen Emphasis",
+                LumenControls::default().emphasis,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            lumen_mix: FloatParam::new(
+                "Lumen Mix",
+                LumenControls::default().mix,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
             overdrive: BoolParam::new("Minotaur Overdrive", true),
             overdrive_gain: FloatParam::new(
                 "Minotaur Gain",
@@ -299,6 +342,12 @@ impl Plugin for GreyboundPlugin {
                 treble: self.params.overdrive_treble.smoothed.next(),
                 output: self.params.overdrive_output.smoothed.next(),
             };
+            let lumen_controls = LumenControls {
+                peak_reduction: self.params.lumen_peak_reduction.smoothed.next(),
+                gain: self.params.lumen_gain.smoothed.next(),
+                emphasis: self.params.lumen_emphasis.smoothed.next(),
+                mix: self.params.lumen_mix.smoothed.next(),
+            };
             let auralith_controls = AuralithControls {
                 decay: self.params.auralith_decay.smoothed.next(),
                 size: self.params.auralith_size.smoothed.next(),
@@ -308,6 +357,10 @@ impl Plugin for GreyboundPlugin {
                 mix: self.params.auralith_mix.smoothed.next(),
             };
             let device_controls = [
+                DeviceSlotControls {
+                    bypassed: !self.params.lumen.value(),
+                    controls: DeviceControls::Lumen(lumen_controls),
+                },
                 DeviceSlotControls {
                     bypassed: !self.params.overdrive.value(),
                     controls: DeviceControls::Minotaur(overdrive_controls),
@@ -519,6 +572,32 @@ impl GreyboundPluginApp {
             }
         }
 
+        if let Some(lumen) = self
+            .ui
+            .devices
+            .iter()
+            .find(|device| device.model == DeviceModel::Lumen)
+        {
+            unsafe {
+                self.context.raw_set_parameter_normalized(
+                    self.params.lumen.as_ptr(),
+                    if lumen.bypassed { 0.0 } else { 1.0 },
+                );
+                self.context.raw_set_parameter_normalized(
+                    self.params.lumen_peak_reduction.as_ptr(),
+                    lumen.gain,
+                );
+                self.context
+                    .raw_set_parameter_normalized(self.params.lumen_gain.as_ptr(), lumen.treble);
+                self.context.raw_set_parameter_normalized(
+                    self.params.lumen_emphasis.as_ptr(),
+                    lumen.presence,
+                );
+                self.context
+                    .raw_set_parameter_normalized(self.params.lumen_mix.as_ptr(), lumen.master);
+            }
+        }
+
         if let Some(auralith) = self
             .ui
             .devices
@@ -620,9 +699,11 @@ mod tests {
     fn plugin_uses_free_runtime_devices() {
         let config = plugin_signal_chain_config(AppProfile::greybound_free(), "nox30");
 
-        assert_eq!(config.pre_amp.len(), 1);
-        assert_eq!(config.pre_amp[0].device, greybound::DeviceConfig::Minotaur);
-        assert!(!config.pre_amp[0].bypassed);
+        assert_eq!(config.pre_amp.len(), 2);
+        assert_eq!(config.pre_amp[0].device, greybound::DeviceConfig::Lumen);
+        assert!(config.pre_amp[0].bypassed);
+        assert_eq!(config.pre_amp[1].device, greybound::DeviceConfig::Minotaur);
+        assert!(!config.pre_amp[1].bypassed);
         assert!(config.fx_loop.is_empty());
         assert_eq!(config.post_amp.len(), 2);
         assert_eq!(config.post_amp[0].device, greybound::DeviceConfig::Auralith);
@@ -647,6 +728,17 @@ mod tests {
         assert_eq!(params.sag.value(), ui.amp.sag);
         assert_eq!(params.master.value(), ui.output_gain);
         assert_eq!(params.speaker_ir.value(), snapshot.cab_mix > 0.0);
+        assert!(!params.lumen.value());
+        assert_eq!(
+            params.lumen_peak_reduction.value(),
+            LumenControls::default().peak_reduction
+        );
+        assert_eq!(params.lumen_gain.value(), LumenControls::default().gain);
+        assert_eq!(
+            params.lumen_emphasis.value(),
+            LumenControls::default().emphasis
+        );
+        assert_eq!(params.lumen_mix.value(), LumenControls::default().mix);
         assert!(params.overdrive.value());
         assert!(params.auralith.value());
     }
@@ -666,6 +758,10 @@ mod tests {
             sag: 0.45,
         };
         let devices = [
+            DeviceSlotControls {
+                bypassed: true,
+                controls: DeviceControls::Lumen(LumenControls::default()),
+            },
             DeviceSlotControls {
                 bypassed: false,
                 controls: DeviceControls::Minotaur(MinotaurControls::default()),

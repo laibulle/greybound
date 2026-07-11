@@ -34,9 +34,11 @@ Visual quality:
 
 Static faceplate contents:
 - include the pedal enclosure artwork
-- include all typography baked into the image
-- include model name: <MODEL_NAME>
-- include control labels: <CONTROL_LABELS>
+- for `typography = BakedIntoAsset`, include all typography baked into the image
+- for `typography = DrawnByUi`, omit editable text and leave clean visual space
+  for labels drawn by the UI
+- include model name: <MODEL_NAME> only when the target render spec bakes it
+- include control labels: <CONTROL_LABELS> only when the target render spec bakes them
 - include static input/output/DC labels if the design needs them
 - include static footswitch hardware if it does not need a pressed/unpressed animation
 - include static LED bezel or socket only if the jewel/glow is supplied as a separate dynamic PNG
@@ -81,8 +83,8 @@ LEDs:
 ## Integration Checklist
 
 - Faceplate PNG is exactly `1200 x 2172` for new assets.
-- If using an older `1200 x 2260` asset, verify it still looks correct in-app before replacing it.
-- Typography is baked into the faceplate.
+- If using an older `1200 x 2260` or cropped legacy asset, verify it still looks correct in-app before replacing it.
+- Typography matches the model's `RenderTypographyPolicy`.
 - Knobs and LED jewels are separate PNG controls when they rotate or change state.
 - Static footswitch hardware may stay baked into the faceplate; keep only the hit area in the UI.
-- Run `cargo check -p greybound-ui`, `cargo check -p greybound-free`, and `cargo check -p greybound-glass` after wiring assets.
+- Run `cargo check -p greybound-ui`, `cargo check -p greybound-free`, and `cargo check -p greybound-plugin` after wiring assets.

@@ -7,13 +7,21 @@ For AI generation prompts and a reusable layout guide, see `ai-asset-generation.
 
 - Logical display size: `300 x 543`
 - Recommended PNG size for new assets: `1200 x 2172` (`4x`)
-- Existing generated assets may still use `1200 x 2260`; when touching them, prefer regenerating or cropping to the canonical ratio instead of stretching in the UI.
+- Existing generated assets may still use legacy sizes. Known accepted legacy
+  sizes are `1200 x 2260` for early full-height renders and `914 x 1721` for
+  the cropped Minotaur render. When touching them, prefer regenerating or
+  cropping to the canonical ratio instead of stretching in the UI.
 - Format: PNG RGBA, transparent background
 - Orientation: portrait
 - Safe body area: fill the full logical frame; keep shadows inside the PNG bounds
-- Asset path convention: `assets/pedals/<model-id>@4x.png`
+- Preferred asset path convention: `assets/pedals/<model-id>@4x.png`
+- Versioned legacy paths such as `assets/pedals/<model-id>-v2@4x.png` are allowed
+  when replacing the path would create unnecessary churn.
+- Every `RenderAssetSpec` must declare the actual embedded PNG dimensions. The
+  static decoder also asserts exact dimensions for known embedded assets.
 
-The enclosure PNG is the complete static faceplate. It must include:
+The enclosure PNG is the complete static faceplate. For
+`typography = BakedIntoAsset`, it must include:
 
 - enclosure/body artwork
 - all typography
@@ -22,6 +30,10 @@ The enclosure PNG is the complete static faceplate. It must include:
 - min/max marks
 - decorative LED bezels and static footswitch hardware if they do not change state
 - screw heads, wear, shadows inside the pedal bounds, and non-interactive hardware
+
+For `typography = DrawnByUi`, the static faceplate may omit model name, labels,
+and marks that should remain editable from Rust. In that mode, the UI draws
+control labels above the faceplate while dynamic controls still render on top.
 
 It must not include dynamic state:
 
@@ -43,6 +55,9 @@ The app renders dynamic controls above the static faceplate PNG. If a model has 
 
 - Logical size: `1240 x 500`
 - Recommended PNG size: `2480 x 1000` (`2x`)
+- Cropped amp-head surfaces can declare their own logical and recommended
+  dimensions. The current Nox30 head uses a cropped `1620 x 856` PNG on a
+  dedicated cropped amp surface.
 - Format: PNG RGBA, transparent background
 - Orientation: landscape
 - Asset path convention: `assets/amps/<model-id>@2x.png`
@@ -96,7 +111,7 @@ Each control can define its own PNG assets:
 
 - Recommended size: square PNG RGBA, `256 x 256` or `512 x 512`
 - Use `pressed_image` for mouse-down/pressed state when available
-- Asset path convention: `assets/controls/footswitches/<switch-id>@2x.png`
+- Current asset path convention: `assets/controls/buttons/<switch-id>@2x.png`
 
 ## Application Profiles
 

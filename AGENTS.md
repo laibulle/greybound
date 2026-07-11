@@ -40,6 +40,109 @@ The source of truth for project knowledge is `knowledge/`.
 - Direct amp behavior should remain bit-for-bit or measurably equivalent when a
   rig has no active devices.
 
+## Pedal Visual Asset Generation
+
+When asked to generate, regenerate, or iterate on a pedal visual asset, default
+to generating a clean empty enclosure PNG, not a complete pedal with baked
+controls. Greybound renders knobs, LEDs, control labels, and footswitches
+separately unless the user explicitly asks for those details to be baked into the
+faceplate.
+The pedal model name is allowed, and usually preferred, as baked typography in
+the enclosure artwork because it belongs to the visual identity rather than the
+interactive control layer.
+
+Read the full rendering contract before integrating or replacing assets:
+
+- `docs/render-specs.md`: exact `RenderAssetSpec`, surface, typography, and
+  control asset contract.
+- `docs/ai-asset-generation.md`: reusable AI prompt guidance and integration
+  checklist.
+- `docs/templates/pedal-standard-1200x2172.svg`: layout reference for new
+  `1200 x 2172` pedal body renders.
+
+Compact rules for pedal body generation:
+
+- Generate the enclosure/body PNG only.
+- Canvas is `1200 x 2172`, transparent, straight-on orthographic.
+- Bake the pedal model name when useful; do not bake control labels.
+- Do not include knobs, knob holes, footswitch, footswitch hole, LED jewel,
+  LED socket, switches, jacks, washers, bezels, or front-face screws.
+- Keep shadows inside the transparent canvas and avoid shadows from missing
+  controls.
+- If forbidden hardware appears in the generation, regenerate the asset instead
+  of compensating in UI code.
+
+Use this prompt foundation for pedal body PNGs:
+
+```text
+Create a photorealistic boutique guitar pedal enclosure front artwork, as an empty hardware shell only.
+
+Canvas:
+- exact size: 1200 x 2172 px
+- transparent background
+- straight-on orthographic front view
+- centered vertical enclosure
+- no perspective tilt
+- no floor, no studio background, no cast shadow outside the transparent canvas
+
+Object:
+- a premium empty guitar pedal enclosure / faceplate
+- rounded rectangular metal body with realistic bevels, depth, edge thickness, glossy material variation
+- the pedal must look like a real physical enclosure, but completely unequipped
+- front surface only: decorative texture, finish, pedal model name, engraving zones, and printed artwork zones are allowed
+- leave clean empty space where controls will later be rendered by software
+
+Absolutely do not include:
+- no knobs
+- no knob caps
+- no knob holes
+- no footswitch
+- no footswitch hole
+- no LED jewel
+- no LED socket
+- no toggle switches
+- no sliders
+- no jacks on the front face
+- no washers, nuts, bezels, control hardware, or circular metal fittings
+- no screws on the front face
+- no visible front mounting screws
+- no control labels unless explicitly requested
+- no fake UI controls baked into the image
+- no shadows or highlights that belong to missing controls
+
+Important construction detail:
+The enclosure is assembled from the rear, so there are no screws visible on the front face. The front is a clean uninterrupted premium surface.
+
+Style:
+- high-end photorealistic product render
+- realistic metal/enamel/mineral/gloss material
+- crisp 4x resolution details
+- premium boutique audio hardware aesthetic
+- not cartoon, not vector art, not illustration
+
+Output:
+- one PNG only
+- transparent background
+- exact 1200 x 2172 px
+- the result must be only the empty enclosure artwork with optional baked model name, ready for separate runtime-rendered knobs, LED, control labels, and footswitch
+```
+
+For mineral/gloss designs such as Auralith, add:
+
+```text
+Surface design:
+- deep mineral stone-like texture integrated into the enclosure shape
+- larger natural crystal flecks embedded inside the material
+- subtle glossy clear-coat patches on some surfaces
+- depth in the mineral pattern, as if beneath translucent lacquer
+- premium dark iridescent stone, not a flat printed texture
+```
+
+Only include control labels, holes, screws, knobs, LEDs, or footswitches when the
+user explicitly asks for a baked complete render. A baked pedal model name is OK.
+If a generated image includes forbidden hardware by accident, treat it as a
+failed asset and regenerate instead of patching around it in the UI.
+
 ## Working Standard
 
 Before changing DSP behavior:

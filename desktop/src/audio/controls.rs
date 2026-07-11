@@ -1,5 +1,5 @@
 use greybound::{
-    AmpControls, AuralithControls, DeviceConfig, DeviceControls, DeviceSlotControls,
+    AmpControls, AuralithControls, DeviceConfig, DeviceControls, DeviceSlotControls, LumenControls,
     MinotaurControls, SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm,
     StudioVerbControls,
 };
@@ -24,6 +24,11 @@ pub(super) struct SharedRuntimeControls {
     amp_presence: Arc<AtomicU32>,
     amp_sag: Arc<AtomicU32>,
     amp_bypassed: Arc<AtomicBool>,
+    lumen_bypassed: Arc<AtomicBool>,
+    lumen_peak_reduction: Arc<AtomicU32>,
+    lumen_gain: Arc<AtomicU32>,
+    lumen_emphasis: Arc<AtomicU32>,
+    lumen_mix: Arc<AtomicU32>,
     minotaur_bypassed: Arc<AtomicBool>,
     minotaur_gain: Arc<AtomicU32>,
     minotaur_treble: Arc<AtomicU32>,
@@ -86,6 +91,11 @@ impl SharedRuntimeControls {
             amp_presence: atomic_f32(0.0),
             amp_sag: atomic_f32(0.0),
             amp_bypassed: Arc::new(AtomicBool::new(false)),
+            lumen_bypassed: Arc::new(AtomicBool::new(true)),
+            lumen_peak_reduction: atomic_f32(LumenControls::default().peak_reduction),
+            lumen_gain: atomic_f32(LumenControls::default().gain),
+            lumen_emphasis: atomic_f32(LumenControls::default().emphasis),
+            lumen_mix: atomic_f32(LumenControls::default().mix),
             minotaur_bypassed: Arc::new(AtomicBool::new(false)),
             minotaur_gain: atomic_f32(0.0),
             minotaur_treble: atomic_f32(0.0),
@@ -188,6 +198,13 @@ impl SharedRuntimeControls {
 
         for slot in &snapshot.devices {
             match slot.controls {
+                DeviceControls::Lumen(controls) => {
+                    self.lumen_bypassed.store(slot.bypassed, Ordering::Relaxed);
+                    store_f32(&self.lumen_peak_reduction, controls.peak_reduction);
+                    store_f32(&self.lumen_gain, controls.gain);
+                    store_f32(&self.lumen_emphasis, controls.emphasis);
+                    store_f32(&self.lumen_mix, controls.mix);
+                }
                 DeviceControls::Minotaur(controls) => {
                     self.minotaur_bypassed
                         .store(slot.bypassed, Ordering::Relaxed);
@@ -273,6 +290,15 @@ impl SharedRuntimeControls {
         target.clear();
         for slot in self.runtime_devices {
             match slot.config {
+                DeviceConfig::Lumen => target.push(DeviceSlotControls {
+                    bypassed: self.lumen_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::Lumen(LumenControls {
+                        peak_reduction: load_f32(&self.lumen_peak_reduction),
+                        gain: load_f32(&self.lumen_gain),
+                        emphasis: load_f32(&self.lumen_emphasis),
+                        mix: load_f32(&self.lumen_mix),
+                    }),
+                }),
                 DeviceConfig::Minotaur => target.push(DeviceSlotControls {
                     bypassed: self.minotaur_bypassed.load(Ordering::Relaxed),
                     controls: DeviceControls::Minotaur(MinotaurControls {
@@ -405,17 +431,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_fx_loop_controls_keep_auralith_active_and_springfield_bypassed() {
+    fn default_free_controls_keep_lumen_and_springfield_bypassed() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 3);
+        assert_eq!(slots.len(), 4);
+        match slots[0].controls {
+            DeviceControls::Lumen(controls) => {
+                assert!(slots[0].bypassed);
+                assert!(
+                    (controls.peak_reduction - LumenControls::default().peak_reduction).abs()
+                        < 1.0e-6
+                );
+                assert!((controls.gain - LumenControls::default().gain).abs() < 1.0e-6);
+                assert!((controls.emphasis - LumenControls::default().emphasis).abs() < 1.0e-6);
+                assert!((controls.mix - LumenControls::default().mix).abs() < 1.0e-6);
+            }
+            other => panic!("expected bypassed Lumen controls, got {other:?}"),
+        }
         match slots[1].controls {
-            DeviceControls::Auralith(controls) => {
+            DeviceControls::Minotaur(_) => {
                 assert!(!slots[1].bypassed);
+            }
+            other => panic!("expected active Minotaur controls, got {other:?}"),
+        }
+        match slots[2].controls {
+            DeviceControls::Auralith(controls) => {
+                assert!(!slots[2].bypassed);
                 assert!((controls.decay - 0.52).abs() < 1.0e-6);
                 assert!((controls.size - 0.55).abs() < 1.0e-6);
                 assert!((controls.texture - 0.68).abs() < 1.0e-6);
@@ -425,9 +470,9 @@ mod tests {
             }
             other => panic!("expected active Auralith controls, got {other:?}"),
         }
-        match slots[2].controls {
+        match slots[3].controls {
             DeviceControls::Springfield(controls) => {
-                assert!(slots[2].bypassed);
+                assert!(slots[3].bypassed);
                 assert!((controls.dwell - 0.48).abs() < 1.0e-6);
                 assert!((controls.tone - 0.58).abs() < 1.0e-6);
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);

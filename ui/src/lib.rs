@@ -6,9 +6,10 @@ use greybound::{
     AuralithControls as CoreAuralithControls, CircuitConfidence, CircuitDescriptor,
     CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
     DeviceConfig as CoreDeviceConfig, DeviceControls as CoreDeviceControls,
-    DeviceSlotControls as CoreDeviceSlotControls, MinotaurControls as CoreMinotaurControls,
-    SpringfieldControls as CoreSpringfieldControls, StudioDelayControls as CoreStudioDelayControls,
-    StudioVerbAlgorithm as CoreStudioVerbAlgorithm, StudioVerbControls as CoreStudioVerbControls,
+    DeviceSlotControls as CoreDeviceSlotControls, LumenControls as CoreLumenControls,
+    MinotaurControls as CoreMinotaurControls, SpringfieldControls as CoreSpringfieldControls,
+    StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
+    StudioVerbControls as CoreStudioVerbControls,
 };
 use iced::advanced::image as advanced_image;
 use iced::advanced::layout::{self, Layout};
@@ -560,6 +561,7 @@ impl AmpModel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceModel {
+    Lumen,
     Minotaur,
     Nox30,
     WideCombo,
@@ -573,6 +575,7 @@ pub enum DeviceModel {
 impl DeviceModel {
     fn title(self) -> &'static str {
         match self {
+            Self::Lumen => "Lumen",
             Self::Minotaur => "Minotaur",
             Self::Nox30 => "Nox30",
             Self::WideCombo => "Wide Combo",
@@ -916,6 +919,75 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     },
 ];
 
+pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Peak",
+        anchor_x: 0.28,
+        anchor_y: 0.18,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Treble),
+        widget: RenderControlWidget::Pot,
+        label: "Gain",
+        anchor_x: 0.72,
+        anchor_y: 0.18,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Presence),
+        widget: RenderControlWidget::Pot,
+        label: "Emphasis",
+        anchor_x: 0.28,
+        anchor_y: 0.34,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Mix",
+        anchor_x: 0.72,
+        anchor_y: 0.34,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "Status",
+        anchor_x: 0.50,
+        anchor_y: 0.64,
+        radius: 19.0,
+        hit_radius: 0.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Footswitch,
+        label: "Bypass",
+        anchor_x: 0.50,
+        anchor_y: 0.80,
+        radius: 31.0,
+        hit_radius: 50.0,
+        skin: KnobSkin::Teal,
+        asset: None,
+    },
+];
+
 pub const AMP_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Gain),
@@ -1223,11 +1295,19 @@ pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     asset: Some(RenderAssetSpec {
         path: "assets/pedals/minotaur-v2@4x.png",
         format: RenderAssetFormat::PngRgba,
-        pixel_width: 1200,
-        pixel_height: 2260,
+        pixel_width: 914,
+        pixel_height: 1721,
     }),
     typography: RenderTypographyPolicy::BakedIntoAsset,
     controls: MINOTAUR_PEDAL_CONTROLS,
+};
+
+pub const LUMEN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "pedal.lumen",
+    surface: STANDARD_PEDAL_SURFACE,
+    asset: None,
+    typography: RenderTypographyPolicy::DrawnByUi,
+    controls: LUMEN_PEDAL_CONTROLS,
 };
 
 pub const NOX30_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
@@ -1448,6 +1528,15 @@ const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[AppAmpModelDescriptor {
 }];
 const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
     AppDeviceModelDescriptor {
+        id: "lumen",
+        label: "Lumen",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::Lumen,
+        runtime_config: Some(CoreDeviceConfig::Lumen),
+        render: &LUMEN_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
         id: "minotaur",
         label: "Minotaur",
         kind: DeviceKind::Pedal,
@@ -1476,6 +1565,12 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
     },
 ];
 const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
+    RuntimeDeviceSlot {
+        model_id: "lumen",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::Lumen,
+        bypassed: true,
+    },
     RuntimeDeviceSlot {
         model_id: "minotaur",
         section: RuntimeDeviceSection::PreAmp,
@@ -1617,6 +1712,23 @@ pub struct DeviceState {
 }
 
 impl DeviceState {
+    pub fn lumen() -> Self {
+        Self {
+            name: "LUMEN".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::Lumen,
+            bypassed: true,
+            gain: CoreLumenControls::default().peak_reduction,
+            drive: 0.0,
+            bass: 0.0,
+            treble: CoreLumenControls::default().gain,
+            cut: 0.0,
+            presence: CoreLumenControls::default().emphasis,
+            sag: 0.0,
+            master: CoreLumenControls::default().mix,
+        }
+    }
+
     pub fn minotaur() -> Self {
         Self {
             name: "MINOTAUR".to_string(),
@@ -2034,6 +2146,7 @@ fn device_state_for_descriptor(descriptor: &AppDeviceModelDescriptor) -> DeviceS
 
 fn device_state_for_model(model: DeviceModel) -> DeviceState {
     match model {
+        DeviceModel::Lumen => DeviceState::lumen(),
         DeviceModel::Minotaur => DeviceState::minotaur(),
         DeviceModel::Nox30 => DeviceState::nox30(),
         DeviceModel::WideCombo => DeviceState::wide_combo(),
@@ -2543,6 +2656,7 @@ impl GreyboundUi {
 
     fn device_for_runtime_slot(&self, slot: &RuntimeDeviceSlot) -> Option<&DeviceState> {
         let model = match slot.config {
+            CoreDeviceConfig::Lumen => DeviceModel::Lumen,
             CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
             CoreDeviceConfig::StudioDelay => DeviceModel::DelayFx,
             CoreDeviceConfig::Springfield => DeviceModel::Springfield,
@@ -2559,6 +2673,15 @@ impl GreyboundUi {
         device: Option<&DeviceState>,
     ) -> CoreDeviceControls {
         match slot.config {
+            CoreDeviceConfig::Lumen => {
+                let device = device.cloned().unwrap_or_else(DeviceState::lumen);
+                CoreDeviceControls::Lumen(CoreLumenControls {
+                    peak_reduction: device.gain,
+                    gain: device.treble,
+                    emphasis: device.presence,
+                    mix: device.master,
+                })
+            }
             CoreDeviceConfig::Minotaur => {
                 let device = device.cloned().unwrap_or_else(DeviceState::minotaur);
                 CoreDeviceControls::Minotaur(CoreMinotaurControls {
@@ -4795,6 +4918,7 @@ impl canvas::Program<Message> for BoardArt {
             let device = &slot.device;
             let x = layout.start_x + index as f32 * (layout.pedal_w + layout.gap);
             let palette = match device.model {
+                DeviceModel::Lumen => Color::from_rgb(0.70, 0.73, 0.76),
                 DeviceModel::Minotaur => Color::from_rgb(0.73, 0.65, 0.47),
                 DeviceModel::Nox30 | DeviceModel::WideCombo | DeviceModel::LeadHead => PEDAL_CREAM,
                 DeviceModel::Springfield => PEDAL_PEACH,
@@ -5329,6 +5453,7 @@ fn amp_render_bounds(size: Size, render_spec: &ModelRenderSpec) -> Rectangle {
 
 fn fallback_device_render_spec(model: DeviceModel) -> &'static ModelRenderSpec {
     match model {
+        DeviceModel::Lumen => &LUMEN_PEDAL_RENDER_SPEC,
         DeviceModel::Minotaur => &MINOTAUR_PEDAL_RENDER_SPEC,
         DeviceModel::Nox30 => &NOX30_PEDAL_RENDER_SPEC,
         DeviceModel::WideCombo => &WIDE_COMBO_PEDAL_RENDER_SPEC,
@@ -8064,6 +8189,7 @@ fn ui_circuit_descriptor(
         .device_descriptor_for_model(model)
         .and_then(|descriptor| (descriptor.circuit)())
         .or_else(|| match model {
+            DeviceModel::Lumen => None,
             DeviceModel::Minotaur => device_circuit_descriptor(CoreDeviceConfig::Minotaur),
             DeviceModel::Nox30 => amp_circuit_descriptor("nox30"),
             DeviceModel::Springfield => device_circuit_descriptor(CoreDeviceConfig::Springfield),
@@ -9247,5 +9373,22 @@ mod tests {
     fn bypass_asset_value_lights_led_when_device_is_active() {
         assert_eq!(bypass_asset_value(true), 0.0);
         assert_eq!(bypass_asset_value(false), 1.0);
+    }
+
+    #[test]
+    fn free_runtime_snapshot_places_bypassed_lumen_before_minotaur() {
+        let snapshot = GreyboundUi::default().runtime_audio_snapshot();
+
+        assert_eq!(snapshot.devices.len(), 4);
+        assert!(matches!(
+            snapshot.devices[0].controls,
+            CoreDeviceControls::Lumen(_)
+        ));
+        assert!(snapshot.devices[0].bypassed);
+        assert!(matches!(
+            snapshot.devices[1].controls,
+            CoreDeviceControls::Minotaur(_)
+        ));
+        assert!(!snapshot.devices[1].bypassed);
     }
 }
