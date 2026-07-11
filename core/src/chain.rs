@@ -1,11 +1,12 @@
 use crate::amp::{AmpControls, VoxAmp};
+use crate::audio_circuit::AudioCircuitDescriptor;
 use crate::pedal::{
     Auralith, AuralithControls, Brigade, BrigadeControls, Celeste, CelesteControls,
     ConnectionState, Dartford, DartfordControls, ElectricalSignal, GodessOne, GodessOneControls,
     Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch,
     MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
     StudioDelay, StudioDelayControls, StudioVerb, StudioVerbControls, Tron, TronControls,
-    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS,
+    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS, LUMEN_AUDIO_CIRCUIT,
 };
 
 const DEFAULT_CABLE_CAPACITANCE_FARADS: f32 = 470e-12;
@@ -347,6 +348,13 @@ const fn unit_pot(id: &'static str, label: &'static str) -> ControlDescriptor {
 }
 
 impl DeviceConfig {
+    pub fn audio_circuit_descriptor(self) -> Option<&'static AudioCircuitDescriptor> {
+        match self {
+            Self::Lumen => Some(&LUMEN_AUDIO_CIRCUIT),
+            _ => None,
+        }
+    }
+
     pub fn model_descriptor(self) -> DeviceModelDescriptor {
         match self {
             Self::Lumen => DeviceModelDescriptor {
@@ -501,6 +509,12 @@ impl DeviceConfig {
             },
         }
     }
+}
+
+pub fn device_audio_circuit_descriptor(
+    device: DeviceConfig,
+) -> Option<&'static AudioCircuitDescriptor> {
+    device.audio_circuit_descriptor()
 }
 
 pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
@@ -1285,6 +1299,16 @@ mod tests {
             amp_model_descriptor("nox30-experimental?tone_source_ohms=47000").id,
             "nox30"
         );
+    }
+
+    #[test]
+    fn device_audio_circuit_descriptor_exposes_migrated_devices_only() {
+        assert_eq!(
+            device_audio_circuit_descriptor(DeviceConfig::Lumen)
+                .map(|descriptor| descriptor.model_id),
+            Some("lumen")
+        );
+        assert!(device_audio_circuit_descriptor(DeviceConfig::Minotaur).is_none());
     }
 
     #[test]

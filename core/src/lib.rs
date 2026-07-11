@@ -19,12 +19,14 @@ pub use amp::{
     NOX30_COMPONENT_BOUNDARIES,
 };
 pub use audio_circuit::{
-    AudioCircuitBlockDescriptor, AudioCircuitBlockKind, AudioCircuitDescriptor,
+    run_audio_circuit, AudioCircuitBlockDescriptor, AudioCircuitBlockKind,
+    AudioCircuitBlockProcessor, AudioCircuitDescriptor, ExecutableAudioCircuit,
 };
 pub use chain::{
-    amp_model_descriptor, AmpModelDescriptor, ControlDescriptor, ControlKind, DeviceConfig,
-    DeviceControls, DeviceModelDescriptor, DeviceSlotConfig, DeviceSlotControls,
-    DeviceVisualDescriptor, SignalChain, SignalChainConfig, SignalChainControls,
+    amp_model_descriptor, device_audio_circuit_descriptor, AmpModelDescriptor, ControlDescriptor,
+    ControlKind, DeviceConfig, DeviceControls, DeviceModelDescriptor, DeviceSlotConfig,
+    DeviceSlotControls, DeviceVisualDescriptor, SignalChain, SignalChainConfig,
+    SignalChainControls,
 };
 pub use circuit_descriptor::{
     amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitControlBinding,

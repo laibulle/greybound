@@ -722,6 +722,8 @@ pub const NOX30_BLACK_DIAL_KNOB_ASSET: RenderControlAssetSpec = RenderControlAss
     }),
 };
 
+const NOX30_BLACK_DIAL_ROTATION_OFFSET_DEGREES: f32 = -135.0;
+
 pub const AURALITH_BLACK_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/knobs/auralith-black@2x.png",
@@ -4744,7 +4746,9 @@ fn nox30_black_dial_knob_handles() -> &'static [advanced_image::Handle] {
                 let rotation = NOX30_BLACK_DIAL_KNOB_ASSET
                     .rotation
                     .expect("nox30 knob asset must define a rotation range");
-                let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
+                let angle = ((rotation.max_degrees - rotation.min_degrees) * t
+                    + NOX30_BLACK_DIAL_ROTATION_OFFSET_DEGREES)
+                    .to_radians();
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
