@@ -123,6 +123,7 @@ pub struct CircuitDescriptor {
 
 pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static CircuitDescriptor> {
     match device {
+        DeviceConfig::Lumen => Some(&LUMEN_CIRCUIT),
         DeviceConfig::Minotaur => Some(&MINOTAUR_CIRCUIT),
         DeviceConfig::Springfield => Some(&SPRINGFIELD_CIRCUIT),
         _ => None,
@@ -1028,6 +1029,270 @@ pub static BOXER_SEVEN_LEAD_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
     notes: BOXER_SEVEN_NOTES,
 };
 
+const LUMEN_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_load", "input_coupling"];
+const LUMEN_SIDECHAIN_GROUP_NODES: &[&str] = &["sidechain_filter", "level_detector", "opto_memory"];
+const LUMEN_GAIN_GROUP_NODES: &[&str] = &["gain_cell", "tube_softening", "warm_filter"];
+const LUMEN_OUTPUT_GROUP_NODES: &[&str] = &["parallel_mix", "output_filter", "output_jack"];
+
+const LUMEN_GROUPS: &[CircuitGroupDescriptor] = &[
+    CircuitGroupDescriptor {
+        id: "input",
+        label: "Input boundary",
+        nodes: LUMEN_INPUT_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "sidechain",
+        label: "Sidechain and opto memory",
+        nodes: LUMEN_SIDECHAIN_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "gain_path",
+        label: "Gain cell and softening",
+        nodes: LUMEN_GAIN_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "output",
+        label: "Parallel mix and output",
+        nodes: LUMEN_OUTPUT_GROUP_NODES,
+    },
+];
+
+const LUMEN_NODES: &[CircuitNodeDescriptor] = &[
+    CircuitNodeDescriptor {
+        id: "input_jack",
+        label: "Input jack",
+        kind: CircuitNodeKind::Port,
+        role: "Guitar or previous pedal voltage enters the Lumen boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "Voltage plus source impedance enters the pedal slot.",
+        layout: CircuitLayout { x: 0.04, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_load",
+        label: "Buffered input load",
+        kind: CircuitNodeKind::InputLoad,
+        role: "High input impedance and cable/source loading before compression.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::Lumen",
+        algorithm: "ConnectionState source/load division against Lumen::INPUT_IMPEDANCE_OHMS.",
+        layout: CircuitLayout { x: 0.16, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_coupling",
+        label: "Input coupling",
+        kind: CircuitNodeKind::CouplingFilter,
+        role: "DC blocking and low-frequency conditioning at the compressor input.",
+        control_id: None,
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block InputCouplingHighpass.",
+        layout: CircuitLayout { x: 0.28, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "sidechain_filter",
+        label: "Sidechain emphasis",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Frequency-selective detector feed that avoids low-end over-triggering.",
+        control_id: Some("emphasis"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block SidechainHighpass blended into the detector by Emphasis.",
+        layout: CircuitLayout { x: 0.42, y: 0.28 },
+    },
+    CircuitNodeDescriptor {
+        id: "level_detector",
+        label: "Level detector",
+        kind: CircuitNodeKind::LevelControl,
+        role: "Rectifies full-band and emphasized sidechain energy into compression demand.",
+        control_id: Some("peak_reduction"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block OptoLevelDetector.",
+        layout: CircuitLayout { x: 0.55, y: 0.28 },
+    },
+    CircuitNodeDescriptor {
+        id: "opto_memory",
+        label: "Opto memory",
+        kind: CircuitNodeKind::LevelControl,
+        role: "Program-dependent attack/release memory that stores gain reduction in dB.",
+        control_id: Some("peak_reduction"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LumenCircuitState",
+        algorithm: "Executable block OptoGainMemory updates gain_reduction_db.",
+        layout: CircuitLayout { x: 0.68, y: 0.28 },
+    },
+    CircuitNodeDescriptor {
+        id: "gain_cell",
+        label: "Gain cell",
+        kind: CircuitNodeKind::GainStage,
+        role: "Applies opto-style gain reduction and makeup gain to the audio path.",
+        control_id: Some("gain"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block GainCell uses gain_reduction_db and the Gain control.",
+        layout: CircuitLayout { x: 0.55, y: 0.60 },
+    },
+    CircuitNodeDescriptor {
+        id: "tube_softening",
+        label: "Tube softening",
+        kind: CircuitNodeKind::ClippingCell,
+        role: "Rounds compressed peaks with a gentle tube-style nonlinearity.",
+        control_id: Some("peak_reduction"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block TubeSoftClipper uses tanh softening.",
+        layout: CircuitLayout { x: 0.68, y: 0.60 },
+    },
+    CircuitNodeDescriptor {
+        id: "warm_filter",
+        label: "Warm filter",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Smooths the compressed path before the dry/wet mixer.",
+        control_id: None,
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block ToneLowpass.",
+        layout: CircuitLayout { x: 0.80, y: 0.60 },
+    },
+    CircuitNodeDescriptor {
+        id: "parallel_mix",
+        label: "Parallel mix",
+        kind: CircuitNodeKind::Mixer,
+        role: "Blends the dry coupled input with the compressed and warmed path.",
+        control_id: Some("mix"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block ParallelMixer.",
+        layout: CircuitLayout { x: 0.90, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "output_filter",
+        label: "Output filter",
+        kind: CircuitNodeKind::OutputDriver,
+        role: "Final smoothing and low source impedance output boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+        algorithm: "Executable block OutputLowpass emits Lumen::OUTPUT_IMPEDANCE_OHMS.",
+        layout: CircuitLayout { x: 0.97, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "output_jack",
+        label: "Output jack",
+        kind: CircuitNodeKind::Port,
+        role: "Compressed output voltage and source impedance leave the Lumen boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "Signal is handed back to the chain electrical boundary.",
+        layout: CircuitLayout { x: 0.99, y: 0.50 },
+    },
+];
+
+const LUMEN_EDGES: &[CircuitEdgeDescriptor] = &[
+    edge("input_jack", "input_load", CircuitSignalKind::AudioVoltage),
+    edge(
+        "input_load",
+        "input_coupling",
+        CircuitSignalKind::LoadedAudioVoltage,
+    ),
+    edge(
+        "input_coupling",
+        "sidechain_filter",
+        CircuitSignalKind::BufferedAudio,
+    ),
+    edge(
+        "sidechain_filter",
+        "level_detector",
+        CircuitSignalKind::VoicedAudio,
+    ),
+    edge(
+        "level_detector",
+        "opto_memory",
+        CircuitSignalKind::VoicedAudio,
+    ),
+    edge("opto_memory", "gain_cell", CircuitSignalKind::DriveAudio),
+    edge(
+        "input_coupling",
+        "gain_cell",
+        CircuitSignalKind::BufferedAudio,
+    ),
+    edge("gain_cell", "tube_softening", CircuitSignalKind::DriveAudio),
+    edge(
+        "tube_softening",
+        "warm_filter",
+        CircuitSignalKind::ClippedAudio,
+    ),
+    edge("warm_filter", "parallel_mix", CircuitSignalKind::WetAudio),
+    edge(
+        "input_coupling",
+        "parallel_mix",
+        CircuitSignalKind::BufferedAudio,
+    ),
+    edge(
+        "parallel_mix",
+        "output_filter",
+        CircuitSignalKind::MixedAudio,
+    ),
+    edge(
+        "output_filter",
+        "output_jack",
+        CircuitSignalKind::AudioVoltage,
+    ),
+];
+
+const LUMEN_CONTROLS: &[CircuitControlBinding] = &[
+    CircuitControlBinding {
+        control_id: "peak_reduction",
+        node_id: "level_detector",
+        role: "Lowers the detector threshold and increases compression depth.",
+    },
+    CircuitControlBinding {
+        control_id: "peak_reduction",
+        node_id: "opto_memory",
+        role: "Shortens attack and raises maximum target reduction.",
+    },
+    CircuitControlBinding {
+        control_id: "gain",
+        node_id: "gain_cell",
+        role: "Sets makeup gain after gain reduction.",
+    },
+    CircuitControlBinding {
+        control_id: "emphasis",
+        node_id: "sidechain_filter",
+        role: "Weights the high-passed sidechain against the full-band detector.",
+    },
+    CircuitControlBinding {
+        control_id: "mix",
+        node_id: "parallel_mix",
+        role: "Sets dry/compressed blend.",
+    },
+];
+
+const LUMEN_NOTES: &[&str] = &[
+    "Lumen is now described by an executable audio-circuit graph; the UI descriptor mirrors that runtime topology.",
+    "This is an opto/tube-inspired greybox compressor, not a component-exact hardware clone.",
+    "The slot-level input load remains part of the shared chain boundary; the internal blocks start at the loaded input voltage.",
+];
+
+pub static LUMEN_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
+    schema: CIRCUIT_DESCRIPTOR_SCHEMA,
+    model_id: "lumen",
+    label: "Lumen compressor",
+    kind: CircuitDescriptorKind::Greybox,
+    source_of_truth: "executable-rust-audio-circuit",
+    implementation: "core/src/pedal.rs::LUMEN_AUDIO_CIRCUIT",
+    summary: "Executable opto/tube-inspired compressor graph with loaded input coupling, emphasized sidechain detection, program-dependent gain-reduction memory, gain cell, tube softening, warm filtering, parallel mix, and low-impedance output.",
+    nodes: LUMEN_NODES,
+    edges: LUMEN_EDGES,
+    groups: LUMEN_GROUPS,
+    controls: LUMEN_CONTROLS,
+    notes: LUMEN_NOTES,
+};
+
 const MINOTAUR_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_load", "input_coupling"];
 const MINOTAUR_BLEND_GROUP_NODES: &[&str] = &[
     "path_split",
@@ -1527,6 +1792,10 @@ mod tests {
     #[test]
     fn exposes_descriptors_for_current_greybox_pedals() {
         assert_eq!(
+            device_circuit_descriptor(DeviceConfig::Lumen).map(|d| d.model_id),
+            Some("lumen")
+        );
+        assert_eq!(
             device_circuit_descriptor(DeviceConfig::Minotaur).map(|d| d.model_id),
             Some("minotaur")
         );
@@ -1593,6 +1862,30 @@ mod tests {
     }
 
     #[test]
+    fn lumen_descriptor_mirrors_executable_audio_circuit() {
+        let descriptor = &LUMEN_CIRCUIT;
+        assert_eq!(descriptor.source_of_truth, "executable-rust-audio-circuit");
+
+        for block in crate::pedal::LUMEN_AUDIO_CIRCUIT.blocks {
+            assert!(
+                descriptor.nodes.iter().any(|node| node.id == block.id),
+                "missing Lumen descriptor node for executable block {}",
+                block.id
+            );
+        }
+
+        for control_id in ["peak_reduction", "gain", "emphasis", "mix"] {
+            assert!(
+                descriptor
+                    .controls
+                    .iter()
+                    .any(|binding| binding.control_id == control_id),
+                "missing Lumen control binding for {control_id}"
+            );
+        }
+    }
+
+    #[test]
     fn springfield_descriptor_is_marked_as_ir_hybrid() {
         assert_eq!(
             SPRINGFIELD_CIRCUIT.kind,
@@ -1647,6 +1940,7 @@ mod tests {
     #[test]
     fn descriptor_edges_reference_existing_nodes() {
         for descriptor in [
+            &LUMEN_CIRCUIT,
             &MINOTAUR_CIRCUIT,
             &SPRINGFIELD_CIRCUIT,
             &NOX30_CIRCUIT,

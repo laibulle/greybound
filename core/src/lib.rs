@@ -1,4 +1,5 @@
 pub mod amp;
+pub mod audio_circuit;
 pub mod chain;
 pub mod circuit;
 pub mod circuit_descriptor;
@@ -17,6 +18,9 @@ pub use amp::{
     ComponentBoundary, ComponentBoundaryState, ComponentCoupling, ComponentSignal,
     NOX30_COMPONENT_BOUNDARIES,
 };
+pub use audio_circuit::{
+    AudioCircuitBlockDescriptor, AudioCircuitBlockKind, AudioCircuitDescriptor,
+};
 pub use chain::{
     amp_model_descriptor, AmpModelDescriptor, ControlDescriptor, ControlKind, DeviceConfig,
     DeviceControls, DeviceModelDescriptor, DeviceSlotConfig, DeviceSlotControls,
@@ -26,7 +30,7 @@ pub use circuit_descriptor::{
     amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitControlBinding,
     CircuitDescriptor, CircuitDescriptorKind, CircuitEdgeDescriptor, CircuitGroupDescriptor,
     CircuitLayout, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
-    CIRCUIT_DESCRIPTOR_SCHEMA, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
+    CIRCUIT_DESCRIPTOR_SCHEMA, LUMEN_CIRCUIT, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
 };
 pub use pedal::{
     configure_minotaur_clip_neural, configure_minotaur_tone_neural, Auralith, AuralithControls,
@@ -35,6 +39,6 @@ pub use pedal::{
     Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls,
     MinotaurNodeVoltages, Monarch, MonarchControls, Muffin, MuffinControls, Muon, MuonControls,
     Springfield, SpringfieldControls, StudioDelay, StudioDelayControls, StudioVerb,
-    StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls,
+    StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls, LUMEN_AUDIO_CIRCUIT,
 };
 pub use rig::RigConfig;
