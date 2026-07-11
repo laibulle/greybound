@@ -1477,7 +1477,7 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         model_id: "auralith",
         section: RuntimeDeviceSection::PostAmp,
         config: CoreDeviceConfig::Auralith,
-        bypassed: true,
+        bypassed: false,
     },
 ];
 
@@ -1709,7 +1709,7 @@ impl DeviceState {
             name: "AURALITH".to_string(),
             kind: DeviceKind::FxLoop,
             model: DeviceModel::ReverbFx,
-            bypassed: true,
+            bypassed: false,
             gain: 0.52,
             drive: 0.0,
             bass: 0.55,

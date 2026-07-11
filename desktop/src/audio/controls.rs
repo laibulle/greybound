@@ -100,7 +100,7 @@ impl SharedRuntimeControls {
             springfield_dwell: atomic_f32(0.48),
             springfield_tone: atomic_f32(0.58),
             springfield_mix: atomic_f32(0.26),
-            auralith_bypassed: Arc::new(AtomicBool::new(true)),
+            auralith_bypassed: Arc::new(AtomicBool::new(false)),
             auralith_decay: atomic_f32(0.52),
             auralith_size: atomic_f32(0.55),
             auralith_texture: atomic_f32(0.68),
@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(slots.len(), 2);
         match slots[1].controls {
             DeviceControls::Auralith(controls) => {
-                assert!(slots[1].bypassed);
+                assert!(!slots[1].bypassed);
                 assert!((controls.decay - 0.52).abs() < 1.0e-6);
                 assert!((controls.size - 0.55).abs() < 1.0e-6);
                 assert!((controls.texture - 0.68).abs() < 1.0e-6);
@@ -423,7 +423,7 @@ mod tests {
                 assert!((controls.low_cut - 0.32).abs() < 1.0e-6);
                 assert!((controls.mix - 0.24).abs() < 1.0e-6);
             }
-            other => panic!("expected bypassed Auralith controls, got {other:?}"),
+            other => panic!("expected active Auralith controls, got {other:?}"),
         }
     }
 }

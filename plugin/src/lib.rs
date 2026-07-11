@@ -142,7 +142,7 @@ impl Default for GreyboundParams {
             .with_unit(" %")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
             .with_string_to_value(formatters::s2v_f32_percentage()),
-            auralith: BoolParam::new("Auralith Reverb", false),
+            auralith: BoolParam::new("Auralith Reverb", true),
             auralith_decay: FloatParam::new(
                 "Auralith Decay",
                 AuralithControls::default().decay,
@@ -621,7 +621,7 @@ mod tests {
         assert!(config.fx_loop.is_empty());
         assert_eq!(config.post_amp.len(), 1);
         assert_eq!(config.post_amp[0].device, greybound::DeviceConfig::Auralith);
-        assert!(config.post_amp[0].bypassed);
+        assert!(!config.post_amp[0].bypassed);
     }
 
     #[test]
@@ -638,7 +638,7 @@ mod tests {
         assert_eq!(params.master.value(), ui.output_gain);
         assert_eq!(params.speaker_ir.value(), snapshot.cab_mix > 0.0);
         assert!(params.overdrive.value());
-        assert!(!params.auralith.value());
+        assert!(params.auralith.value());
     }
 
     #[test]
