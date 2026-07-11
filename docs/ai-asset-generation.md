@@ -72,6 +72,10 @@ Canvas:
 
 Knobs:
 - pointer must indicate the zero/minimum position in the source PNG
+- for Greybound pedal knobs, zero/minimum means the pointer is already at the
+  lower-left stop, around 225 degrees on the knob face
+- do not generate the pointer at noon, at the right side, or in a neutral/default
+  position; the runtime uses the source image itself as value 0.0
 - highlights must belong to the material itself, not to the environment
 - circular knob body must remain perfectly round
 

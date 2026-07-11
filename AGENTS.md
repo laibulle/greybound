@@ -72,6 +72,18 @@ Compact rules for pedal body generation:
 - If forbidden hardware appears in the generation, regenerate the asset instead
   of compensating in UI code.
 
+Compact rules for rotary knob generation:
+
+- Generate one isolated knob PNG only, usually `512 x 512`, transparent after
+  processing, with no background, label, washer, or cast shadow.
+- The pointer must already indicate the minimum value in the source image.
+- For standard Greybound pedal knobs, minimum means the pointer sits at the
+  lower-left stop, around 225 degrees on the knob face.
+- Do not generate the pointer at noon, at the right side, or in a
+  neutral/default-looking position.
+- The runtime uses the source PNG itself as value `0.0`; rotation frames move
+  clockwise from that source position.
+
 Use this prompt foundation for pedal body PNGs:
 
 ```text

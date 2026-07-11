@@ -91,7 +91,14 @@ Each control can define its own PNG assets:
 
 - Recommended size: square PNG RGBA, `256 x 256` or `512 x 512`
 - Transparent background
-- Knob pointer must point to the zero/minimum angle in the source PNG. For a standard pedal pot this is usually the lower-left stop, so half rotation lands at the top and max lands at the lower-right stop.
+- Knob pointer must point to the zero/minimum angle in the source PNG. For a
+  standard Greybound pedal pot this is the lower-left stop, around `225deg` on
+  the knob face.
+- The runtime assumes frame/value `0.0` starts from the source PNG exactly as
+  drawn. Do not generate source knobs with the pointer at noon, at the right
+  side, or in a neutral/default position.
+- With the standard rotation range, the unrotated source image is minimum, half
+  rotation lands near the top, and max lands near the lower-right stop.
 - The PNG may include highlights, bevels, and reflections that belong to the knob material itself, but it must not include external cast shadows, contact shadows, drop shadows, or background reflections. Those would rotate with the control and look wrong.
 - Rotation is performed around `pivot_x` / `pivot_y`, normalized inside the PNG
 - Default rotation range: `-135deg` to `135deg`

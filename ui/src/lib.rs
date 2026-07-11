@@ -764,6 +764,52 @@ pub const AURALITH_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetS
     rotation: None,
 };
 
+pub const LUMEN_PEARL_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/lumen-pearl@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: Some(RenderRotationSpec {
+        min_degrees: -135.0,
+        max_degrees: 135.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const LUMEN_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/lumen-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/lumen-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const LUMEN_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/lumen-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: None,
+};
+
 pub const NOX30_POWER_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/leds/nox30-power-off@2x.png",
@@ -925,44 +971,44 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Pot,
         label: "Peak",
         anchor_x: 0.28,
-        anchor_y: 0.18,
+        anchor_y: 0.15,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_PEARL_KNOB_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Treble),
         widget: RenderControlWidget::Pot,
         label: "Gain",
         anchor_x: 0.72,
-        anchor_y: 0.18,
+        anchor_y: 0.15,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_PEARL_KNOB_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Presence),
         widget: RenderControlWidget::Pot,
         label: "Emphasis",
         anchor_x: 0.28,
-        anchor_y: 0.34,
+        anchor_y: 0.39,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_PEARL_KNOB_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Master),
         widget: RenderControlWidget::Pot,
         label: "Mix",
         anchor_x: 0.72,
-        anchor_y: 0.34,
+        anchor_y: 0.39,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_PEARL_KNOB_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Bypass,
@@ -973,7 +1019,7 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         radius: 19.0,
         hit_radius: 0.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_JEWEL_LED_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Bypass,
@@ -984,7 +1030,7 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         radius: 31.0,
         hit_radius: 50.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(LUMEN_FOOTSWITCH_ASSET),
     },
 ];
 
@@ -1305,7 +1351,12 @@ pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
 pub const LUMEN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "pedal.lumen",
     surface: STANDARD_PEDAL_SURFACE,
-    asset: None,
+    asset: Some(RenderAssetSpec {
+        path: "assets/pedals/lumen@4x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1200,
+        pixel_height: 2172,
+    }),
     typography: RenderTypographyPolicy::DrawnByUi,
     controls: LUMEN_PEDAL_CONTROLS,
 };
@@ -4262,6 +4313,12 @@ pub fn preload_render_assets() {
 
     const PRELOAD_ASSETS: &[RenderAssetSpec] = &[
         RenderAssetSpec {
+            path: "assets/pedals/lumen@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        },
+        RenderAssetSpec {
             path: "assets/pedals/minotaur-v2@4x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 914,
@@ -4320,6 +4377,30 @@ pub fn preload_render_assets() {
             format: RenderAssetFormat::PngRgba,
             pixel_width: 130,
             pixel_height: 160,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/knobs/lumen-pearl@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/buttons/lumen-footswitch@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/lumen-jewel-off@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/lumen-jewel-on@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
         },
         RenderAssetSpec {
             path: "assets/controls/knobs/minotaur-ivory@2x.png",
@@ -4408,6 +4489,7 @@ pub fn preload_render_assets() {
     let _ = minotaur_ivory_knob_handles().len();
     let _ = nox30_black_dial_knob_handles().len();
     let _ = auralith_black_knob_handles().len();
+    let _ = lumen_pearl_knob_handles().len();
     let _ = springfield_stainless_knob_handles().len();
 }
 
@@ -4451,6 +4533,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
     }
 
     match asset.path {
+        "assets/pedals/lumen@4x.png" => {
+            decoded_handle!("../assets/pedals/lumen@4x.png", 1200, 2172)
+        }
         "assets/pedals/minotaur-v2@4x.png" => {
             decoded_handle!("../assets/pedals/minotaur-v2@4x.png", 914, 1721)
         }
@@ -4498,11 +4583,25 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/controls/knobs/auralith-black@2x.png" => {
             decoded_handle!("../assets/controls/knobs/auralith-black@2x.png", 1024, 1024)
         }
+        "assets/controls/knobs/lumen-pearl@2x.png" => {
+            decoded_handle!("../assets/controls/knobs/lumen-pearl@2x.png", 512, 512)
+        }
+        "assets/controls/buttons/lumen-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/lumen-footswitch@2x.png",
+            512,
+            512
+        ),
         "assets/controls/buttons/auralith-footswitch@2x.png" => decoded_handle!(
             "../assets/controls/buttons/auralith-footswitch@2x.png",
             512,
             512
         ),
+        "assets/controls/leds/lumen-jewel-off@2x.png" => {
+            decoded_handle!("../assets/controls/leds/lumen-jewel-off@2x.png", 256, 256)
+        }
+        "assets/controls/leds/lumen-jewel-on@2x.png" => {
+            decoded_handle!("../assets/controls/leds/lumen-jewel-on@2x.png", 256, 256)
+        }
         "assets/controls/leds/auralith-jewel-off@2x.png" => decoded_handle!(
             "../assets/controls/leds/auralith-jewel-off@2x.png",
             256,
@@ -4574,6 +4673,11 @@ fn render_control_asset_handle(
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return springfield_stainless_knob_handles().get(index).cloned();
     }
+    if asset.image.path == "assets/controls/knobs/lumen-pearl@2x.png" && asset.rotation.is_some() {
+        const FRAME_COUNT: usize = 121;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return lumen_pearl_knob_handles().get(index).cloned();
+    }
 
     if value >= 0.5 {
         if let Some(active_image) = asset.active_image {
@@ -4636,9 +4740,7 @@ fn nox30_black_dial_knob_handles() -> &'static [advanced_image::Handle] {
                 let rotation = NOX30_BLACK_DIAL_KNOB_ASSET
                     .rotation
                     .expect("nox30 knob asset must define a rotation range");
-                let angle = (rotation.min_degrees
-                    + (rotation.max_degrees - rotation.min_degrees) * t)
-                    .to_radians();
+                let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
@@ -4693,6 +4795,34 @@ fn springfield_stainless_knob_handles() -> &'static [advanced_image::Handle] {
                     .rotation
                     .expect("springfield knob asset must define a rotation range");
                 let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
+                let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn lumen_pearl_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/lumen-pearl@2x.png"
+        ))
+        .expect("embedded lumen knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let t = index as f32 / (FRAME_COUNT - 1) as f32;
+                let rotation = LUMEN_PEARL_KNOB_ASSET
+                    .rotation
+                    .expect("lumen knob asset must define a rotation range");
+                let angle = (rotation.min_degrees
+                    + (rotation.max_degrees - rotation.min_degrees) * t)
+                    .to_radians();
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
@@ -7829,12 +7959,16 @@ fn draw_pedal_controls(
         if control.asset.is_some() {
             if draw_labels {
                 let center = render_control_center(control, origin, size);
+                let label_color = match device.model {
+                    DeviceModel::Lumen => Color::from_rgba(0.18, 0.16, 0.12, 0.86),
+                    _ => Color::from_rgba(0.86, 0.90, 0.94, 0.88),
+                };
                 draw_text(
                     frame,
                     control.label,
                     Point::new(center.x, center.y + control.radius + 20.0),
                     14.0,
-                    Color::from_rgba(0.86, 0.90, 0.94, 0.88),
+                    label_color,
                     Horizontal::Center,
                 );
             }
@@ -9390,5 +9524,20 @@ mod tests {
             CoreDeviceControls::Minotaur(_)
         ));
         assert!(!snapshot.devices[1].bypassed);
+    }
+
+    #[test]
+    fn lumen_render_assets_decode() {
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/pedals/lumen@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        })
+        .is_some());
+        assert!(render_control_asset_handle(LUMEN_PEARL_KNOB_ASSET, 0.5).is_some());
+        assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 1.0).is_some());
+        assert!(render_control_asset_handle(LUMEN_FOOTSWITCH_ASSET, 0.0).is_some());
     }
 }
