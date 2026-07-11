@@ -602,6 +602,10 @@ pub fn minotaur_circuit_descriptor() -> Option<&'static CircuitDescriptor> {
     device_circuit_descriptor(CoreDeviceConfig::Minotaur)
 }
 
+pub fn lumen_circuit_descriptor() -> Option<&'static CircuitDescriptor> {
+    device_circuit_descriptor(CoreDeviceConfig::Lumen)
+}
+
 pub fn springfield_circuit_descriptor() -> Option<&'static CircuitDescriptor> {
     device_circuit_descriptor(CoreDeviceConfig::Springfield)
 }
@@ -1585,7 +1589,7 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         visual: DeviceModel::Lumen,
         runtime_config: Some(CoreDeviceConfig::Lumen),
         render: &LUMEN_PEDAL_RENDER_SPEC,
-        circuit: no_circuit_descriptor,
+        circuit: lumen_circuit_descriptor,
     },
     AppDeviceModelDescriptor {
         id: "minotaur",
@@ -8323,7 +8327,7 @@ fn ui_circuit_descriptor(
         .device_descriptor_for_model(model)
         .and_then(|descriptor| (descriptor.circuit)())
         .or_else(|| match model {
-            DeviceModel::Lumen => None,
+            DeviceModel::Lumen => device_circuit_descriptor(CoreDeviceConfig::Lumen),
             DeviceModel::Minotaur => device_circuit_descriptor(CoreDeviceConfig::Minotaur),
             DeviceModel::Nox30 => amp_circuit_descriptor("nox30"),
             DeviceModel::Springfield => device_circuit_descriptor(CoreDeviceConfig::Springfield),
@@ -8334,6 +8338,7 @@ fn ui_circuit_descriptor(
 fn circuit_descriptor_summary(descriptor: &CircuitDescriptor) -> &'static str {
     match descriptor.model_id {
         "nox30" => "input / ECC83 / top boost / phase inverter / EL84 / B+ sag / transformer",
+        "lumen" => "input / sidechain / opto memory / gain cell / tube soften / mix / output",
         "minotaur" => "buffer / clean blend / clip / presence / output",
         "springfield" => "buffer / dwell driver / spring IR / recovery / mix",
         _ => descriptor.summary,
@@ -9172,6 +9177,8 @@ fn draw_circuit_kind_badge(frame: &mut Frame, center: Point, kind: CircuitDescri
 
 fn control_badge_label(control_id: &str) -> &'static str {
     match control_id {
+        "peak_reduction" => "PR",
+        "emphasis" => "E",
         "gain" => "G",
         "treble" => "T",
         "output" => "O",
