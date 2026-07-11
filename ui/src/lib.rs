@@ -3866,13 +3866,7 @@ fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, boun
             };
             let value = match control.role {
                 RenderControlRole::Parameter(kind) => slot.device.control_value(kind),
-                RenderControlRole::Bypass => {
-                    if slot.device.bypassed {
-                        0.0
-                    } else {
-                        1.0
-                    }
-                }
+                RenderControlRole::Bypass => bypass_asset_value(slot.device.bypassed),
             };
             let Some(handle) = render_control_asset_handle(asset, value) else {
                 continue;
@@ -4097,13 +4091,7 @@ fn draw_amp_control_assets(renderer: &mut iced::Renderer, art: &AmpArt, bounds: 
         };
         let value = match control.role {
             RenderControlRole::Parameter(kind) => art.amp.control_value(kind),
-            RenderControlRole::Bypass => {
-                if art.amp.bypassed {
-                    0.0
-                } else {
-                    1.0
-                }
-            }
+            RenderControlRole::Bypass => bypass_asset_value(art.amp.bypassed),
         };
         let Some(handle) = render_control_asset_handle(asset, value) else {
             continue;
@@ -4456,6 +4444,14 @@ fn render_control_asset_handle(
     }
 
     render_asset_handle(asset.image)
+}
+
+fn bypass_asset_value(bypassed: bool) -> f32 {
+    if bypassed {
+        0.0
+    } else {
+        1.0
+    }
 }
 
 fn minotaur_ivory_knob_handles() -> &'static [advanced_image::Handle] {
@@ -5425,11 +5421,14 @@ fn hit_test_pedal_footswitch(
             device_render_spec(app_profile, slot.device.model)
                 .controls
                 .iter()
-                .find(|control| control.role == RenderControlRole::Bypass)
-                .and_then(|control| {
-                    let center = render_control_center(control, origin, size);
-                    (distance(center, position) <= control.hit_radius).then_some(slot.source_index)
+                .find(|control| {
+                    control.role == RenderControlRole::Bypass
+                        && control.widget == RenderControlWidget::Footswitch
+                        && control.hit_radius > 0.0
+                        && distance(render_control_center(control, origin, size), position)
+                            <= control.hit_radius
                 })
+                .map(|_| slot.source_index)
         })
 }
 
@@ -9201,4 +9200,37 @@ fn darken(color: Color, amount: f32) -> Color {
         (color.g - amount).max(0.0),
         (color.b - amount).max(0.0),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auralith_footswitch_hit_test_ignores_status_led() {
+        let devices = vec![BoardDeviceSlot {
+            source_index: 42,
+            device: DeviceState::auralith(),
+        }];
+        let size = Size::new(640.0, 920.0);
+        let layout = board_layout(devices.len(), size);
+        let origin = Point::new(layout.start_x, pedal_board_y(size, layout.pedal_h));
+        let pedal_size = Size::new(layout.pedal_w, layout.pedal_h);
+        let footswitch = AURALITH_PEDAL_CONTROLS
+            .iter()
+            .find(|control| control.widget == RenderControlWidget::Footswitch)
+            .expect("Auralith must expose a clickable footswitch control");
+        let center = render_control_center(footswitch, origin, pedal_size);
+
+        assert_eq!(
+            hit_test_pedal_footswitch(AppProfile::greybound_free(), &devices, size, center),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn bypass_asset_value_lights_led_when_device_is_active() {
+        assert_eq!(bypass_asset_value(true), 0.0);
+        assert_eq!(bypass_asset_value(false), 1.0);
+    }
 }
