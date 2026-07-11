@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 const DOWNLOAD_URL =
-  "https://github.com/laibulle/greybound/releases/download/0.0.1-alpha2/Greybound.Free.dmg";
+  "https://github.com/laibulle/greybound/releases/download/0.0.2-alpha1/Greybound.Free.dmg";
 
 function GitHubMark({ size }: { size: number }) {
   return (
@@ -431,7 +431,7 @@ export default function Home() {
             </a>
             <a
               className="button secondary"
-              href="https://github.com/laibulle/greybound/releases/tag/0.0.1-alpha2"
+              href="https://github.com/laibulle/greybound/releases/tag/0.0.2-alpha1"
               rel="noopener noreferrer"
               target="_blank"
             >
