@@ -372,6 +372,11 @@ pub enum Message {
     AudioBufferSizeSelected(String),
     LoadWavRequested,
     WavFileSelected(Option<PathBuf>),
+    ToggleRecording,
+    RecordingFileSelected(Option<PathBuf>),
+    RecordingStarted(PathBuf),
+    RecordingStopped(Option<PathBuf>),
+    RecordingFailed(String),
     AudioDevicesChanged {
         inputs: Vec<String>,
         outputs: Vec<String>,
@@ -540,6 +545,7 @@ pub enum ViewMode {
     FxLoop,
     Cab,
     Eq,
+    Record,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1978,6 +1984,7 @@ pub struct GreyboundUi {
     pub output_gain: f32,
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
+    pub recording: RecordingState,
     pub metronome: MetronomeState,
     pub tuner: TunerState,
     pub doubler: DoublerState,
@@ -2094,6 +2101,23 @@ pub struct AudioSettingsState {
     pub period_sizes: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RecordingState {
+    pub active: bool,
+    pub path: Option<PathBuf>,
+    pub status: String,
+}
+
+impl Default for RecordingState {
+    fn default() -> Self {
+        Self {
+            active: false,
+            path: None,
+            status: "Ready to record the selected output".to_string(),
+        }
+    }
+}
+
 impl Default for AudioSettingsState {
     fn default() -> Self {
         Self {
@@ -2171,6 +2195,7 @@ impl GreyboundUi {
             output_gain: 0.58,
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
+            recording: RecordingState::default(),
             metronome: MetronomeState::default(),
             tuner: TunerState::default(),
             doubler: DoublerState::default(),
@@ -2372,6 +2397,38 @@ impl GreyboundUi {
                     self.audio_settings.status = "WAV file selection canceled".to_string();
                 }
             }
+            Message::ToggleRecording => {
+                self.recording.status = if self.recording.active {
+                    "Stopping recording".to_string()
+                } else {
+                    "Choose a WAV destination".to_string()
+                };
+                self.view_mode = ViewMode::Record;
+            }
+            Message::RecordingFileSelected(path) => {
+                if path.is_none() && !self.recording.active {
+                    self.recording.status = "Recording canceled".to_string();
+                }
+            }
+            Message::RecordingStarted(path) => {
+                self.recording.active = true;
+                self.recording.path = Some(path);
+                self.recording.status = "Recording selected output".to_string();
+                self.view_mode = ViewMode::Record;
+            }
+            Message::RecordingStopped(path) => {
+                self.recording.active = false;
+                if let Some(path) = path {
+                    self.recording.path = Some(path);
+                }
+                self.recording.status = "Recording saved".to_string();
+                self.view_mode = ViewMode::Record;
+            }
+            Message::RecordingFailed(error) => {
+                self.recording.active = false;
+                self.recording.status = error;
+                self.view_mode = ViewMode::Record;
+            }
             Message::AudioDevicesChanged {
                 inputs,
                 outputs,
@@ -2464,6 +2521,7 @@ impl GreyboundUi {
                 self.view_button(ViewMode::FxLoop),
                 self.view_button(ViewMode::Cab),
                 self.view_button(ViewMode::Eq),
+                self.view_button(ViewMode::Record),
             ]
             .spacing(self.s(10.0))
             .align_items(Alignment::Center),
@@ -2568,6 +2626,7 @@ impl GreyboundUi {
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
                 .height(Length::Fixed(self.s(666.0)))
                 .into(),
+                ViewMode::Record => self.recording_view(),
             }
         };
 
@@ -2928,6 +2987,101 @@ impl GreyboundUi {
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
+            .into()
+    }
+
+    fn recording_view(&self) -> Element<'_, Message> {
+        let recording = &self.recording;
+        let output_name = self
+            .audio_settings
+            .selected_output
+            .as_deref()
+            .unwrap_or("Default output");
+        let file_name = recording
+            .path
+            .as_ref()
+            .and_then(|path| path.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or("No recording file");
+        let action_label = if recording.active {
+            "STOP RECORDING"
+        } else {
+            "START RECORDING"
+        };
+        let record_button = button(text(action_label).size(self.font(18.0)).style(Color::WHITE))
+            .on_press(Message::ToggleRecording)
+            .style(iced::theme::Button::custom(FooterButton {
+                selected: recording.active,
+            }))
+            .padding([self.s(18.0), self.s(26.0)]);
+        let record_indicator = if recording.active {
+            Color::from_rgb(0.95, 0.14, 0.11)
+        } else {
+            Color::from_rgb(0.30, 0.34, 0.42)
+        };
+
+        let panel = container(
+            column![
+                row![
+                    Canvas::new(RecordStatusArt {
+                        active: recording.active,
+                        scale: self.scale,
+                    })
+                    .width(Length::Fixed(self.s(150.0)))
+                    .height(Length::Fixed(self.s(150.0))),
+                    column![
+                        text("RECORD").size(self.font(30.0)).style(Color::WHITE),
+                        text(recording.status.as_str())
+                            .size(self.font(17.0))
+                            .style(Color::from_rgb(0.82, 0.84, 0.90)),
+                        record_button,
+                    ]
+                    .spacing(self.s(18.0))
+                    .width(Length::Fill),
+                    container("")
+                        .width(Length::Fixed(self.s(18.0)))
+                        .height(Length::Fixed(self.s(18.0)))
+                        .style(ghost_container(record_indicator)),
+                ]
+                .spacing(self.s(34.0))
+                .align_items(Alignment::Center),
+                self.settings_separator(),
+                row![
+                    self.settings_box_width("Destination", file_name, 390.0),
+                    self.settings_box_width("Output Device", output_name, 390.0),
+                ]
+                .spacing(self.s(44.0)),
+                row![
+                    self.settings_box_width(
+                        "Format",
+                        &format!("Stereo float WAV / {} Hz", self.audio_settings.sample_rate),
+                        390.0
+                    ),
+                    self.settings_box_width(
+                        "Output Level",
+                        &format!(
+                            "L {:>3}%  R {:>3}%",
+                            (self.meters.output_left * 100.0).round() as u32,
+                            (self.meters.output_right * 100.0).round() as u32
+                        ),
+                        390.0
+                    ),
+                ]
+                .spacing(self.s(44.0)),
+            ]
+            .spacing(self.s(30.0)),
+        )
+        .width(Length::Fixed(self.s(980.0)))
+        .height(Length::Fixed(self.s(520.0)))
+        .padding([self.s(46.0), self.s(54.0)])
+        .style(dark_container());
+
+        container(panel)
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(666.0)))
+            .center_x()
+            .center_y()
+            .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.28)))
             .into()
     }
 
@@ -3313,6 +3467,15 @@ impl GreyboundUi {
     }
 
     fn settings_box(&self, label: &'static str, value: &str) -> Element<'_, Message> {
+        self.settings_box_width(label, value, 185.0)
+    }
+
+    fn settings_box_width(
+        &self,
+        label: &'static str,
+        value: &str,
+        width: f32,
+    ) -> Element<'_, Message> {
         container(
             column![
                 text(label).size(self.font(15.0)).style(Color::WHITE),
@@ -3322,7 +3485,7 @@ impl GreyboundUi {
                         .style(Color::WHITE)
                 )
                 .padding([self.s(14.0), self.s(16.0)])
-                .width(Length::Fixed(self.s(185.0)))
+                .width(Length::Fixed(self.s(width)))
                 .height(Length::Fixed(self.s(58.0)))
                 .style(dark_field_container()),
             ]
@@ -3442,7 +3605,7 @@ impl GreyboundUi {
             }
             ViewMode::Amp => &mut self.amp,
             ViewMode::Cab => &mut self.cab,
-            ViewMode::Eq => &mut self.amp,
+            ViewMode::Eq | ViewMode::Record => &mut self.amp,
         }
     }
 
@@ -6000,6 +6163,7 @@ impl canvas::Program<Message> for ViewIconArt {
             ViewMode::FxLoop => draw_fx_loop_view_icon(&mut frame, center, ink),
             ViewMode::Cab => draw_cab_view_icon(&mut frame, center, ink),
             ViewMode::Eq => draw_eq_view_icon(&mut frame, center, ink),
+            ViewMode::Record => draw_record_view_icon(&mut frame, center, ink),
         }
 
         if self.selected {
@@ -6231,6 +6395,58 @@ fn draw_eq_view_icon(frame: &mut Frame, center: Point, color: Color) {
             &Path::circle(Point::new(x, y), 4.2),
             Stroke::default().with_color(color).with_width(2.8),
         );
+    }
+}
+
+fn draw_record_view_icon(frame: &mut Frame, center: Point, color: Color) {
+    frame.stroke(
+        &Path::circle(center, 17.0),
+        Stroke::default().with_color(color).with_width(2.8),
+    );
+    frame.fill(&Path::circle(center, 7.6), color);
+}
+
+#[derive(Debug, Clone)]
+struct RecordStatusArt {
+    active: bool,
+    scale: f32,
+}
+
+impl canvas::Program<Message> for RecordStatusArt {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &iced::Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.scale(self.scale);
+        let logical_size = unscale_size(bounds.size(), self.scale);
+        let center = Point::new(logical_size.width * 0.5, logical_size.height * 0.5);
+        let ring_color = Color::from_rgba(1.0, 1.0, 1.0, 0.82);
+        let fill_color = if self.active {
+            Color::from_rgb(0.95, 0.14, 0.11)
+        } else {
+            Color::from_rgb(0.24, 0.27, 0.34)
+        };
+
+        frame.stroke(
+            &Path::circle(center, 54.0),
+            Stroke::default().with_color(ring_color).with_width(3.2),
+        );
+        frame.fill(&Path::circle(center, 34.0), fill_color);
+        frame.stroke(
+            &Path::circle(center, 34.0),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.0, 0.0, 0.0, 0.28))
+                .with_width(2.0),
+        );
+
+        vec![frame.into_geometry()]
     }
 }
 

@@ -12,7 +12,7 @@ use iced::{Application, Command, Element, Settings, Subscription};
 use mcp_sidecar::AudioLabMcpSidecar;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use windowing::aspect_corrected_size;
 
 const TUNER_REFRESH_MS: u64 = 33;
@@ -95,6 +95,12 @@ impl Desktop {
             || (levels.1 - self.last_meter_levels.1).abs() >= METER_LEVEL_EPSILON
             || (levels.2 - self.last_meter_levels.2).abs() >= METER_LEVEL_EPSILON
     }
+
+    fn stop_recording(&mut self) -> Option<PathBuf> {
+        self.audio
+            .as_ref()
+            .and_then(LiveAudioEngine::stop_recording)
+    }
 }
 
 impl Application for Desktop {
@@ -142,6 +148,38 @@ impl Application for Desktop {
         if matches!(message, Message::LoadWavRequested) {
             self.ui.update(message);
             return Command::perform(pick_wav_file(), Message::WavFileSelected);
+        }
+
+        if matches!(message, Message::ToggleRecording) {
+            let was_recording = self.ui.recording.active;
+            self.ui.update(message);
+            if was_recording {
+                let path = self.stop_recording();
+                self.ui.update(Message::RecordingStopped(path));
+                return Command::none();
+            }
+            return Command::perform(pick_recording_file(), Message::RecordingFileSelected);
+        }
+
+        if let Message::RecordingFileSelected(path) = message {
+            match path {
+                Some(path) => {
+                    if let Some(audio) = &self.audio {
+                        match audio.start_recording(path.clone()) {
+                            Ok(()) => self.ui.update(Message::RecordingStarted(path)),
+                            Err(error) => {
+                                self.ui.update(Message::RecordingFailed(error.to_string()))
+                            }
+                        }
+                    } else {
+                        self.ui.update(Message::RecordingFailed(
+                            "Audio engine is not running".to_string(),
+                        ));
+                    }
+                }
+                None => self.ui.update(Message::RecordingFileSelected(None)),
+            }
+            return Command::none();
         }
 
         if matches!(message, Message::ShutdownRequested) {
@@ -232,6 +270,10 @@ impl Application for Desktop {
         };
         self.ui.update(message);
         if restart_audio {
+            if self.ui.recording.active {
+                let path = self.stop_recording();
+                self.ui.update(Message::RecordingStopped(path));
+            }
             self.stop_audio();
             match LiveAudioEngine::start(&self.ui) {
                 Ok(engine) => {
@@ -295,4 +337,21 @@ async fn pick_wav_file() -> Option<PathBuf> {
         .pick_file()
         .await
         .map(|file| file.path().to_path_buf())
+}
+
+async fn pick_recording_file() -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .add_filter("WAV audio", &["wav"])
+        .set_file_name(&default_recording_file_name())
+        .save_file()
+        .await
+        .map(|file| file.path().to_path_buf())
+}
+
+fn default_recording_file_name() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    format!("greybound-take-{timestamp}.wav")
 }

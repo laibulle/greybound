@@ -4,6 +4,7 @@ mod engine;
 mod eq;
 mod meter;
 mod metronome;
+mod recording;
 mod runtime;
 mod tuner;
 mod util;

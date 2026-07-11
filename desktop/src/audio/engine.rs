@@ -14,15 +14,18 @@ use crate::audio_devices::{
 
 use super::controls::SharedRuntimeControls;
 use super::meter::MeterStats;
+use super::recording::RecordingWorker;
 use super::runtime::{post_amp_device_summary, pre_amp_device_summary, AudioRuntime};
 use super::tuner::{TunerAnalysisWorker, TunerReading, TunerStats};
 use super::wav::{FilePlaybackWorker, WavPlaybackBuffer};
+use std::path::PathBuf;
 
 pub(crate) struct LiveAudioEngine {
     _input_stream: Option<Stream>,
     _output_stream: Stream,
     _file_playback_worker: Option<FilePlaybackWorker>,
     _tuner_worker: TunerAnalysisWorker,
+    recording_worker: Arc<std::sync::Mutex<Option<RecordingWorker>>>,
     controls: SharedRuntimeControls,
     meters: Arc<MeterStats>,
     tuner: Arc<TunerStats>,
@@ -56,6 +59,7 @@ impl LiveAudioEngine {
             RingBuffer::<f32>::new((sample_rate as usize / 2).max(period_size as usize * 16));
         let meters = Arc::new(MeterStats::default());
         let tuner = Arc::new(TunerStats::default());
+        let recording_worker = Arc::new(std::sync::Mutex::new(None::<RecordingWorker>));
         let controls = SharedRuntimeControls::new(ui);
         let tuner_worker = TunerAnalysisWorker::start(
             sample_rate as f32,
@@ -116,6 +120,7 @@ impl LiveAudioEngine {
 
         let output_controls = controls.clone();
         let output_meters = meters.clone();
+        let output_recorder = recording_worker.clone();
         let output_name = output_device_name.clone();
         let amp_model = ui.amp_model_id();
         let app_profile = ui.app_profile;
@@ -123,6 +128,7 @@ impl LiveAudioEngine {
         let output_stream = output_device.build_output_stream(
             &output_config,
             move |data: &mut [f32], _| {
+                let mut recorder = output_recorder.try_lock().ok();
                 for frame in data.chunks_exact_mut(output_channels) {
                     let (left, right) = runtime.process(&output_controls, &output_meters);
                     frame.fill(0.0);
@@ -132,6 +138,9 @@ impl LiveAudioEngine {
                         frame[1] = right;
                     }
                     output_meters.record_output(frame[0], metered_right);
+                    if let Some(recorder) = recorder.as_deref_mut().and_then(Option::as_mut) {
+                        recorder.record(frame[0], metered_right);
+                    }
                 }
             },
             move |error| eprintln!("Greybound output stream error on {output_name}: {error}"),
@@ -148,6 +157,7 @@ impl LiveAudioEngine {
             _output_stream: output_stream,
             _file_playback_worker: file_playback_worker,
             _tuner_worker: tuner_worker,
+            recording_worker,
             controls,
             meters,
             tuner,
@@ -186,11 +196,29 @@ impl LiveAudioEngine {
         self.controls.store_from_ui(ui);
     }
 
+    pub(crate) fn start_recording(&self, path: PathBuf) -> Result<()> {
+        let worker = RecordingWorker::start(path, self.sample_rate, self.period_size)?;
+        let mut recording_worker = self
+            .recording_worker
+            .lock()
+            .map_err(|_| anyhow::anyhow!("recording worker lock poisoned"))?;
+        *recording_worker = Some(worker);
+        Ok(())
+    }
+
+    pub(crate) fn stop_recording(&self) -> Option<PathBuf> {
+        self.recording_worker
+            .lock()
+            .ok()
+            .and_then(|mut worker| worker.take().map(|worker| worker.path().to_path_buf()))
+    }
+
     pub(crate) fn shutdown(self) {
         let _ = self._output_stream.pause();
         if let Some(input_stream) = &self._input_stream {
             let _ = input_stream.pause();
         }
+        let _ = self.stop_recording();
         drop(self);
         thread::sleep(Duration::from_millis(50));
     }
