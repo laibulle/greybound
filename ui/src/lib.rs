@@ -11,12 +11,13 @@ use greybound::{
     StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
     StudioVerbControls as CoreStudioVerbControls,
 };
+use iced::advanced::graphics::gradient as canvas_gradient;
 use iced::advanced::image as advanced_image;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{self, Tree};
 use iced::advanced::Renderer as _;
-use iced::advanced::{Clipboard, Shell, Widget};
+use iced::advanced::{overlay, Clipboard, Shell, Widget};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::canvas::{
     self, Canvas, Frame, Geometry, Path, Program as _, Renderer as _, Stroke, Text,
@@ -33,7 +34,6 @@ const INK: Color = Color::from_rgb(0.90, 0.91, 0.92);
 const MUTED_INK: Color = Color::from_rgb(0.56, 0.60, 0.64);
 const APP_BACKGROUND: Color = Color::from_rgb(0.047, 0.055, 0.067);
 const CONTROL_SURFACE: Color = Color::from_rgb(0.11, 0.13, 0.15);
-const PANEL: Color = Color::from_rgb(0.082, 0.098, 0.118);
 const PEDAL_CREAM: Color = Color::from_rgb(0.84, 0.80, 0.72);
 const PEDAL_PEACH: Color = Color::from_rgb(0.77, 0.56, 0.45);
 const PEDAL_SAGE: Color = Color::from_rgb(0.67, 0.62, 0.49);
@@ -41,6 +41,9 @@ const TEAL: Color = Color::from_rgb(0.33, 0.72, 0.66);
 const GOLD: Color = Color::from_rgb(0.79, 0.54, 0.29);
 pub const DESIGN_WIDTH: f32 = 1600.0;
 pub const DESIGN_HEIGHT: f32 = 900.0;
+const HEADER_HEIGHT: f32 = 86.0;
+const FOOTER_HEIGHT: f32 = 44.0;
+const MAIN_VIEW_HEIGHT: f32 = DESIGN_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT;
 const PEDAL_STANDARD_WIDTH: f32 = 300.0;
 const PEDAL_STANDARD_HEIGHT: f32 = 543.0;
 const PEDAL_KNOB_RADIUS: f32 = 33.0;
@@ -154,25 +157,171 @@ fn app_panel_container() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(AppPanelContainer))
 }
 
-struct ControlBarContainer;
+struct TexturedHeader<'a> {
+    content: Element<'a, Message>,
+    width: Length,
+    height: Length,
+}
 
-impl container::StyleSheet for ControlBarContainer {
-    type Style = iced::theme::Theme;
-
-    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
-        container::Appearance {
-            text_color: Some(INK),
-            background: Some(Background::Color(CONTROL_SURFACE)),
-            border_radius: 0.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.07),
-            ..container::Appearance::default()
+impl<'a> TexturedHeader<'a> {
+    fn new(content: impl Into<Element<'a, Message>>) -> Self {
+        Self {
+            content: content.into(),
+            width: Length::Shrink,
+            height: Length::Shrink,
         }
+    }
+
+    fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
     }
 }
 
-fn control_bar_container() -> iced::theme::Container {
-    iced::theme::Container::Custom(Box::new(ControlBarContainer))
+impl Widget<Message, iced::Renderer> for TexturedHeader<'_> {
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.content)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(std::slice::from_ref(&self.content));
+    }
+
+    fn width(&self) -> Length {
+        self.width
+    }
+
+    fn height(&self) -> Length {
+        self.height
+    }
+
+    fn layout(&self, renderer: &iced::Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(self.width).height(self.height);
+        let child = self.content.as_widget().layout(renderer, &limits);
+        let size = limits.resolve(child.size());
+        layout::Node::with_children(size, vec![child])
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) -> iced::event::Status {
+        self.content.as_widget_mut().on_event(
+            &mut tree.children[0],
+            event,
+            layout.children().next().expect("header content layout"),
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        )
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        self.content.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout.children().next().expect("header content layout"),
+            cursor,
+            viewport,
+            renderer,
+        )
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        if let Some(handle) = render_asset_handle(RenderAssetSpec {
+            path: "assets/surfaces/header-brushed-gunmetal@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1774,
+            pixel_height: 887,
+        }) {
+            advanced_image::Renderer::draw(renderer, handle, bounds);
+        }
+
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.fill_rectangle(
+            Point::ORIGIN,
+            bounds.size(),
+            Color::from_rgba(0.018, 0.024, 0.031, 0.50),
+        );
+        frame.stroke(
+            &Path::line(Point::ORIGIN, Point::new(bounds.width, 0.0)),
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.055))
+                .with_width(1.0),
+        );
+        frame.stroke(
+            &Path::line(
+                Point::new(0.0, bounds.height - 1.0),
+                Point::new(bounds.width, bounds.height - 1.0),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgba(0.0, 0.0, 0.0, 0.52))
+                .with_width(1.0),
+        );
+        let finish = frame.into_geometry();
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            renderer.draw(vec![finish]);
+        });
+
+        self.content.as_widget().draw(
+            &tree.children[0],
+            renderer,
+            theme,
+            style,
+            layout.children().next().expect("header content layout"),
+            cursor,
+            viewport,
+        );
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+    ) -> Option<overlay::Element<'b, Message, iced::Renderer>> {
+        self.content.as_widget_mut().overlay(
+            &mut tree.children[0],
+            layout.children().next().expect("header content layout"),
+            renderer,
+        )
+    }
+}
+
+impl<'a> From<TexturedHeader<'a>> for Element<'a, Message> {
+    fn from(header: TexturedHeader<'a>) -> Self {
+        Element::new(header)
+    }
 }
 
 struct GhostContainer(Color);
@@ -2612,24 +2761,16 @@ impl GreyboundUi {
         .spacing(self.s(6.0))
         .align_items(Alignment::Center);
 
-        let app_header = container(
-            row![
-                text("GREYBOUND").size(self.font(18.0)).style(INK),
-                Space::with_width(Length::Fill),
-                text("RIG / STUDIO").size(self.font(11.0)).style(MUTED_INK),
-                text("•••").size(self.font(17.0)).style(MUTED_INK),
-            ]
-            .spacing(self.s(20.0))
-            .align_items(Alignment::Center),
-        )
-        .width(Length::Fill)
-        .height(Length::Fixed(self.s(48.0)))
-        .padding([self.s(0.0), self.s(30.0)]);
-
-        let top = container(
-            column![
-                app_header,
+        let app_header = TexturedHeader::new(
+            container(
                 row![
+                    text("GREYBOUND").size(self.font(18.0)).style(INK),
+                    text("│").size(self.font(20.0)).style(MUTED_INK),
+                    text(format!("{} · LIVE", self.amp_model_id().to_uppercase()))
+                        .size(self.font(13.0))
+                        .style(MUTED_INK),
+                    mode_tabs,
+                    Space::with_width(Length::Fill),
                     self.metered_global_knob(
                         "INPUT",
                         GlobalControl::Input,
@@ -2638,15 +2779,12 @@ impl GreyboundUi {
                         self.meters.input
                     ),
                     self.global_knob(
-                        "IR MIX",
+                        "IR",
                         GlobalControl::IrMix,
                         self.cab.master,
                         percent_readout(self.cab.master)
                     ),
                     self.doubler_control(),
-                    Space::with_width(Length::Fill),
-                    mode_tabs,
-                    Space::with_width(Length::Fill),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -2656,16 +2794,17 @@ impl GreyboundUi {
                         self.meters.output_right
                     ),
                 ]
-                .spacing(self.s(16.0))
+                .spacing(self.s(12.0))
                 .align_items(Alignment::Center),
-            ]
-            .spacing(0)
-            .align_items(Alignment::Center),
+            )
+            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+            .height(Length::Fixed(self.s(HEADER_HEIGHT)))
+            .padding([self.s(0.0), self.s(30.0)]),
         )
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-        .height(Length::Fixed(self.s(190.0)))
-        .padding([self.s(4.0), self.s(34.0)])
-        .style(control_bar_container());
+        .height(Length::Fixed(self.s(HEADER_HEIGHT)));
+
+        let top = app_header;
 
         let main_view: Element<'_, Message> = if self.audio_settings.open {
             self.audio_settings_panel()
@@ -2684,7 +2823,7 @@ impl GreyboundUi {
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(666.0)))
+                .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::FxLoop => BoardCanvas::new(BoardArt {
                     app_profile: self.app_profile,
@@ -2695,7 +2834,7 @@ impl GreyboundUi {
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(666.0)))
+                .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::Amp => AmpCanvas::new(AmpArt {
                     app_profile: self.app_profile,
@@ -2705,16 +2844,16 @@ impl GreyboundUi {
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(666.0)))
+                .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
-                ViewMode::Cab => Canvas::new(CabArt {
+                ViewMode::Cab => CabCanvas::new(CabArt {
                     app_profile: self.app_profile,
                     cab: self.cab.clone(),
                     amp_model: self.amp_model,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(666.0)))
+                .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::Eq => EqCanvas::new(EqArt {
                     app_profile: self.app_profile,
@@ -2723,7 +2862,7 @@ impl GreyboundUi {
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-                .height(Length::Fixed(self.s(666.0)))
+                .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::Record => self.recording_view(),
             }
@@ -2739,27 +2878,30 @@ impl GreyboundUi {
                     }))
                     .padding([self.s(4.0), self.s(10.0)]),
                 text("•  MIDI").size(self.font(14.0)).style(bottom_text),
-                text("•  TAP").size(self.font(14.0)).style(bottom_text),
-                text(format!("{:.1} BPM", self.metronome.bpm))
-                    .size(self.font(14.0))
-                    .style(bottom_text),
-                button(text("METRONOME").size(self.font(14.0)).style(Color::WHITE))
-                    .on_press(Message::ToggleMetronome)
-                    .style(iced::theme::Button::custom(FooterButton {
-                        selected: self.metronome.open || self.metronome.enabled
-                    }))
-                    .padding([self.s(4.0), self.s(10.0)]),
+                button(
+                    text(format!("{:.0} BPM", self.metronome.bpm))
+                        .size(self.font(14.0))
+                        .style(Color::WHITE)
+                )
+                .on_press(Message::ToggleMetronome)
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: self.metronome.open || self.metronome.enabled
+                }))
+                .padding([self.s(4.0), self.s(10.0)]),
                 button(text("SETTINGS").size(self.font(14.0)).style(Color::WHITE))
                     .on_press(Message::ToggleAudioSettings)
                     .style(iced::theme::Button::custom(FooterButton {
                         selected: self.audio_settings.open
                     }))
                     .padding([self.s(4.0), self.s(10.0)]),
-                text(format!("{} Hz", self.audio_settings.sample_rate))
-                    .size(self.font(14.0))
-                    .style(bottom_text)
-                    .width(Length::Fill)
-                    .horizontal_alignment(Horizontal::Right),
+                text(format!(
+                    "{} Hz  ·  {} samples",
+                    self.audio_settings.sample_rate, self.audio_settings.period_size
+                ))
+                .size(self.font(14.0))
+                .style(bottom_text)
+                .width(Length::Fill)
+                .horizontal_alignment(Horizontal::Right),
             ]
             .spacing(self.s(24.0))
             .align_items(Alignment::Center),
@@ -3123,7 +3265,7 @@ impl GreyboundUi {
 
         container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(666.0)))
+            .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
@@ -3218,7 +3360,7 @@ impl GreyboundUi {
 
         container(panel)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(666.0)))
+            .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.28)))
@@ -3326,7 +3468,7 @@ impl GreyboundUi {
 
         container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(666.0)))
+            .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
@@ -3422,7 +3564,7 @@ impl GreyboundUi {
 
         container(modal)
             .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(666.0)))
+            .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
             .center_x()
             .center_y()
             .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.58)))
@@ -3642,28 +3784,29 @@ impl GreyboundUi {
         readout: String,
     ) -> Element<'_, Message> {
         container(
-            Canvas::new(GlobalKnobArt {
+            GlobalKnobCanvas::new(GlobalKnobArt {
                 control,
                 value,
+                meter_level: value,
                 scale: self.scale,
                 label,
                 readout,
             })
-            .width(Length::Fixed(self.s(128.0)))
-            .height(Length::Fixed(self.s(132.0))),
+            .width(Length::Fixed(self.s(84.0)))
+            .height(Length::Fixed(self.s(80.0))),
         )
         .into()
     }
 
     fn doubler_control(&self) -> Element<'_, Message> {
-        Canvas::new(DoublerArt {
+        DoublerCanvas::new(DoublerArt {
             enabled: self.doubler.enabled,
             value: doubler_delay_to_normalized(self.doubler.delay_ms),
             readout: format!("{:.2} ms", self.doubler.delay_ms),
             scale: self.scale,
         })
-        .width(Length::Fixed(self.s(138.0)))
-        .height(Length::Fixed(self.s(132.0)))
+        .width(Length::Fixed(self.s(94.0)))
+        .height(Length::Fixed(self.s(80.0)))
         .into()
     }
 
@@ -3675,14 +3818,16 @@ impl GreyboundUi {
         readout: String,
         meter_level: f32,
     ) -> Element<'_, Message> {
-        row![
-            Canvas::new(MeterArt { level: meter_level })
-                .width(Length::Fixed(self.s(18.0)))
-                .height(Length::Fixed(self.s(132.0))),
-            self.global_knob(label, control, value, readout),
-        ]
-        .spacing(self.s(12.0))
-        .align_items(Alignment::Center)
+        GlobalKnobCanvas::new(GlobalKnobArt {
+            control,
+            value,
+            meter_level,
+            scale: self.scale,
+            label,
+            readout,
+        })
+        .width(Length::Fixed(self.s(84.0)))
+        .height(Length::Fixed(self.s(80.0)))
         .into()
     }
 
@@ -3695,21 +3840,16 @@ impl GreyboundUi {
         left_level: f32,
         right_level: f32,
     ) -> Element<'_, Message> {
-        row![
-            self.global_knob(label, control, value, readout),
-            row![
-                Canvas::new(MeterArt { level: left_level })
-                    .width(Length::Fixed(self.s(18.0)))
-                    .height(Length::Fixed(self.s(132.0))),
-                Canvas::new(MeterArt { level: right_level })
-                    .width(Length::Fixed(self.s(18.0)))
-                    .height(Length::Fixed(self.s(132.0))),
-            ]
-            .spacing(self.s(4.0))
-            .align_items(Alignment::Center),
-        ]
-        .spacing(self.s(12.0))
-        .align_items(Alignment::Center)
+        GlobalKnobCanvas::new(GlobalKnobArt {
+            control,
+            value,
+            meter_level: left_level.max(right_level),
+            scale: self.scale,
+            label,
+            readout,
+        })
+        .width(Length::Fixed(self.s(84.0)))
+        .height(Length::Fixed(self.s(80.0)))
         .into()
     }
 
@@ -4396,11 +4536,56 @@ fn draw_amp_background(renderer: &iced::Renderer, art: &AmpArt, bounds: Size) ->
     frame.into_geometry()
 }
 
+fn draw_cab_background(renderer: &iced::Renderer, art: &CabArt, bounds: Size) -> Geometry {
+    let mut frame = Frame::new(renderer, bounds);
+    frame.scale(art.scale);
+    draw_stage_background(&mut frame, unscale_size(bounds, art.scale));
+    frame.into_geometry()
+}
+
 fn draw_eq_background(renderer: &iced::Renderer, art: &EqArt, bounds: Size) -> Geometry {
     let mut frame = Frame::new(renderer, bounds);
     frame.scale(art.scale);
     draw_stage_background(&mut frame, unscale_size(bounds, art.scale));
     frame.into_geometry()
+}
+
+fn draw_global_knob_asset(renderer: &mut iced::Renderer, art: &GlobalKnobArt, bounds: Size) {
+    const FRAME_COUNT: usize = 121;
+    let index = ((FRAME_COUNT - 1) as f32 * art.value.clamp(0.0, 1.0)).round() as usize;
+    let Some(handle) = global_copper_knob_handles().get(index) else {
+        return;
+    };
+
+    let logical_size = unscale_size(bounds, art.scale);
+    let center = Point::new(logical_size.width * 0.5, 44.0);
+    let diameter = 50.0 * art.scale;
+    let image_bounds = Rectangle {
+        x: center.x * art.scale - diameter * 0.5,
+        y: center.y * art.scale - diameter * 0.5,
+        width: diameter,
+        height: diameter,
+    };
+    advanced_image::Renderer::draw(renderer, handle.clone(), image_bounds);
+}
+
+fn draw_doubler_knob_asset(renderer: &mut iced::Renderer, art: &DoublerArt, bounds: Size) {
+    const FRAME_COUNT: usize = 121;
+    let index = ((FRAME_COUNT - 1) as f32 * art.value.clamp(0.0, 1.0)).round() as usize;
+    let Some(handle) = global_copper_knob_handles().get(index) else {
+        return;
+    };
+
+    let logical_size = unscale_size(bounds, art.scale);
+    let center = Point::new(logical_size.width * 0.5, 44.0);
+    let diameter = 50.0 * art.scale;
+    let image_bounds = Rectangle {
+        x: center.x * art.scale - diameter * 0.5,
+        y: center.y * art.scale - diameter * 0.5,
+        width: diameter,
+        height: diameter,
+    };
+    advanced_image::Renderer::draw(renderer, handle.clone(), image_bounds);
 }
 
 fn draw_eq_panel_asset(renderer: &mut iced::Renderer, scale: f32) {
@@ -4421,10 +4606,10 @@ fn draw_eq_panel_asset(renderer: &mut iced::Renderer, scale: f32) {
         renderer,
         handle,
         Rectangle {
-            x: EQ_PANEL_X * scale,
-            y: EQ_PANEL_Y * scale,
-            width: EQ_PANEL_W * scale,
-            height: EQ_PANEL_H * scale,
+            x: (EQ_RENDER_OFFSET_X + EQ_PANEL_X * EQ_RENDER_SCALE) * scale,
+            y: (EQ_RENDER_OFFSET_Y + EQ_PANEL_Y * EQ_RENDER_SCALE) * scale,
+            width: EQ_PANEL_W * EQ_RENDER_SCALE * scale,
+            height: EQ_PANEL_H * EQ_RENDER_SCALE * scale,
         },
     );
 }
@@ -4444,8 +4629,10 @@ fn draw_eq_slider_cap_assets(renderer: &mut iced::Renderer, art: &EqArt) {
         return;
     };
 
-    let width = 58.0 * art.scale;
-    let height = 40.0 * art.scale;
+    let scale = art.scale;
+    let render_scale = scale * EQ_RENDER_SCALE;
+    let width = 58.0 * render_scale;
+    let height = 40.0 * render_scale;
     let bottom = EQ_SLIDER_TOP + EQ_SLIDER_H;
     for index in 0..EQ_BAND_COUNT {
         let x = EQ_FIRST_SLIDER_X + index as f32 * EQ_SLIDER_SPACING;
@@ -4455,8 +4642,8 @@ fn draw_eq_slider_cap_assets(renderer: &mut iced::Renderer, art: &EqArt) {
             renderer,
             handle.clone(),
             Rectangle {
-                x: (x - 29.0) * art.scale,
-                y: (y - 20.0) * art.scale,
+                x: (EQ_RENDER_OFFSET_X + (x - 29.0) * EQ_RENDER_SCALE) * scale,
+                y: (EQ_RENDER_OFFSET_Y + (y - 20.0) * EQ_RENDER_SCALE) * scale,
                 width,
                 height,
             },
@@ -4479,14 +4666,16 @@ fn draw_eq_filter_knob_assets(renderer: &mut iced::Renderer, art: &EqArt) {
         return;
     };
 
-    let size = 120.0 * art.scale;
+    let scale = art.scale;
+    let render_scale = scale * EQ_RENDER_SCALE;
+    let size = 120.0 * render_scale;
     for center in [eq_hpf_knob_center(), eq_lpf_knob_center()] {
         advanced_image::Renderer::draw(
             renderer,
             handle.clone(),
             Rectangle {
-                x: (center.x - 60.0) * art.scale,
-                y: (center.y - 60.0) * art.scale,
+                x: (EQ_RENDER_OFFSET_X + (center.x - 60.0) * EQ_RENDER_SCALE) * scale,
+                y: (EQ_RENDER_OFFSET_Y + (center.y - 60.0) * EQ_RENDER_SCALE) * scale,
                 width: size,
                 height: size,
             },
@@ -4515,14 +4704,15 @@ fn draw_eq_power_led_asset(renderer: &mut iced::Renderer, art: &EqArt) {
 
     let center = eq_power_led_center();
     let scale = art.scale;
+    let render_scale = scale * EQ_RENDER_SCALE;
     advanced_image::Renderer::draw(
         renderer,
         handle,
         Rectangle {
-            x: (center.x - 23.0) * scale,
-            y: (center.y - 23.0) * scale,
-            width: 46.0 * scale,
-            height: 46.0 * scale,
+            x: (EQ_RENDER_OFFSET_X + (center.x - 23.0) * EQ_RENDER_SCALE) * scale,
+            y: (EQ_RENDER_OFFSET_Y + (center.y - 23.0) * EQ_RENDER_SCALE) * scale,
+            width: 46.0 * render_scale,
+            height: 46.0 * render_scale,
         },
     );
 }
@@ -4543,14 +4733,15 @@ fn draw_eq_power_switch_asset(renderer: &mut iced::Renderer, scale: f32) {
     };
 
     let center = eq_power_switch_center();
+    let render_scale = scale * EQ_RENDER_SCALE;
     advanced_image::Renderer::draw(
         renderer,
         handle,
         Rectangle {
-            x: (center.x - 32.5) * scale,
-            y: (center.y - 50.0) * scale,
-            width: 65.0 * scale,
-            height: 80.0 * scale,
+            x: (EQ_RENDER_OFFSET_X + (center.x - 32.5) * EQ_RENDER_SCALE) * scale,
+            y: (EQ_RENDER_OFFSET_Y + (center.y - 50.0) * EQ_RENDER_SCALE) * scale,
+            width: 65.0 * render_scale,
+            height: 80.0 * render_scale,
         },
     );
 }
@@ -4570,6 +4761,29 @@ fn draw_amp_asset(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
     let logical_size = unscale_size(bounds, art.scale);
     let image_bounds = scaled_rectangle(amp_render_bounds(logical_size, render_spec), art.scale);
     advanced_image::Renderer::draw(renderer, handle, image_bounds);
+}
+
+fn draw_cab_asset(renderer: &mut iced::Renderer, art: &CabArt, bounds: Size) {
+    if !render_assets_enabled() {
+        return;
+    }
+
+    let asset = RenderAssetSpec {
+        path: "assets/cabs/greybound-2x12@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1821,
+        pixel_height: 864,
+    };
+    let Some(handle) = render_asset_handle(asset) else {
+        return;
+    };
+
+    let logical_size = unscale_size(bounds, art.scale);
+    advanced_image::Renderer::draw(
+        renderer,
+        handle,
+        scaled_rectangle(cab_render_bounds(logical_size), art.scale),
+    );
 }
 
 fn draw_amp_control_assets(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
@@ -4622,6 +4836,12 @@ pub fn preload_render_assets() {
 
     const PRELOAD_ASSETS: &[RenderAssetSpec] = &[
         RenderAssetSpec {
+            path: "assets/surfaces/header-brushed-gunmetal@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1774,
+            pixel_height: 887,
+        },
+        RenderAssetSpec {
             path: "assets/pedals/lumen@4x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1200,
@@ -4650,6 +4870,12 @@ pub fn preload_render_assets() {
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1620,
             pixel_height: 856,
+        },
+        RenderAssetSpec {
+            path: "assets/cabs/greybound-2x12@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1821,
+            pixel_height: 864,
         },
         RenderAssetSpec {
             path: "assets/effects/eq-rose-gold-clean-v2@2x.png",
@@ -4842,6 +5068,11 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
     }
 
     match asset.path {
+        "assets/surfaces/header-brushed-gunmetal@2x.png" => decoded_handle!(
+            "../assets/surfaces/header-brushed-gunmetal@2x.png",
+            1774,
+            887
+        ),
         "assets/pedals/lumen@4x.png" => {
             decoded_handle!("../assets/pedals/lumen@4x.png", 1200, 2172)
         }
@@ -4856,6 +5087,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         }
         "assets/amps/nox30-cropped@2x.png" => {
             decoded_handle!("../assets/amps/nox30-cropped@2x.png", 1620, 856)
+        }
+        "assets/cabs/greybound-2x12@2x.png" => {
+            decoded_handle!("../assets/cabs/greybound-2x12@2x.png", 1821, 864)
         }
         "assets/effects/eq-rose-gold@2x.png" => {
             decoded_handle!("../assets/effects/eq-rose-gold@2x.png", 2816, 784)
@@ -5052,6 +5286,29 @@ fn nox30_black_dial_knob_handles() -> &'static [advanced_image::Handle] {
                 let angle = ((rotation.max_degrees - rotation.min_degrees) * t
                     + NOX30_BLACK_DIAL_ROTATION_OFFSET_DEGREES)
                     .to_radians();
+                let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn global_copper_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/global-copper@2x.png"
+        ))
+        .expect("embedded global copper knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let value = index as f32 / (FRAME_COUNT - 1) as f32;
+                let angle = (value * 270.0).to_radians();
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
@@ -5579,57 +5836,152 @@ impl canvas::Program<Message> for CabArt {
         let mut frame = Frame::new(renderer, bounds.size());
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
-        draw_stage_background(&mut frame, logical_size);
-
-        let stage_width = amp_stage_width(logical_size);
-        let w = stage_width.min(760.0);
-        let h = 360.0;
-        let origin = Point::new((stage_width - w) * 0.5, 78.0);
-        let body = rounded_rect(origin, Size::new(w, h), 24.0);
-        frame.fill(&body, Color::from_rgb(0.50, 0.45, 0.36));
-        frame.stroke(
-            &body,
-            Stroke::default()
-                .with_color(Color::from_rgba(1.0, 0.95, 0.78, 0.55))
-                .with_width(3.0),
-        );
-
-        let grille = rounded_rect(
-            Point::new(origin.x + 52.0, origin.y + 62.0),
-            Size::new(w - 104.0, h - 132.0),
-            12.0,
-        );
-        frame.fill(&grille, Color::from_rgb(0.70, 0.64, 0.53));
-        for y in 0..18 {
-            let yy = origin.y + 78.0 + y as f32 * 10.0;
-            frame.stroke(
-                &Path::line(
-                    Point::new(origin.x + 70.0, yy),
-                    Point::new(origin.x + w - 70.0, yy),
-                ),
-                Stroke::default()
-                    .with_color(Color::from_rgba(0.32, 0.25, 0.20, 0.28))
-                    .with_width(2.0),
-            );
-        }
+        let cab_bounds = cab_render_bounds(logical_size);
         draw_text(
             &mut frame,
             self.cab.model.title(),
-            Point::new(origin.x + w * 0.5, origin.y + 34.0),
-            30.0,
-            Color::from_rgb(0.05, 0.04, 0.035),
+            Point::new(cab_bounds.x + cab_bounds.width * 0.5, cab_bounds.y - 22.0),
+            15.0,
+            MUTED_INK,
             Horizontal::Center,
         );
         draw_text(
             &mut frame,
             "lab/references/tone3000-irs/celestion.wav",
-            Point::new(origin.x + w * 0.5, origin.y + h - 42.0),
-            18.0,
-            Color::from_rgba(0.05, 0.04, 0.035, 0.72),
+            Point::new(
+                cab_bounds.x + cab_bounds.width * 0.5,
+                cab_bounds.y + cab_bounds.height + 24.0,
+            ),
+            13.0,
+            MUTED_INK,
             Horizontal::Center,
         );
         draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CabCanvas {
+    width: Length,
+    height: Length,
+    art: CabArt,
+}
+
+impl CabCanvas {
+    fn new(art: CabArt) -> Self {
+        Self {
+            width: Length::Fixed(100.0),
+            height: Length::Fixed(100.0),
+            art,
+        }
+    }
+
+    fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+}
+
+impl Widget<Message, iced::Renderer> for CabCanvas {
+    fn width(&self) -> Length {
+        self.width
+    }
+
+    fn height(&self) -> Length {
+        self.height
+    }
+
+    fn layout(&self, _renderer: &iced::Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(self.width).height(self.height);
+        layout::Node::new(limits.resolve(Size::ZERO))
+    }
+
+    fn tag(&self) -> tree::Tag {
+        struct Tag<T>(T);
+        tree::Tag::of::<Tag<()>>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(())
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) -> iced::event::Status {
+        let canvas_event = match event {
+            Event::Mouse(event) => Some(canvas::Event::Mouse(event)),
+            Event::Touch(event) => Some(canvas::Event::Touch(event)),
+            Event::Keyboard(event) => Some(canvas::Event::Keyboard(event)),
+            _ => None,
+        };
+
+        let Some(canvas_event) = canvas_event else {
+            return iced::event::Status::Ignored;
+        };
+
+        let state = tree.state.downcast_mut::<()>();
+        let (status, message) = self
+            .art
+            .update(state, canvas_event, layout.bounds(), cursor);
+        if let Some(message) = message {
+            shell.publish(message);
+        }
+        status
+    }
+
+    fn mouse_interaction(
+        &self,
+        _tree: &Tree,
+        _layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        mouse::Interaction::Pointer
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        if bounds.width < 1.0 || bounds.height < 1.0 {
+            return;
+        }
+
+        let state = tree.state.downcast_ref::<()>();
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            let background = draw_cab_background(renderer, &self.art, bounds.size());
+            renderer.draw(vec![background]);
+            draw_cab_asset(renderer, &self.art, bounds.size());
+            renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
+        });
+    }
+}
+
+impl<'a> From<CabCanvas> for Element<'a, Message> {
+    fn from(cab: CabCanvas) -> Self {
+        Element::new(cab)
     }
 }
 
@@ -5672,7 +6024,7 @@ impl canvas::Program<Message> for EqArt {
     ) -> (canvas::event::Status, Option<Message>) {
         match event {
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let Some(position) = cursor
+                let Some(stage_position) = cursor
                     .position_in(bounds)
                     .map(|position| unscale_point(position, self.scale))
                 else {
@@ -5681,13 +6033,17 @@ impl canvas::Program<Message> for EqArt {
                 if let Some(model) = hit_test_amp_spine(
                     self.app_profile,
                     unscale_size(bounds.size(), self.scale),
-                    position,
+                    stage_position,
                 ) {
                     return (
                         canvas::event::Status::Captured,
                         Some(Message::SelectAmpModel(model)),
                     );
                 }
+                let position = Point::new(
+                    (stage_position.x - EQ_RENDER_OFFSET_X) / EQ_RENDER_SCALE,
+                    (stage_position.y - EQ_RENDER_OFFSET_Y) / EQ_RENDER_SCALE,
+                );
                 if hit_test_eq_toggle(position) {
                     return (canvas::event::Status::Captured, Some(Message::ToggleEq));
                 }
@@ -5729,12 +6085,16 @@ impl canvas::Program<Message> for EqArt {
                 let Some(gesture) = state.gesture else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                let Some(position) = cursor
+                let Some(stage_position) = cursor
                     .position_in(bounds)
                     .map(|position| unscale_point(position, self.scale))
                 else {
                     return (canvas::event::Status::Ignored, None);
                 };
+                let position = Point::new(
+                    (stage_position.x - EQ_RENDER_OFFSET_X) / EQ_RENDER_SCALE,
+                    (stage_position.y - EQ_RENDER_OFFSET_Y) / EQ_RENDER_SCALE,
+                );
                 return match gesture.target {
                     EqDragTarget::Band(index) => (
                         canvas::event::Status::Captured,
@@ -5777,7 +6137,11 @@ impl canvas::Program<Message> for EqArt {
         let mut frame = Frame::new(renderer, bounds.size());
         frame.scale(self.scale);
         let size = unscale_size(bounds.size(), self.scale);
-        draw_eq_panel(&mut frame, size, &self.eq);
+        frame.with_save(|frame| {
+            frame.translate(Vector::new(EQ_RENDER_OFFSET_X, EQ_RENDER_OFFSET_Y));
+            frame.scale(EQ_RENDER_SCALE);
+            draw_eq_panel(frame, size, &self.eq);
+        });
         draw_amp_spine(&mut frame, size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
@@ -5891,6 +6255,27 @@ fn amp_render_bounds(size: Size, render_spec: &ModelRenderSpec) -> Rectangle {
     Rectangle {
         x: (stage_width - width) * 0.5,
         y: (size.height - height).max(0.0),
+        width,
+        height,
+    }
+}
+
+fn cab_render_bounds(size: Size) -> Rectangle {
+    const CAB_ASPECT_RATIO: f32 = 864.0 / 1821.0;
+
+    let stage_width = amp_stage_width(size);
+    let max_width = (stage_width - 72.0).min(900.0).max(1.0);
+    let max_height = (size.height - 116.0).max(1.0);
+    let mut width = max_width;
+    let mut height = width * CAB_ASPECT_RATIO;
+    if height > max_height {
+        height = max_height;
+        width = height / CAB_ASPECT_RATIO;
+    }
+
+    Rectangle {
+        x: (stage_width - width) * 0.5,
+        y: ((size.height - height) * 0.5).max(28.0),
         width,
         height,
     }
@@ -6496,6 +6881,7 @@ fn draw_circuit_view_icon(frame: &mut Frame, center: Point, color: Color) {
 struct GlobalKnobArt {
     control: GlobalControl,
     value: f32,
+    meter_level: f32,
     scale: f32,
     label: &'static str,
     readout: String,
@@ -6570,30 +6956,26 @@ impl canvas::Program<Message> for GlobalKnobArt {
         let mut frame = Frame::new(renderer, bounds.size());
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
-        let radius = 27.0;
-        let center = Point::new(logical_size.width * 0.5, 68.0);
+        let center = Point::new(logical_size.width * 0.5, 44.0);
         draw_text(
             &mut frame,
             self.label,
-            Point::new(logical_size.width * 0.5, 10.0),
-            14.0,
-            INK,
+            Point::new(logical_size.width * 0.5, 7.0),
+            9.0,
+            MUTED_INK,
             Horizontal::Center,
         );
-        components::draw_knob(
-            &mut frame,
-            center,
-            radius,
-            KnobSpec {
-                skin: KnobSkin::HeaderDial,
-                ..KnobSpec::normalized("", self.value)
-            },
-        );
+        if matches!(self.control, GlobalControl::Input | GlobalControl::Output) {
+            frame.fill(
+                &Path::circle(center, 25.0),
+                Color::from_rgba(TEAL.r, TEAL.g, TEAL.b, 0.06 + self.meter_level * 0.16),
+            );
+        }
         draw_text(
             &mut frame,
             &self.readout,
-            Point::new(logical_size.width * 0.5, 126.0),
-            14.0,
+            Point::new(logical_size.width * 0.5, 75.0),
+            9.0,
             INK,
             Horizontal::Center,
         );
@@ -6610,6 +6992,130 @@ impl canvas::Program<Message> for GlobalKnobArt {
     }
 }
 
+#[derive(Debug, Clone)]
+struct GlobalKnobCanvas {
+    width: Length,
+    height: Length,
+    art: GlobalKnobArt,
+}
+
+impl GlobalKnobCanvas {
+    fn new(art: GlobalKnobArt) -> Self {
+        Self {
+            width: Length::Fixed(100.0),
+            height: Length::Fixed(100.0),
+            art,
+        }
+    }
+
+    fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+}
+
+impl Widget<Message, iced::Renderer> for GlobalKnobCanvas {
+    fn width(&self) -> Length {
+        self.width
+    }
+
+    fn height(&self) -> Length {
+        self.height
+    }
+
+    fn layout(&self, _renderer: &iced::Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(self.width).height(self.height);
+        layout::Node::new(limits.resolve(Size::ZERO))
+    }
+
+    fn tag(&self) -> tree::Tag {
+        struct Tag<T>(T);
+        tree::Tag::of::<Tag<DragState>>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(DragState::default())
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) -> iced::event::Status {
+        let canvas_event = match event {
+            Event::Mouse(event) => Some(canvas::Event::Mouse(event)),
+            Event::Touch(event) => Some(canvas::Event::Touch(event)),
+            Event::Keyboard(event) => Some(canvas::Event::Keyboard(event)),
+            _ => None,
+        };
+
+        let Some(canvas_event) = canvas_event else {
+            return iced::event::Status::Ignored;
+        };
+
+        let state = tree.state.downcast_mut::<DragState>();
+        let (status, message) = self
+            .art
+            .update(state, canvas_event, layout.bounds(), cursor);
+        if let Some(message) = message {
+            shell.publish(message);
+        }
+        status
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        let state = tree.state.downcast_ref::<DragState>();
+        self.art.mouse_interaction(state, layout.bounds(), cursor)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        if bounds.width < 1.0 || bounds.height < 1.0 {
+            return;
+        }
+
+        let state = tree.state.downcast_ref::<DragState>();
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
+            draw_global_knob_asset(renderer, &self.art, bounds.size());
+        });
+    }
+}
+
+impl<'a> From<GlobalKnobCanvas> for Element<'a, Message> {
+    fn from(control: GlobalKnobCanvas) -> Self {
+        Element::new(control)
+    }
+}
+
+#[derive(Debug, Clone)]
 struct DoublerArt {
     enabled: bool,
     value: f32,
@@ -6635,10 +7141,10 @@ impl canvas::Program<Message> for DoublerArt {
                 else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                if position.x >= 93.0
-                    && position.x <= 132.0
-                    && position.y >= 4.0
-                    && position.y <= 28.0
+                if position.x >= 58.0
+                    && position.x <= 86.0
+                    && position.y >= 2.0
+                    && position.y <= 20.0
                 {
                     return (
                         canvas::event::Status::Captured,
@@ -6699,38 +7205,32 @@ impl canvas::Program<Message> for DoublerArt {
         draw_text(
             &mut frame,
             "DOUBLER",
-            Point::new(logical_size.width * 0.5 - 10.0, 10.0),
-            14.0,
-            INK,
+            Point::new(logical_size.width * 0.5 - 7.0, 7.0),
+            9.0,
+            MUTED_INK,
             Horizontal::Center,
         );
 
-        let switch_origin = Point::new(96.0, 7.0);
-        let switch = rounded_rect(switch_origin, Size::new(32.0, 16.0), 8.0);
+        let switch_origin = Point::new(logical_size.width - 24.0, 2.0);
+        let switch = rounded_rect(switch_origin, Size::new(22.0, 12.0), 6.0);
         let switch_color = if self.enabled {
-            Color::from_rgb(0.09, 0.12, 0.24)
+            GOLD
         } else {
-            Color::from_rgba(0.60, 0.65, 0.78, 0.82)
+            Color::from_rgba(0.56, 0.60, 0.64, 0.50)
         };
         frame.fill(&switch, switch_color);
-        let thumb_x = if self.enabled { 119.5 } else { 104.5 };
-        let thumb = Path::circle(Point::new(thumb_x, 15.0), 5.4);
-        frame.fill(&thumb, Color::WHITE);
+        let thumb_x = if self.enabled {
+            logical_size.width - 7.0
+        } else {
+            logical_size.width - 18.0
+        };
+        frame.fill(&Path::circle(Point::new(thumb_x, 8.0), 3.6), Color::WHITE);
 
-        components::draw_knob(
-            &mut frame,
-            Point::new(logical_size.width * 0.5, 68.0),
-            27.0,
-            KnobSpec {
-                skin: KnobSkin::HeaderDial,
-                ..KnobSpec::normalized("", self.value)
-            },
-        );
         draw_text(
             &mut frame,
             &self.readout,
-            Point::new(logical_size.width * 0.5, 126.0),
-            14.0,
+            Point::new(logical_size.width * 0.5, 70.0),
+            9.0,
             INK,
             Horizontal::Center,
         );
@@ -6744,6 +7244,129 @@ impl canvas::Program<Message> for DoublerArt {
         _cursor: mouse::Cursor,
     ) -> mouse::Interaction {
         mouse::Interaction::Pointer
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DoublerCanvas {
+    width: Length,
+    height: Length,
+    art: DoublerArt,
+}
+
+impl DoublerCanvas {
+    fn new(art: DoublerArt) -> Self {
+        Self {
+            width: Length::Fixed(100.0),
+            height: Length::Fixed(100.0),
+            art,
+        }
+    }
+
+    fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+}
+
+impl Widget<Message, iced::Renderer> for DoublerCanvas {
+    fn width(&self) -> Length {
+        self.width
+    }
+
+    fn height(&self) -> Length {
+        self.height
+    }
+
+    fn layout(&self, _renderer: &iced::Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(self.width).height(self.height);
+        layout::Node::new(limits.resolve(Size::ZERO))
+    }
+
+    fn tag(&self) -> tree::Tag {
+        struct Tag<T>(T);
+        tree::Tag::of::<Tag<DragState>>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(DragState::default())
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) -> iced::event::Status {
+        let canvas_event = match event {
+            Event::Mouse(event) => Some(canvas::Event::Mouse(event)),
+            Event::Touch(event) => Some(canvas::Event::Touch(event)),
+            Event::Keyboard(event) => Some(canvas::Event::Keyboard(event)),
+            _ => None,
+        };
+
+        let Some(canvas_event) = canvas_event else {
+            return iced::event::Status::Ignored;
+        };
+
+        let state = tree.state.downcast_mut::<DragState>();
+        let (status, message) = self
+            .art
+            .update(state, canvas_event, layout.bounds(), cursor);
+        if let Some(message) = message {
+            shell.publish(message);
+        }
+        status
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        let state = tree.state.downcast_ref::<DragState>();
+        self.art.mouse_interaction(state, layout.bounds(), cursor)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        if bounds.width < 1.0 || bounds.height < 1.0 {
+            return;
+        }
+
+        let state = tree.state.downcast_ref::<DragState>();
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
+            draw_doubler_knob_asset(renderer, &self.art, bounds.size());
+        });
+    }
+}
+
+impl<'a> From<DoublerCanvas> for Element<'a, Message> {
+    fn from(control: DoublerCanvas) -> Self {
+        Element::new(control)
     }
 }
 
@@ -6967,43 +7590,12 @@ impl canvas::Program<Message> for TunerArt {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct MeterArt {
-    level: f32,
-}
-
-impl canvas::Program<Message> for MeterArt {
-    type State = ();
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &iced::Renderer,
-        _theme: &iced::Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
-        let scale = (bounds.height / 132.0).max(0.001);
-        frame.scale(scale);
-        components::draw_vertical_meter(&mut frame, Point::new(3.0, 4.0), 124.0, self.level);
-        vec![frame.into_geometry()]
-    }
-}
-
 fn draw_stage_background(frame: &mut Frame, size: Size) {
-    frame.fill_rectangle(Point::ORIGIN, size, PANEL);
-
-    // Layered matte bands give the stage depth without turning it into a glossy card.
-    for band in 0..8 {
-        let alpha = 0.030 + band as f32 * 0.005;
-        let y = band as f32 * size.height / 8.0;
-        frame.fill_rectangle(
-            Point::new(0.0, y),
-            Size::new(size.width, size.height / 8.0 + 1.0),
-            Color::from_rgba(0.0, 0.0, 0.0, alpha),
-        );
-    }
+    let gradient = canvas_gradient::Linear::new(Point::ORIGIN, Point::new(0.0, size.height))
+        .add_stop(0.0, Color::from_rgb(0.090, 0.108, 0.130))
+        .add_stop(0.56, Color::from_rgb(0.067, 0.080, 0.096))
+        .add_stop(1.0, Color::from_rgb(0.045, 0.055, 0.068));
+    frame.fill(&Path::rectangle(Point::ORIGIN, size), gradient);
 
     frame.stroke(
         &Path::line(Point::new(0.0, 0.5), Point::new(size.width, 0.5)),
@@ -7927,6 +8519,9 @@ const EQ_PANEL_X: f32 = 96.0;
 const EQ_PANEL_Y: f32 = 82.0;
 const EQ_PANEL_W: f32 = 1408.0;
 const EQ_PANEL_H: f32 = 392.0;
+const EQ_RENDER_SCALE: f32 = 0.78;
+const EQ_RENDER_OFFSET_X: f32 = 15.0;
+const EQ_RENDER_OFFSET_Y: f32 = 168.0;
 const EQ_SLIDER_TOP: f32 = 188.0;
 const EQ_SLIDER_H: f32 = 182.0;
 const EQ_FIRST_SLIDER_X: f32 = 415.0;
@@ -9782,5 +10377,39 @@ mod tests {
         assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 0.0).is_some());
         assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 1.0).is_some());
         assert!(render_control_asset_handle(LUMEN_FOOTSWITCH_ASSET, 0.0).is_some());
+    }
+
+    #[test]
+    fn photorealistic_cab_render_asset_decodes() {
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/cabs/greybound-2x12@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1821,
+            pixel_height: 864,
+        })
+        .is_some());
+    }
+
+    #[test]
+    fn header_brushed_metal_texture_decodes() {
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/surfaces/header-brushed-gunmetal@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1774,
+            pixel_height: 887,
+        })
+        .is_some());
+    }
+
+    #[test]
+    fn global_copper_knob_asset_is_a_standard_transparent_control_surface() {
+        let image = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/global-copper@2x.png"
+        ))
+        .expect("global copper knob must decode");
+
+        assert_eq!(image.width(), 512);
+        assert_eq!(image.height(), 512);
+        assert!(image.color().has_alpha());
     }
 }
