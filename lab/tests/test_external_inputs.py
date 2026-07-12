@@ -130,3 +130,37 @@ def test_download_tone3000_irs_uses_ir_source(tmp_path: Path, monkeypatch) -> No
     manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["provider"] == "TONE3000 neural-amp-modeler-wasm impulse responses"
     assert "IR rights" in manifest["license_notes"]
+
+
+def test_download_tone3000_nam_pack_uses_authenticated_a2_api(tmp_path: Path, monkeypatch) -> None:
+    api_url = f"{external_inputs.TONE3000_API_BASE_URL}/models?tone_id=29285&page=1&page_size=100&architecture=2"
+    payload = {
+        "data": [
+            {
+                "id": 123,
+                "name": "Dumble Steel SS Clean",
+                "model_url": "https://example.test/models/123",
+            }
+        ]
+    }
+
+    def fake_urlopen(request, timeout: float):
+        assert request.get_header("Authorization") == "Bearer test-token"
+        if request.full_url == api_url:
+            return FakeResponse(json.dumps(payload).encode("utf-8"))
+        if request.full_url == "https://example.test/models/123":
+            return FakeResponse(b'{"architecture":"SlimmableContainer"}')
+        raise AssertionError(f"unexpected URL {request.full_url}")
+
+    monkeypatch.setattr(external_inputs, "urlopen", fake_urlopen)
+
+    downloaded = external_inputs.download_tone3000_nam_pack(
+        tmp_path,
+        tone_id="29285",
+        access_token="test-token",
+    )
+
+    assert len(downloaded) == 1
+    assert downloaded[0].model_id == 123
+    assert downloaded[0].local_path == tmp_path / "Dumble Steel SS Clean.nam"
+    assert downloaded[0].local_path.read_bytes() == b'{"architecture":"SlimmableContainer"}'

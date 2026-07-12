@@ -1,0 +1,526 @@
+---
+title: Daybreaker 50
+description: Greybound V1 modern clean and edge-of-breakup 6L6 amp model calibrated against a Dumble Steel String Singer NAM amp-head reference.
+---
+
+`daybreaker-50` is Greybound's modern high-headroom clean target: broad but
+controlled low end, open upper mids, soft high-frequency presence, and a
+touch-sensitive transition into edge breakup. The public model name is
+original. The Dumble Steel String Singer NAM pack is a calibration reference,
+not product identity or a claim of component-exact emulation.
+
+V1 intentionally scopes the model to clean and edge-of-breakup behavior. It
+does not model a specific original amplifier revision, its reverb circuit, or
+the two drive captures in the reference pack.
+
+## Reference and Policy
+
+The primary integration reference is the local TONE3000 Dumble Steel String
+Singer A2 amp-head pack installed outside git:
+
+- Tone URL: `https://www.tone3000.com/tones/dumble-steel-string-singer-29285`
+- Local directory: `lab/references/nam/DumbleSteelStringSinger/`
+- Source-safe manifest:
+  `lab/references/nam/manifests/dumble-steel-string-singer-29285.json`
+- Priority capture: `Dumble Steel SS Clean`
+- Policy: `amp-head-no-ir`
+
+The capture is an external whole-amp oracle at fixed settings. It is useful for
+end-to-end calibration but does not determine the internal topology. Render it
+without an IR and compare it to a Daybreaker rig with the cab bypassed.
+
+The local files report NAM A2 `SlimmableContainer`, `48 kHz`, and a recommended
+latency of five samples. `Drive 1` and `Drive 2` are retained for later
+edge-of-breakup checks; they are not V1 calibration targets.
+
+## Source Confidence
+
+The NAM metadata identifies only a Steel String Singer family capture; it does
+not disclose a serial number, circuit revision, control positions, or the
+capture's source/load conditions. It cannot therefore establish exact component
+values.
+
+A third-party Steel String Singer #002 research source describes a low-plate
+classic TMB tone stack followed by stepped High/Low filters, a cathode-follower
+driver, and a four-6L6 100 W output stage. Treat that as a topology lead only:
+the Daybreaker 50 is a separate two-6L6 50 W product target and the NAM's exact
+source revision is unknown. Do not claim the #002 component values for the NAM
+without a provenance link or a reproducible fixture.
+
+A public LTspice drawing attributed to SSS #002 provides a more concrete, but
+still third-party, value lead: `100 kOhm` slope resistor, `250 pF` treble,
+`100 nF` bass, `47 nF` mid, `250 kOhm` bass/treble pots, and `100 kOhm` mid
+pot. Its author describes the drawing as approximately 95% certain, and forum
+discussion records one later step-filter correction. Greybound therefore uses
+these values only in the separate source-informed fixture, never as a claim
+about the NAM's source revision.
+
+Visual inspection of that same drawing identifies the downstream stepped filter
+component families. High position 1 directly bypasses `R70 = 820 kOhm`; positions
+2 through 7 select `150 pF`, `330 pF`, `1 nF`, `2.4 nF`, `5.1 nF`, or `10 nF`
+across that resistor. `C44 = 3 nF` is a fixed shunt. Low selects successive taps
+on `39 kOhm`, `68 kOhm`, `100 kOhm`, `180 kOhm`, `270 kOhm`, `390 kOhm`, and
+`12 kOhm`, with `C45 = 10 nF` across the ladder and `R79 = 270 kOhm` in series.
+The filter positions for the NAM are unknown, but this is sufficient provenance
+to model the filter *topology* and validate its endpoints before deciding any
+default position.
+
+## V1 Stage Boundaries
+
+The V1 descriptor and Rust model expose a stage-level graybox map:
+
+1. 1 MOhm input coupling.
+2. Clean input triode with limited cathode-bypass lift.
+3. Current three-band graybox tone network before recovery; `cut` temporarily
+   maps to mid. A source/load-aware passive classic-TMB candidate exists as a
+   separate validated cell, but its direct integration is rejected pending a
+   physically bounded recovery-stage mapping.
+4. Recovery and bright bypass whose gain rises with `volume` but stays clean at
+   the reference setting.
+5. Post-tone High filter: `22 kOhm / 4.7 nF` high-pass and `22 kOhm / 1.5 nF`
+   low-pass presence band, followed by active recovery before the phase-inverter
+   approximation.
+6. Pair-of-6L6-style push-pull response with deliberately restrained sag and
+   bias shift.
+7. Transformer high-pass/low-pass filtering before the cab boundary.
+
+The model reuses the shared structured `PushPull6L6Stage`. It is a tuned
+graybox implementation, not a Dumble schematic, SPICE netlist, or PCB map.
+
+
+## Control Contract
+
+- `volume`: clean-channel recovery gain and edge threshold.
+- `bass`: tone-network low band.
+- `cut`: temporary mid control until `AmpControls` exposes `mid`.
+- `treble`: tone-network high band.
+- `drive`: extra edge/compression range, kept low for the clean anchor.
+- `presence`: feedback-style high-frequency openness.
+- `sag`: dynamic supply/bias softness; the clean anchor starts low.
+- `output`: final safety/output trim.
+
+Reverb belongs to the FX loop, not this amp model.
+
+## Validation Gates
+
+Focused Rust tests must show:
+
+- finite output under hot input;
+- more nonlinear residual energy at edge than at clean settings;
+- usable upper-mid/presence energy at the clean anchor;
+- a distinct clean spectral balance from None Star and Nox30.
+
+The first Lab render uses `rigs/daybreaker-50-clean.json5` and the Mayer DI.
+It must record monitor health and compare against the NAM clean render with no
+IR. Before changing a stage, use the appropriate controlled stimulus: sine for
+the tone network, bursts for sag, and stable tones/two-tone input for
+nonlinearity and intermodulation.
+
+```sh
+make lab-render-daybreaker-nam NAM_INPUT_WAV="lab/references/tone3000-inputs/Mayer - Guitar.wav"
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/daybreaker-50-clean.json5 \
+  --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" \
+  --output-wav lab/renders/daybreaker-50-clean.wav \
+  --metadata lab/renders/daybreaker-50-clean.run.json \
+  --binary target/release/greybound-cli \
+  --render-seconds 10 --sample-rate 48000 --period-size 32 \
+  --input-db 0 --output-db -12
+```
+
+The first release is accepted only as a bounded clean/edge baseline. NAM metric
+movement, monitor health, and documented limitations decide subsequent changes;
+one plausible listening impression does not establish fidelity.
+
+## Implementation Status
+
+The V1 Rust core, circuit descriptor, dry rig, and Free profile entry are
+implemented. Free now exposes Daybreaker 50 as a selectable amp beside Nox30;
+the plugin builds both signal chains at initialization and switches between
+them without allocating on the audio thread. This exposes the existing
+Daybreaker runtime, not the unresolved SSS #002 tone/deep circuit revision.
+The Free rendering uses a photorealistic, transparent-background Daybreaker
+head on a matching 2x12 cabinet asset. Its panel intentionally contains no
+baked controls, LED, or control labels: the knobs and power LED remain separate
+reactive UI assets. The input jack, control labels, badge, and power switch are
+also rendered as a separate Daybreaker UI layer; the switch and LED remain
+clickable/stateful rather than becoming pixels in the cabinet image.
+The six controls use a dedicated photorealistic black-machined/brass-ring knob
+asset with runtime rotation; the power switch has distinct photorealistic off
+and on assets. The input jack is likewise a dedicated photorealistic,
+transparent asset rather than a vector element in the background. The matching
+Daybreaker jewel LED has separate unlit and lit assets.
+The focused checks passed on 2026-07-12:
+
+- `cargo test -p greybound`: 191 tests passed;
+- `cargo test -p greybound-cli`: 29 tests passed, including Auralith shared
+  control loading/adjustment after the CLI coverage fix;
+- `cargo check -p greybound-ui -p greybound-free`: passed;
+- Daybreaker tests cover hot-input finiteness, clean-to-edge nonlinear energy,
+  descriptor scope, and descriptor edge validity.
+
+The initial release render and NAM comparison now exist:
+
+- candidate: `lab/renders/daybreaker-50-clean-3s.wav`;
+- reference: `lab/references/nam/renders/daybreaker-50-dumble-sss-clean-3s.wav`;
+- report: `lab/reports/daybreaker-50-vs-dumble-sss-clean-3s.md`;
+- monitor: zero input/output xruns, near clips, and hard clips;
+- weighted guitar-band log-spectral distance: `18.18 dB`;
+- null residual relative to NAM: `-9.53 dB`;
+- envelope error: `-11.25 dB`.
+
+This is a safe and reproducible V1 baseline, not a fidelity claim. The report
+shows deficits in the mid (`-4.12 dB`) and presence (`-6.58 dB`) bands, plus
+excess air (`+7.76 dB`) after alignment. The next useful model change is a
+small tone-network/presence/output-filter hypothesis, evaluated against the
+same clean NAM render rather than broad retuning.
+
+The current active candidate is the retained post-tone High-filter hypothesis:
+`lab/reports/daybreaker-50-presence-filter-vs-dumble-sss-clean-3s.md` records
+`17.17 dB` weighted guitar-band LSD. It is better than the initial `18.18 dB`
+baseline but remains a bounded intermediate result, not a fidelity claim.
+
+## Component Iteration Ledger
+
+### ECC83 common-cathode replacement — rejected
+
+The first experimental replacement used the project-owned 12AX7 SPICE fixture
+(`100 kOhm` plate, `1.5 kOhm / 25 uF` cathode, `22 nF` coupling, `280 V` B+).
+The cell itself passed its SPICE operating-point and gain checks, but replacing
+the Daybreaker input approximation worsened the whole-amp NAM comparison:
+
+- weighted LSD: `18.18 dB` to `18.70 dB`;
+- inactive noise floor P50: `-93.30 dBFS` to `-52.33 dBFS`.
+
+The change was removed. A validated cell is not automatically a valid
+integration boundary; its source/load and normalized-voltage mapping must also
+be justified.
+
+### Post-tone High filter / transformer RC — retained provisional hypothesis
+
+`tests/fixtures/circuit/daybreaker_presence_filter.cir` models a post-TMB
+presence band with `22 kOhm / 4.7 nF` high-pass, `22 kOhm / 1.5 nF` low-pass,
+and active recovery. The fixture is reproducible with:
+
+```sh
+make lab-spice-daybreaker-presence-filter
+```
+
+The matching runtime change improved the fixed Mayer-DI NAM comparison:
+
+- weighted LSD: `18.18 dB` to `17.17 dB`;
+- mid residual: `-4.12 dB` to `+1.50 dB`;
+- presence residual: `-6.58 dB` to `-2.02 dB`;
+- monitor health remained clean.
+
+It also worsened the null residual (`-9.53 dB` to `-8.41 dB`), envelope error
+(`-11.25 dB` to `-10.36 dB`), and air residual (`+7.76 dB` to `+8.56 dB`). It
+is retained only as the current component hypothesis, not accepted as a final
+tone stack.
+
+### Passive classic TMB direct integration — rejected pending recovery stage
+
+`tests/fixtures/circuit/daybreaker_classic_tmb.cir` and the reusable
+`ClassicTmbToneStack` MNA cell model a low-plate classic TMB boundary with a
+`38 kOhm` source, `470 kOhm` recovery-grid load, split pots, and explicit
+insertion loss. At the fixed clean-rig controls, SPICE records `-19.41 dB` at
+1 kHz relative to the source; the Rust fixed-frequency test checks the matching
+`0.0756 V RMS` result for a 1 V-peak sine. Run it with:
+
+```sh
+make lab-spice-daybreaker-classic-tmb
+```
+
+Replacing the existing graybox stack directly improved weighted LSD from
+`17.17 dB` to `15.38 dB`, but it is not a valid full-amp improvement: null
+residual regressed from `-8.41 dB` to `-1.65 dB`, envelope error from
+`-10.36 dB` to `-4.96 dB`, and aligned band residuals became substantially too
+bright (mid `+9.83 dB`, presence `+7.56 dB`, air `+15.17 dB`). Its gain
+correction also rose from `+8.74 dB` to `+15.44 dB`. Monitor health remained
+clean (zero xruns and clips), so stability is not the issue.
+
+The direct Daybreaker integration was removed. The cell remains available as a
+tested component; the next valid hypothesis is a recovery-stage/source-boundary
+model that explains its insertion-loss makeup, not a sweep of tone-stack
+values.
+
+### TMB recovery-stage electrical boundary — validated, runtime mapping pending
+
+`tests/fixtures/circuit/daybreaker_tmb_recovery_12ax7.cir` attaches the passive
+cell to a `470 kOhm` grid return and project ECC83 common-cathode recovery
+stage (`100 kOhm` plate; `2.2 kOhm / 1 uF` cathode; `280 V` raw supply through
+`12 kOhm / 22 uF`). At 1 kHz with a 20 mV-peak source, SPICE records:
+
+- TMB output: `1.511 mV RMS`;
+- recovery plate: `21.962 mV RMS`, or `14.54x` / `23.25 dB` gain;
+- plate/cathode/B+ DC: `252.402 V` / `0.542 V` / `277.043 V`.
+
+The reusable `ClassicTmbRecoveryStage` reproduces that operating point and AC
+plate response at 48 kHz. It intentionally uses volts at both boundaries. It
+is not wired into Daybreaker yet. Although the internal chain labels samples as
+volts, the external WAV/DI amplitude has no verified physical pickup/interface
+calibration. The next step is to establish that input calibration before the
+whole-amp NAM comparison can judge this stage.
+
+```sh
+make lab-spice-daybreaker-tmb-recovery
+```
+
+### Direct physical-voltage injection — rejected
+
+An integration that treated the raw Mayer DI samples as calibrated volts was
+tested and removed. It used the verified first ECC83 → TMB/recovery sequence,
+but the NAM comparison regressed badly:
+
+- weighted LSD: `17.17 dB` to `30.21 dB`;
+- null residual: `-8.41 dB` to `-0.86 dB`;
+- envelope error: `-10.36 dB` to `-2.85 dB`;
+- air residual: `+8.56 dB` to `+34.03 dB`;
+- inactive-floor P50: `-92.19 dBFS` to `-60.50 dBFS`.
+
+The candidate also failed the clean-to-edge harmonic-separation test. It proves
+that the DI's file-domain amplitude cannot be assumed to be a calibrated grid
+voltage.
+
+### NAM level-sweep input calibration — rejected pending output coupling
+
+The generated 48 kHz sine-level sweep shows the NAM remains near-linear at
+1 kHz / `-24 dBFS` (`-49.53 dB` THD) and reaches strong edge behavior at
+`-6 dBFS` (`-9.88 dB` THD). Mapping full-scale samples to `30 mV` places those
+points at roughly `1.9 mV` and `15.0 mV` on the ECC83 grid, respectively; this
+is a defensible input-boundary calibration rather than an EQ adjustment.
+
+The integrated 30 mV candidate was nevertheless rejected: weighted LSD was
+`25.41 dB`, null residual `-0.96 dB`, air residual `+22.48 dB`, and inactive
+P50 was `-43.61 dBFS`. The source stays on the retained High-filter candidate.
+
+### Recovery output coupling/load — validated cell, rejected full integration
+
+The recovery fixture now includes a `22 nF` plate coupling capacitor and the
+following `1 MOhm` grid load. SPICE gives `20.254 mV RMS` at the coupled output;
+the `ClassicTmbRecoveryStage` includes the matching 6.6 Hz AC boundary and
+small-signal load loss. The direct calibrated integration still failed (`25.06
+dB` weighted LSD and `-46.55 dBFS` inactive P50), so the change was removed.
+
+The controlled recovery transient does settle below `100 uV RMS` after two
+seconds, both for the recovery cell alone and when driven by the first ECC83.
+That rules out grid/cathode blocking as the source of the full-rig residual.
+Removing the old second recovery-gain stage was also tested and rejected
+(`22.11 dB` weighted LSD; `-38.62 dBFS` inactive P50): the passive low-plate
+TMB/ECC83 hypothesis is electrically self-consistent but does not describe this
+NAM capture closely enough for direct adoption. The source remains on the
+retained High-filter candidate; the next component must be selected from a
+different, evidenced topology rather than retuning this one.
+
+### Structured output-transformer port — rejected
+
+The shared `OutputTransformerStage` was tested with its primary R/L and leakage
+corner chosen to reproduce the current `100 kOhm / 68 nF` high-pass and
+`4.823 kHz` output pole. It degraded weighted LSD from `17.17 dB` to `18.54 dB`
+and increased the air residual from `+8.56 dB` to `+13.83 dB`. The structured
+transformer's flux/saturation scaling is not yet electrically compatible with
+the Daybreaker 6L6 voltage domain, so this direct port was removed rather than
+retuning its nonlinear parameters.
+
+### Source-informed SSS #002 TMB fixture — informative, not integrated
+
+`tests/fixtures/circuit/daybreaker_sss002_classic_tmb.cir` restates the public
+SSS #002 TMB value lead with a `68 kOhm` source and `470 kOhm` load. At the
+fixed clean-rig controls it yields `-26.18 dB` at 1 kHz, rising to `-18.48 dB`
+at 16 kHz (`+7.70 dB` tilt). It is therefore not a direct cure for the NAM's
+current air excess; it reinforces the documented topology requirement for the
+downstream stepped High/Low filters. Run it with:
+
+```sh
+make lab-spice-daybreaker-sss002-classic-tmb
+```
+
+### Source-informed SSS #002 stepped High/Low bank — topology validated, not integrated
+
+`tests/fixtures/circuit/daybreaker_sss002_high_low_filters.cir` now preserves
+the switch routing rather than approximating it with a single high-pass/low-pass
+pair. The seven High positions are the direct `R70` bypass followed by
+`150 pF`, `330 pF`, `1 nF`, `2.4 nF`, `5.1 nF`, and `10 nF` bypass capacitors;
+the fixed shunt is `C44 = 3 nF`. The seven Low positions select taps on the
+`39 kOhm` through `390 kOhm` ladder, terminated by `12 kOhm`, with `C45 =
+10 nF` across it.
+
+SPICE confirms a real family of responses instead of one arbitrary curve. With
+the fixture's explicit `1 kOhm` source and `1 MOhm` load boundaries, High
+positions 2–3 rise about `+12.7 dB` from 1 to 8 kHz, while Low position 1 falls
+`-4.32 dB` over the same interval. Those boundaries are measurement choices,
+not claimed amplifier impedances, and the NAM's switch positions remain
+unknown. Therefore no position has been promoted into the Daybreaker runtime.
+
+The reusable `Sss002HighFilter` cell mirrors High positions 1–7 with the same
+`C37`, `R34`, `C44`, `R70`, `R71`, source, and load boundary. Its 48 kHz
+steady-state 1 kHz response is asserted against the SPICE sweep within `0.35
+dB` for every position. This validates the numerical component cell, not its
+placement or default switch selection in the full amp.
+
+The isolated `Sss002LowFilter` sweep preserves the ladder's individual loading
+states, but it is not an integration reference: the ASC routing shows `R79`
+feeds that ladder from the High output, making Low a selectable shunt load.
+The full `Sss002DrawingHighLowFilter` now captures that topology. The drawing
+does not override the switch subcircuit's `POS=1` default, so its reproducible
+default is High-1 (direct `R70` bypass) and Low-1 (ladder top). A later node
+trace corrected the upstream boundary: `R69 = 68 kOhm` is U4's grid-series
+resistor, while `R5 = 100 kOhm` is the plate-source boundary. The chain now
+includes `C6 = 10 nF` and the parallel `C37 = 1 nF` / (`R53 = 100 kOhm` +
+`L2 = 300 mH` + `R34 = 470 kOhm`) path before High/Low. At High-1/Low-1 it
+rolls off by `-8.24 dB` from 1 to 8 kHz.
+
+Neither the local NAM file nor the public capture page publishes the capture's
+High/Low positions or reamp level. The page states that models reflect specific
+knob settings, but not what those settings are. No default position is therefore
+promoted from the NAM score alone.
+
+### Incomplete High/Low direct port — superseded by the traced U4 boundary
+
+The first drawing-default direct port treated `R69` as the plate source and
+omitted `C6/R53/L2/R34`. Its `11.20 dB` weighted-LSD result is retained only as
+a diagnostic: it also regressed null residual to `-1.02 dB` and envelope error
+to `-3.72 dB`, so it was removed.
+
+The direct port was removed. The following U37 recovery stage cannot be
+replaced by the Daybreaker's normalized graybox gain.
+
+### SSS #002 U37 recovery fixture — electrically validated, runtime mapping pending
+
+`tests/fixtures/circuit/daybreaker_sss002_high_low_u37_recovery.cir` now joins
+the traced drawing-default High-1/Low-1 network to U37. The drawing calls U37
+a Sylvania 7025; the fixture now uses its source Koren parameters rather than
+the prior generic 12AX7 approximation. With an explicit `R5 = 100 kOhm`
+plate-source boundary, `HT4 = 300 V` hypothesis, and `470 kOhm` following load,
+the `100 kOhm` plate / `1 kOhm / 1 uF` stage settles at:
+
+- plate / cathode / B+: `177.011 V` / `1.230 V` / `299.999 V`;
+- High/Low output: `2.281 mV RMS` for a 20 mV-peak 1 kHz source;
+- coupled recovery output: `132.360 mV RMS`, or `58.04x` / `35.27 dB`.
+
+This accounts for most of the passive network's insertion loss without a
+makeup-EQ adjustment. The HT4 rail and subsequent 470 kOhm load remain explicit
+hypotheses, so the next runtime port must retain those boundaries instead of
+copying only the small-signal gain.
+
+`Sss002HighLowU37RecoveryStage` now uses the matching 7025 transfer parameters
+in Rust. Its resting point matches the SPICE reference; its 1 kHz coupled
+output is within `14 mV RMS` of the `132.360 mV RMS` SPICE reference. That
+remaining small-signal difference is the project solver's omission of the
+source model's grid-current and interelectrode-capacitance terms, not a tuned
+gain. It remains outside Daybreaker until its physical-voltage boundary is
+carried through the adjoining stages.
+
+### SSS #002 U4 plate stage — electrically validated
+
+`tests/fixtures/circuit/daybreaker_sss002_u4_plate_stage.cir` isolates the
+plate stage that drives C6: `HT-A = 440 V`, `R5 = 100 kOhm`, `R4/C5 =
+1.5 kOhm / 5 uF`, grid-series `R69 = 68 kOhm`, and `C6 = 10 nF`. Its declared
+1 Mohm grid return was a provisional isolated measurement boundary; the
+following U5/U4 fixture supersedes it for the drawing-default volume state.
+The drawing specifies a GE 5751 for U4, so this fixture uses its source Koren
+parameters rather than the former generic 12AX7 approximation. The isolated
+measurement gives:
+
+- plate / cathode / HT-A: `263.662 V` / `2.645 V` / `439.998 V`;
+- grid / C6 output at 1 kHz: `13.235 mV RMS` / `680.780 mV RMS`;
+- U4 plate gain: `51.45x` / `34.23 dB`.
+
+### SSS #002 U5 volume into U4 — component validated, tone/deep loading pending
+
+The drawing fixes U5 rather than leaving it as a generic 1 Mohm divider:
+`pot_pow`, `Rtot = 1 Mohm`, `Rtap = 100 kOhm`, `tap = 0.5`, and explicit
+`VOL = 0.5`. At the drawing default, that is `900 kOhm` from the tone-stack
+side to the wiper and `100 kOhm` from wiper to ground. The wiper drives the
+drawn `R69 = 68 kOhm`, then U4's grid.
+
+The direct upstream connection is now traced as U2's treble-pot wiper, not a
+generic tone-stack output node. U2 itself is a `250 kOhm` `pot_pow` control
+with `Rtap = 25 kOhm`; its lower leg continues through the drawing's
+Guitar/Mic selector and adjoining bass/mid/deep network. Those switch-dependent
+nodes still need an explicit component trace before they can replace U5's
+ideal-source measurement boundary.
+
+`tests/fixtures/circuit/daybreaker_sss002_u5_volume_u4.cir` replaces the U4
+fixture's provisional grid return with those two U5 legs. With an explicitly
+ideal pre-U5 20 mV-peak, 1 kHz source, it gives:
+
+- U5 wiper / U4 grid: `1.406 mV RMS` / `1.405 mV RMS`;
+- U5 attenuation: `0.09942x` / `-20.05 dB`;
+- C6 output: `72.275 mV RMS`;
+- U4 plate gain relative to grid: `51.45x` / `34.23 dB`.
+
+`Sss002VolumeControl` mirrors that `pot_pow` law and exposes both resistance
+legs, but is deliberately not wired into Daybreaker yet. Its
+`process_ideal_source` method is valid at the fixture's ideal source boundary;
+the actual U2/U3 source impedance and R65 return from U5's wiper through the
+switchable Deep network are outside that fixture. The next justified component
+is therefore the complete tone/Deep network, not a gain calibration from the
+NAM.
+
+### SSS #002 Guitar/Mic selector at the U5 boundary — traced, capture state unknown
+
+The direct U5 source and its adjoining mode switch are now traced from the
+symbol pin order and ASC wires. U34 is the `dpdt` controlled by `GUITARMIC`:
+
+- pole `1a` is U2's lower treble-pot leg; `3a` is the C3/U3-top node; and `2a`
+  is the separate C35 branch;
+- pole `1b` is U3's bass-pot wiper; `2b` reaches U5's input through
+  `R63 = 100 kOhm`; `3b` has no external continuation in the drawing;
+- the executable `dpdt` subcircuit connects `1 → 2` when `SET = 1` and
+  `1 → 3` when `SET = 0`. The explicit `GUITARMIC = 1` default therefore
+  connects `1a → 2a` and `1b → 2b`; `GUITARMIC = 0` selects `1a → 3a` and
+  `1b → 3b`.
+
+U2's wiper reaches U5 in either branch. The executable drawing default adds
+U3's wiper through R63 and terminates U2's lower leg through C35; the alternate
+branch ties U2's lower leg to U3's top terminal. A nearby drawing comment labels
+the modes in the opposite order, so the electrical subcircuit rather than the
+comment is used for SPICE. The NAM metadata does not disclose this switch state,
+so neither branch can be selected for the runtime or used to justify a tone
+match. The remaining work is to trace the C35/U35 Deep branch and the U2/U3
+network as a whole, then simulate both stated switch configurations.
+
+### U34/U35 source-revision conflict — no full tone-stack port yet
+
+The ASC and the public board layout disagree on the same reference designators
+in the exact branch needed to finish U5 loading. The ASC used by the current
+fixtures lists `R63 = 100 kOhm`, `R64/R65 = 270 kOhm`, `R66 = 1m`, and
+`R67 = 10 kOhm`. The public SSS #002 layout instead lists `R63 = 100 Ohm`,
+`R64 = 1 Mohm`, `R65 = 10 kOhm`, `R66 = 8.2 kOhm`, and `R67 = 3.3 Mohm`.
+
+This is not a minor tolerance change: combining the ASC switch topology with
+the layout values materially changes the DC feedback into U5/U4. Until the
+circuit-description specification selects a revision, no U1 → tone → U5 → U4
+fixture or runtime port is retained. The directly transcribed U4/U5 fixtures
+remain valid only at their declared isolated boundaries.
+
+The two revision candidates are now measured separately with the shared ASC
+wire topology and executable defaults (`GUITARMIC = 1`, `DEEP = 0`), using a
+`100 kOhm` plate-source and `1 GOhm` U4-grid measurement boundary:
+
+| Candidate | 100 Hz | 1 kHz | 8 kHz | 16 kHz | 8 kHz − 1 kHz |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| ASC values | -50.83 dB | -48.00 dB | -47.59 dB | -47.58 dB | +0.41 dB |
+| Public-layout values | -35.18 dB | -36.55 dB | -37.21 dB | -37.25 dB | -0.66 dB |
+
+This is a `~11.5 dB` midband boundary difference before U4, so the candidates
+must remain separate. The measurement is revision identification evidence only;
+it does not select either candidate from the NAM.
+
+```sh
+make lab-spice-daybreaker-sss002-tone-deep-asc
+make lab-spice-daybreaker-sss002-tone-deep-layout
+```
+
+```sh
+make lab-spice-daybreaker-sss002-u5-volume-u4
+```
+
+```sh
+make lab-spice-daybreaker-sss002-high-low-u37-recovery
+```
+
+```sh
+make lab-spice-daybreaker-sss002-high-low-filters
+```

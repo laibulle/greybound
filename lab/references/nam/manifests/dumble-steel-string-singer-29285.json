@@ -1,0 +1,93 @@
+{
+  "$schema": "../../schemas/nam-pack-manifest.schema.json",
+  "gear": {
+    "make": "Dumble Steel String Singer",
+    "model": "Dumble Steel String Singer",
+    "notes": "TONE3000 amp-head NAM reference for Daybreaker 50 calibration. The pack contains Clean, Drive 1, and Drive 2 captures with no cab/IR. Use the Clean capture as the initial clean/edge anchor; render the NAM and Greybound without an IR."
+  },
+  "model_policy": {
+    "architecture_version": "2",
+    "format": "nam-a2",
+    "gear_type": "amp-head",
+    "includes_cab": false,
+    "ir_policy": "amp-head-no-ir"
+  },
+  "models": [
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.10796878278833792,
+      "loudness": -10.62847900390625,
+      "metadata_name": "Dumble Steel SS Clean",
+      "name": "Dumble Steel SS Clean",
+      "path": "DumbleSteelStringSinger/Dumble Steel SS Clean.nam",
+      "priority": true,
+      "recommended_latency_samples": 5,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_make": "Dumble Steel String Singer",
+        "gear_model": "Dumble Steel String Singer",
+        "gear_type": "amp",
+        "raw_name": "Dumble Steel SS Clean",
+        "tone_type": "blues"
+      },
+      "size_bytes": 298914,
+      "validation_esr": 9.11562746889169e-05,
+      "version": "0.7.0"
+    },
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.6315701058861756,
+      "loudness": -11.688520431518555,
+      "metadata_name": "Dumble Steel SS Drive 1",
+      "name": "Dumble Steel SS Drive 1",
+      "path": "DumbleSteelStringSinger/Dumble Steel SS Drive 1.nam",
+      "priority": false,
+      "recommended_latency_samples": 5,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_make": "Dumble Steel String Singer",
+        "gear_model": "Dumble Steel String Singer",
+        "gear_type": "amp",
+        "raw_name": "Dumble Steel SS Drive 1",
+        "tone_type": "blues"
+      },
+      "size_bytes": 297190,
+      "validation_esr": 0.00020163516023668902,
+      "version": "0.7.0"
+    },
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.7118770636648082,
+      "loudness": -11.80746841430664,
+      "metadata_name": "Dumble Steel SS Drive 2",
+      "name": "Dumble Steel SS Drive 2",
+      "path": "DumbleSteelStringSinger/Dumble Steel SS Drive 2.nam",
+      "priority": false,
+      "recommended_latency_samples": 5,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_make": "Dumble Steel String Singer",
+        "gear_model": "Dumble Steel String Singer",
+        "gear_type": "amp",
+        "raw_name": "Dumble Steel SS Drive 2",
+        "tone_type": "blues"
+      },
+      "size_bytes": 298041,
+      "validation_esr": 0.00015622368065778134,
+      "version": "0.7.0"
+    }
+  ],
+  "priority_models": [
+    "Dumble Steel SS Clean"
+  ],
+  "reference_id": "dumble-steel-string-singer-29285",
+  "schema_version": 1,
+  "source": {
+    "creator": "wendycabs",
+    "license": "T3K",
+    "license_notes": "TONE3000 T3K: local use and published outputs are allowed; do not republish or redistribute the data files without author permission.",
+    "provider": "TONE3000",
+    "tone_id": "29285",
+    "url": "https://www.tone3000.com/tones/dumble-steel-string-singer-29285"
+  }
+}

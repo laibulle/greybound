@@ -17,8 +17,8 @@ use greybound::amp::{AmpControls, NeuralCellMode, Nox30OperatingPoint};
 use greybound::ir::SpeakerStage;
 use greybound::pedal::GUITAR_SOURCE_IMPEDANCE_OHMS;
 use greybound::{
-    amp_model_descriptor, BrigadeControls, CelesteControls, ControlDescriptor, ControlKind,
-    DartfordControls, DartfordWave, DeviceConfig, DeviceControls, DeviceSlotConfig,
+    amp_model_descriptor, AuralithControls, BrigadeControls, CelesteControls, ControlDescriptor,
+    ControlKind, DartfordControls, DartfordWave, DeviceConfig, DeviceControls, DeviceSlotConfig,
     DeviceSlotControls, ElectricalSignal, GodessOneControls, GodessOneMode, JetstreamControls,
     LumenControls, Minotaur, MinotaurControls, MinotaurNodeVoltages, MonarchControls,
     MuffinControls, MuonControls, RigConfig, SignalChain, SignalChainConfig, SignalChainControls,
@@ -92,6 +92,14 @@ struct SharedCabControls {
 
 enum SharedDeviceControl {
     Default,
+    Auralith {
+        decay: AtomicU32,
+        size: AtomicU32,
+        texture: AtomicU32,
+        tone: AtomicU32,
+        low_cut: AtomicU32,
+        mix: AtomicU32,
+    },
     Lumen {
         peak_reduction: AtomicU32,
         gain: AtomicU32,
@@ -365,6 +373,14 @@ impl SharedDeviceControl {
     fn new(controls: DeviceControls) -> Self {
         match controls {
             DeviceControls::Default => Self::Default,
+            DeviceControls::Auralith(controls) => Self::Auralith {
+                decay: AtomicU32::new(controls.decay.to_bits()),
+                size: AtomicU32::new(controls.size.to_bits()),
+                texture: AtomicU32::new(controls.texture.to_bits()),
+                tone: AtomicU32::new(controls.tone.to_bits()),
+                low_cut: AtomicU32::new(controls.low_cut.to_bits()),
+                mix: AtomicU32::new(controls.mix.to_bits()),
+            },
             DeviceControls::Lumen(controls) => Self::Lumen {
                 peak_reduction: AtomicU32::new(controls.peak_reduction.to_bits()),
                 gain: AtomicU32::new(controls.gain.to_bits()),
@@ -458,6 +474,21 @@ impl SharedDeviceControl {
     fn load(&self) -> DeviceControls {
         match self {
             Self::Default => DeviceControls::Default,
+            Self::Auralith {
+                decay,
+                size,
+                texture,
+                tone,
+                low_cut,
+                mix,
+            } => DeviceControls::Auralith(AuralithControls {
+                decay: load_atomic_f32(decay),
+                size: load_atomic_f32(size),
+                texture: load_atomic_f32(texture),
+                tone: load_atomic_f32(tone),
+                low_cut: load_atomic_f32(low_cut),
+                mix: load_atomic_f32(mix),
+            }),
             Self::Lumen {
                 peak_reduction,
                 gain,
@@ -617,6 +648,21 @@ impl SharedDeviceControl {
 
     fn adjust(&self, param_index: usize, delta: f32, min: f32, max: f32) {
         match self {
+            Self::Auralith {
+                decay,
+                size,
+                texture,
+                tone,
+                low_cut,
+                mix,
+            } => adjust_control_param(
+                [decay, size, texture, tone, low_cut, mix]
+                    .get(param_index)
+                    .copied(),
+                delta,
+                min,
+                max,
+            ),
             Self::Lumen {
                 peak_reduction,
                 gain,
@@ -1961,6 +2007,7 @@ fn control_kind_label(kind: ControlKind) -> &'static str {
 
 fn default_device_controls(device: DeviceConfig) -> DeviceControls {
     match device {
+        DeviceConfig::Auralith => DeviceControls::Auralith(AuralithControls::default()),
         DeviceConfig::Lumen => DeviceControls::Lumen(LumenControls::default()),
         DeviceConfig::Muon => DeviceControls::Muon(MuonControls::default()),
         DeviceConfig::Muffin => DeviceControls::Muffin(MuffinControls::default()),
@@ -1997,6 +2044,15 @@ enum ControlValue {
 
 fn device_control_value(controls: DeviceControls, id: &str) -> ControlValue {
     match controls {
+        DeviceControls::Auralith(controls) => match id {
+            "decay" => ControlValue::Number(controls.decay),
+            "size" => ControlValue::Number(controls.size),
+            "texture" => ControlValue::Number(controls.texture),
+            "tone" => ControlValue::Number(controls.tone),
+            "low_cut" => ControlValue::Number(controls.low_cut),
+            "mix" => ControlValue::Number(controls.mix),
+            _ => ControlValue::Missing,
+        },
         DeviceControls::Lumen(controls) => match id {
             "peak_reduction" => ControlValue::Number(controls.peak_reduction),
             "gain" => ControlValue::Number(controls.gain),
@@ -4522,6 +4578,31 @@ mod tests {
                 assert!((controls.depth - 0.56).abs() < 1e-6);
             }
             _ => panic!("expected Dartford controls"),
+        }
+    }
+
+    #[test]
+    fn shared_device_controls_adjust_auralith_mix_at_runtime() {
+        let controls = [DeviceSlotControls::active(DeviceControls::Auralith(
+            AuralithControls {
+                decay: 0.52,
+                size: 0.55,
+                texture: 0.68,
+                tone: 0.55,
+                low_cut: 0.32,
+                mix: 0.24,
+            },
+        ))];
+        let shared = SharedDeviceControls::new(&controls);
+
+        shared.adjust(0, 5, 0.10, 0.0, 1.0);
+        let loaded = shared.load();
+
+        match loaded[0].controls {
+            DeviceControls::Auralith(controls) => {
+                assert!((controls.mix - 0.34).abs() < 1e-6);
+            }
+            _ => panic!("expected Auralith controls"),
         }
     }
 

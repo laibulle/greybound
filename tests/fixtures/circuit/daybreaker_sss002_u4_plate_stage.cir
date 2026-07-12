@@ -1,0 +1,55 @@
+* SSS #002 U4 plate stage before the C6/High-Low network.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_u4_plate_stage.cir
+*
+* R5/R4/C5/C6/R69 are transcribed from the drawing. HT-A = 440 V follows V1.
+* The 1M grid return is a measurement boundary for the unresolved U5 volume-pot
+* source/load, not a claim about the NAM capture.
+
+.param HT_A=440
+.param RGRID=1Meg
+.param RLOAD=1Meg
+
+VHTA raw 0 DC {HT_A}
+RHTA raw hta 1
+CHTA hta 0 22u
+VIN source 0 SIN(0 20m 1k)
+R69 source grid 68k
+RGRID grid 0 {RGRID}
+
+R5 hta plate 100k
+R4 cath 0 1.5k
+C5 cath 0 5u
+XU4 plate grid cath 5751_KOREN
+
+C6 plate output 10n
+RLOAD output 0 {RLOAD}
+
+.save v(source) v(grid) v(plate) v(cath) v(output) v(hta)
+
+.control
+set filetype=ascii
+op
+print v(plate) v(cath) v(hta)
+tran 1u 160m 0 1u
+wrdata /tmp/greybound_daybreaker_sss002_u4_plate_stage.dat v(source) v(grid) v(plate) v(cath) v(output) v(hta)
+quit
+.endc
+
+.subckt 5751_KOREN P G K
+* GE 5751 parameters from the drawing's Koren_Tubes.INC.
+.param MU=84.75 EX=1.291 KG1=1137.3 KP=415.40 KVB=1515.2 VCT=0.40 RGI=2k
+E1 n1 0 VALUE={V(P,K)/KP*LOG(1+EXP(KP*(1/MU+(V(G,K)+VCT)/SQRT(KVB+V(P,K)*V(P,K))))) }
+RE1 n1 0 1G
+* ngspice has no PWRS() helper; E1 is non-negative in this triode region,
+* so this is the source expression's positive-domain PWR + PWRS result.
+G1 P K VALUE={2*pow(max(V(n1),0),EX)/KG1}
+RCP P K 1G
+Cpk P K 0.9p
+Cgp G P 2.4p
+Cgk G K 2.3p
+D3 ngrid K D_KOREN
+RGRID G ngrid {RGI}
+.model D_KOREN D(IS=1N RS=1 CJO=10PF TT=1N)
+.ends 5751_KOREN
+
+.end

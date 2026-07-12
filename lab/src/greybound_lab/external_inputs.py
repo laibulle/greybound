@@ -22,6 +22,7 @@ TONE3000_IRS_API_URL = (
 TONE3000_IRS_SOURCE_URL = (
     "https://github.com/tone-3000/neural-amp-modeler-wasm/tree/main/ui/public/irs"
 )
+TONE3000_API_BASE_URL = "https://www.tone3000.com/api/v1"
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,15 @@ class DownloadedInput:
     sha: str
     source_url: str
     download_url: str
+    downloaded: bool
+
+
+@dataclass(frozen=True)
+class DownloadedNamModel:
+    name: str
+    local_path: Path
+    model_id: int | None
+    model_url: str
     downloaded: bool
 
 
@@ -77,6 +87,60 @@ def download_tone3000_irs(
         overwrite=overwrite,
         timeout_s=timeout_s,
     )
+
+
+def download_tone3000_nam_pack(
+    output_dir: Path,
+    *,
+    tone_id: str,
+    access_token: str,
+    overwrite: bool = False,
+    timeout_s: float = 60.0,
+) -> list[DownloadedNamModel]:
+    """Download the A2 NAM models for an authenticated TONE3000 tone."""
+    if not access_token:
+        raise ValueError("a TONE3000 OAuth access token is required")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    models_url = (
+        f"{TONE3000_API_BASE_URL}/models?tone_id={tone_id}&page=1&page_size=100&architecture=2"
+    )
+    payload = _fetch_tone3000_json(models_url, access_token=access_token, timeout_s=timeout_s)
+    raw_models = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(raw_models, list):
+        raise ValueError("TONE3000 API did not return a model list")
+
+    models: list[DownloadedNamModel] = []
+    for raw_model in raw_models:
+        if not isinstance(raw_model, dict):
+            continue
+        name = raw_model.get("name")
+        model_url = raw_model.get("model_url")
+        if not isinstance(name, str) or not name or not isinstance(model_url, str) or not model_url:
+            continue
+        local_path = output_dir / _nam_filename(name)
+        did_download = overwrite or not local_path.exists()
+        if did_download:
+            _download_file(
+                model_url,
+                local_path,
+                timeout_s=timeout_s,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        raw_id = raw_model.get("id")
+        models.append(
+            DownloadedNamModel(
+                name=name,
+                local_path=local_path,
+                model_id=int(raw_id) if isinstance(raw_id, int) else None,
+                model_url=model_url,
+                downloaded=did_download,
+            )
+        )
+
+    if not models:
+        raise ValueError(f"TONE3000 API returned no downloadable A2 NAM models for tone {tone_id}")
+    return models
 
 
 def _download_tone3000_wavs(
@@ -144,13 +208,38 @@ def _fetch_json(url: str, *, timeout_s: float) -> Any:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _download_file(url: str, destination: Path, *, timeout_s: float) -> None:
+def _fetch_tone3000_json(url: str, *, access_token: str, timeout_s: float) -> Any:
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+    with urlopen(request, timeout=timeout_s) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _download_file(
+    url: str,
+    destination: Path,
+    *,
+    timeout_s: float,
+    headers: dict[str, str] | None = None,
+) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    request = Request(url, headers={"Accept": "application/octet-stream"})
+    request = Request(url, headers={"Accept": "application/octet-stream", **(headers or {})})
     tmp_path = destination.with_suffix(destination.suffix + ".tmp")
     with urlopen(request, timeout=timeout_s) as response, tmp_path.open("wb") as handle:
         shutil.copyfileobj(response, handle)
     tmp_path.replace(destination)
+
+
+def _nam_filename(name: str) -> str:
+    filename = Path(name).name
+    if filename in {"", ".", ".."}:
+        raise ValueError("TONE3000 model name cannot be used as a local filename")
+    return filename if filename.lower().endswith(".nam") else f"{filename}.nam"
 
 
 def _write_manifest(

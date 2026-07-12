@@ -1,0 +1,59 @@
+* SSS #002 U5 volume control loaded by the U4 plate stage.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_u5_volume_u4.cir
+*
+* U5 is the drawing's 1 Mohm pot_pow control at VOL = 0.5.  Its declared
+* Rtap = 100 kOhm at tap = 0.5 makes the source-to-wiper leg 900 kOhm and the
+* wiper-to-ground leg 100 kOhm.  Its wiper feeds the drawn R69 = 68 kOhm.
+* The ideal voltage source at the pot top is a declared pre-U5 measurement
+* boundary; the upstream tone-stack impedance is not inferred here.
+
+.param HT_A=440
+.param RLOAD=1Meg
+
+VHTA raw 0 DC {HT_A}
+RHTA raw hta 1
+CHTA hta 0 22u
+VIN source 0 SIN(0 20m 1k)
+
+* U5: pot_pow Rtot=1Meg, wiper=VOL=.5, Rtap=.1Meg, tap=.5.
+RU5_TOP source wiper 900k
+RU5_BOTTOM wiper 0 100k
+R69 wiper grid 68k
+
+R5 hta plate 100k
+R4 cath 0 1.5k
+C5 cath 0 5u
+XU4 plate grid cath 5751_KOREN
+
+C6 plate output 10n
+RLOAD output 0 {RLOAD}
+
+.save v(source) v(wiper) v(grid) v(plate) v(cath) v(output) v(hta)
+
+.control
+set filetype=ascii
+op
+print v(plate) v(cath) v(hta)
+tran 1u 160m 0 1u
+wrdata /tmp/greybound_daybreaker_sss002_u5_volume_u4.dat v(source) v(wiper) v(grid) v(plate) v(cath) v(output) v(hta)
+quit
+.endc
+
+.subckt 5751_KOREN P G K
+* GE 5751 parameters from the drawing's Koren_Tubes.INC.
+.param MU=84.75 EX=1.291 KG1=1137.3 KP=415.40 KVB=1515.2 VCT=0.40 RGI=2k
+E1 n1 0 VALUE={V(P,K)/KP*LOG(1+EXP(KP*(1/MU+(V(G,K)+VCT)/SQRT(KVB+V(P,K)*V(P,K))))) }
+RE1 n1 0 1G
+* ngspice has no PWRS() helper; E1 is non-negative in this triode region,
+* so this is the source expression's positive-domain PWR + PWRS result.
+G1 P K VALUE={2*pow(max(V(n1),0),EX)/KG1}
+RCP P K 1G
+Cpk P K 0.9p
+Cgp G P 2.4p
+Cgk G K 2.3p
+D3 ngrid K D_KOREN
+RGRID G ngrid {RGI}
+.model D_KOREN D(IS=1N RS=1 CJO=10PF TT=1N)
+.ends 5751_KOREN
+
+.end

@@ -1,0 +1,53 @@
+* Daybreaker 50 low-plate classic TMB tone-stack ngspice fixture.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_classic_tmb.cir
+*
+* Scope:
+* - Project-owned Fender/Marshall-style passive TMB hypothesis.
+* - Low-plate source boundary, recovery-grid load, split potentiometers and
+*   insertion loss are included explicitly.
+* - It is not a Dumble schematic or proof of the captured NAM revision.
+*
+* The source values are deliberately a bounded starting point for the reported
+* low-plate classic TMB topology: 38k source impedance, 1M recovery-grid load,
+* 100k slope resistor, 250pF treble cap, and 22nF bass/mid caps.
+
+.param BASS=0.46
+.param MID=0.64
+.param TREBLE=0.70
+.param RSOURCE=38k
+.param RLOAD=470k
+.param RSLOPE=100k
+.param CTREBLE=250p
+.param CBASS=22n
+.param CMID=22n
+.param TREBLE_TAPER={pow(10, 2 * TREBLE - 2)}
+.param BASS_TAPER={pow(10, 2 * BASS - 2)}
+.param MID_TAPER={pow(10, 2 * MID - 2)}
+
+VIN source 0 AC 1
+RSOURCE source input {RSOURCE}
+
+* Classic passive network. Pots are stamped as two physical resistor segments.
+RSLOPE input tone {RSLOPE}
+CTREBLE input treble_top {CTREBLE}
+RTREBLE_TOP treble_top output {1 + 1Meg * (1 - TREBLE_TAPER)}
+RTREBLE_BOTTOM output 0 {1 + 1Meg * TREBLE_TAPER}
+
+CBASS tone bass_node {CBASS}
+RBASS bass_node 0 {1 + 1Meg * BASS_TAPER}
+
+CMID tone mid_node {CMID}
+RMID mid_node 0 {6.8k + 18.2k * MID_TAPER}
+
+RLOAD output 0 {RLOAD}
+
+.save v(source) v(input) v(tone) v(output)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_classic_tmb.dat mag(v(source)) mag(v(input)) mag(v(tone)) mag(v(output))
+quit
+.endc
+
+.end

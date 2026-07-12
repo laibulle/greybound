@@ -8,6 +8,8 @@ pub struct TriodeParams {
     pub kg1: f32,
     pub kp: f32,
     pub kvb: f32,
+    pub contact_potential_v: f32,
+    pub use_koren_transfer: bool,
 }
 
 impl TriodeParams {
@@ -17,6 +19,30 @@ impl TriodeParams {
         kg1: 1060.0,
         kp: 600.0,
         kvb: 300.0,
+        contact_potential_v: 0.0,
+        use_koren_transfer: false,
+    };
+
+    /// GE 5751 parameters from the SSS #002 source drawing's Koren library.
+    pub const TUBE_5751: Self = Self {
+        mu: 84.75,
+        ex: 1.291,
+        kg1: 1137.3,
+        kp: 415.40,
+        kvb: 1515.2,
+        contact_potential_v: 0.40,
+        use_koren_transfer: true,
+    };
+
+    /// Sylvania 7025 parameters from the SSS #002 source drawing's Koren library.
+    pub const TUBE_7025: Self = Self {
+        mu: 102.50,
+        ex: 1.409,
+        kg1: 1598.8,
+        kp: 813.82,
+        kvb: 44.9,
+        contact_potential_v: 0.50,
+        use_koren_transfer: true,
     };
 }
 
@@ -804,6 +830,24 @@ fn triode_current(
 ) -> f32 {
     let plate_to_cathode = (plate_voltage - cathode_voltage).max(0.0);
     let grid_to_cathode = grid_voltage - cathode_voltage;
+
+    if params.use_koren_transfer {
+        // This is the source Koren library's triode transfer: the `PWR +
+        // PWRS` pair contributes twice the positive-power term here.
+        let denominator = (params.kvb + plate_to_cathode * plate_to_cathode)
+            .max(1.0)
+            .sqrt();
+        let exponent = (params.kp
+            * (1.0 / params.mu + (grid_to_cathode + params.contact_potential_v) / denominator))
+            .clamp(-40.0, 40.0);
+        let shaping = plate_to_cathode / params.kp * exponent.exp().ln_1p();
+        let conduction = 2.0 * shaping.max(0.0).powf(params.ex) / params.kg1;
+        return if conduction.is_finite() {
+            conduction.clamp(0.0, 0.040)
+        } else {
+            0.040
+        };
+    }
 
     let exponent = (params.kp * (1.0 / params.mu + grid_to_cathode / plate_to_cathode.max(1.0)))
         .clamp(-40.0, 40.0);

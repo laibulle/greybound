@@ -1,0 +1,46 @@
+* Daybreaker source-informed SSS #002 low-plate classic TMB hypothesis.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_classic_tmb.cir
+*
+* Provenance (topology/value lead, not proof of the NAM source revision):
+* Ryan Colgan's public SSS #002 LTspice drawing lists a 100k slope resistor,
+* 250p treble capacitor, 100n bass capacitor, 47n mid capacitor, 250k bass and
+* treble pots, and 100k mid pot. This project-owned netlist restates only that
+* local TMB cell with explicit source/load boundaries.
+
+.param BASS=0.46
+.param MID=0.64
+.param TREBLE=0.70
+.param RSOURCE=68k
+.param RLOAD=470k
+.param RSLOPE=100k
+.param CTREBLE=250p
+.param CBASS=100n
+.param CMID=47n
+.param TREBLE_TAPER={pow(10, 2 * TREBLE - 2)}
+.param BASS_TAPER={pow(10, 2 * BASS - 2)}
+.param MID_TAPER={pow(10, 2 * MID - 2)}
+
+VIN source 0 AC 1
+RSOURCE source input {RSOURCE}
+
+RSLOPE input tone {RSLOPE}
+CTREBLE input treble_top {CTREBLE}
+RTREBLE_TOP treble_top output {1 + 250k * (1 - TREBLE_TAPER)}
+RTREBLE_BOTTOM output 0 {1 + 250k * TREBLE_TAPER}
+
+CBASS tone bass_node {CBASS}
+RBASS bass_node 0 {1 + 250k * BASS_TAPER}
+CMID tone mid_node {CMID}
+RMID mid_node 0 {100 + 100k * MID_TAPER}
+RLOAD output 0 {RLOAD}
+
+.save v(source) v(input) v(tone) v(output)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_sss002_classic_tmb.dat mag(v(source)) mag(v(input)) mag(v(tone)) mag(v(output))
+quit
+.endc
+
+.end

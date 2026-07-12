@@ -721,6 +721,7 @@ fn view_mode_label(view_mode: ViewMode) -> &'static str {
 pub enum AmpModel {
     Nox30,
     NamLoader,
+    Daybreaker50,
     WideCombo,
     LeadHead,
 }
@@ -730,6 +731,7 @@ impl AmpModel {
         match self {
             Self::Nox30 => "nox30",
             Self::NamLoader => "nam2",
+            Self::Daybreaker50 => "daybreaker-50",
             Self::WideCombo => "wide-combo",
             Self::LeadHead => "lead-head",
         }
@@ -897,6 +899,64 @@ pub const NOX30_BLACK_DIAL_KNOB_ASSET: RenderControlAssetSpec = RenderControlAss
         pivot_x: 0.5,
         pivot_y: 0.5,
     }),
+};
+
+pub const DAYBREAKER_BLACK_BRASS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/daybreaker-black-brass@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: Some(RenderRotationSpec {
+        min_degrees: -135.0,
+        max_degrees: 135.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const DAYBREAKER_POWER_SWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/daybreaker-power-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/buttons/daybreaker-power-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const DAYBREAKER_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/daybreaker-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/daybreaker-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const DAYBREAKER_INPUT_JACK_ASSET: RenderAssetSpec = RenderAssetSpec {
+    path: "assets/controls/jacks/daybreaker-input@2x.png",
+    format: RenderAssetFormat::PngRgba,
+    pixel_width: 512,
+    pixel_height: 512,
 };
 
 const NOX30_BLACK_DIAL_ROTATION_OFFSET_DEGREES: f32 = -135.0;
@@ -1087,6 +1147,128 @@ pub const NOX30_AMP_CONTROLS: &[RenderControlSpec] = &[
         hit_radius: 36.0,
         skin: KnobSkin::AsatoBlack,
         asset: None,
+    },
+];
+
+// Daybreaker deliberately keeps the control surface out of the photorealistic
+// cabinet asset. Knobs and the power LED are layered at runtime so their state
+// remains interactive and never needs to be baked into the amp background.
+pub const DAYBREAKER_AMP_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Gain",
+        anchor_x: 0.325,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Treble),
+        widget: RenderControlWidget::Pot,
+        label: "Treble",
+        anchor_x: 0.385,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Bass),
+        widget: RenderControlWidget::Pot,
+        label: "Bass",
+        anchor_x: 0.445,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Cut),
+        widget: RenderControlWidget::Pot,
+        label: "Mid",
+        anchor_x: 0.505,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Presence),
+        widget: RenderControlWidget::Pot,
+        label: "Presence",
+        anchor_x: 0.565,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Volume",
+        anchor_x: 0.625,
+        anchor_y: 0.225,
+        radius: 27.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "Power",
+        anchor_x: 0.695,
+        anchor_y: 0.225,
+        radius: 24.0,
+        hit_radius: 36.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_JEWEL_LED_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Toggle,
+        label: "Power switch",
+        anchor_x: 0.745,
+        anchor_y: 0.225,
+        radius: 34.0,
+        hit_radius: 40.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_POWER_SWITCH_ASSET),
+    },
+];
+
+// NAM models expose their captured behavior internally. These two controls are
+// intentionally external trims: Gain is applied before the model and Volume
+// after it, both with unity at their midpoint.
+pub const NAM_LOADER_AMP_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Gain",
+        anchor_x: 0.625,
+        anchor_y: 0.700,
+        radius: 19.0,
+        hit_radius: 36.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Volume",
+        anchor_x: 0.740,
+        anchor_y: 0.700,
+        radius: 19.0,
+        hit_radius: 36.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
     },
 ];
 
@@ -1639,6 +1821,19 @@ pub const WIDE_COMBO_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     controls: &[],
 };
 
+pub const DAYBREAKER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "amp.daybreaker-50",
+    surface: STANDARD_AMP_HEAD_SURFACE,
+    asset: Some(RenderAssetSpec {
+        path: "assets/amps/daybreaker-50-stack@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 2480,
+        pixel_height: 1000,
+    }),
+    typography: RenderTypographyPolicy::DrawnByUi,
+    controls: DAYBREAKER_AMP_CONTROLS,
+};
+
 pub const LEAD_HEAD_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "amp.lead-head",
     surface: STANDARD_AMP_HEAD_SURFACE,
@@ -1650,9 +1845,14 @@ pub const LEAD_HEAD_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
 pub const NAM_LOADER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "amp.nam-loader",
     surface: STANDARD_AMP_HEAD_SURFACE,
-    asset: None,
+    asset: Some(RenderAssetSpec {
+        path: "assets/amps/nam-loader-rack@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 2480,
+        pixel_height: 1000,
+    }),
     typography: RenderTypographyPolicy::DrawnByUi,
-    controls: &[],
+    controls: NAM_LOADER_AMP_CONTROLS,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -1761,6 +1961,10 @@ fn boxer_seven_lead_circuit_descriptor() -> Option<&'static greybound::CircuitDe
     greybound::amp_circuit_descriptor("boxer-seven-lead")
 }
 
+fn daybreaker_50_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("daybreaker-50")
+}
+
 const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[
     AppAmpModelDescriptor {
         id: "nox30",
@@ -1768,6 +1972,13 @@ const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[
         visual: AmpModel::Nox30,
         render: &NOX30_AMP_RENDER_SPEC,
         circuit: nox30_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "daybreaker-50",
+        label: "Daybreaker 50",
+        visual: AmpModel::Daybreaker50,
+        render: &DAYBREAKER_AMP_RENDER_SPEC,
+        circuit: daybreaker_50_circuit_descriptor,
     },
     AppAmpModelDescriptor {
         id: "nam2",
@@ -2044,6 +2255,23 @@ impl DeviceState {
             cut: 0.55,
             presence: 1.0,
             sag: 0.20,
+            master: 0.15,
+        }
+    }
+
+    pub fn daybreaker_50() -> Self {
+        Self {
+            name: "DAYBREAKER 50".to_string(),
+            kind: DeviceKind::Amp,
+            model: DeviceModel::WideCombo,
+            bypassed: false,
+            gain: 0.38,
+            drive: 0.04,
+            bass: 0.46,
+            treble: 0.70,
+            cut: 0.64,
+            presence: 0.66,
+            sag: 0.18,
             master: 0.15,
         }
     }
@@ -2466,6 +2694,7 @@ fn device_state_for_amp_model(model: AmpModel) -> DeviceState {
     match model {
         AmpModel::Nox30 => DeviceState::nox30(),
         AmpModel::NamLoader => DeviceState::nam_loader(),
+        AmpModel::Daybreaker50 => DeviceState::daybreaker_50(),
         AmpModel::WideCombo => DeviceState::wide_combo(),
         AmpModel::LeadHead => DeviceState::lead_head(),
     }
@@ -2840,6 +3069,7 @@ impl GreyboundUi {
                     app_profile: self.app_profile,
                     amp: self.amp.clone(),
                     amp_model: self.amp_model,
+                    nam_loader: self.nam_loader.clone(),
                     circuit_view: self.circuit_view,
                     scale,
                 })
@@ -2993,7 +3223,9 @@ impl GreyboundUi {
     fn runtime_amp_controls(&self) -> CoreAmpControls {
         let output = match self.amp_model_id() {
             "none-star" => 0.40 + self.amp.master * 1.20,
+            "daybreaker-50" => 0.38 + self.amp.master * 1.10,
             "boxer-seven-lead" => 0.20 + self.amp.master * 1.15,
+            "nam2" => nam_loader_output_gain(self.amp.master),
             _ => 0.58,
         };
         CoreAmpControls {
@@ -3828,6 +4060,10 @@ impl GreyboundUi {
     fn font(&self, value: f32) -> u16 {
         (value * self.scale).round().max(1.0) as u16
     }
+}
+
+fn nam_loader_output_gain(value: f32) -> f32 {
+    10.0_f32.powf((value.clamp(0.0, 1.0) - 0.5) * 36.0 / 20.0)
 }
 
 fn uniform_scale(width: f32, height: f32) -> f32 {
@@ -4801,6 +5037,27 @@ fn draw_amp_control_assets(renderer: &mut iced::Renderer, art: &AmpArt, bounds: 
         };
         advanced_image::Renderer::draw(renderer, handle, image_bounds);
     }
+
+    if art.amp_model == AmpModel::Daybreaker50 {
+        let Some(handle) = render_asset_handle(DAYBREAKER_INPUT_JACK_ASSET) else {
+            return;
+        };
+        let center = Point::new(
+            origin.x + size.width * 0.265,
+            origin.y + size.height * 0.225,
+        );
+        let diameter = 54.0;
+        advanced_image::Renderer::draw(
+            renderer,
+            handle,
+            Rectangle {
+                x: (center.x - diameter * 0.5) * art.scale,
+                y: (center.y - diameter * 0.5) * art.scale,
+                width: diameter * art.scale,
+                height: diameter * art.scale,
+            },
+        );
+    }
 }
 
 fn scaled_rectangle(rect: Rectangle, scale: f32) -> Rectangle {
@@ -4854,6 +5111,49 @@ pub fn preload_render_assets() {
             pixel_width: 1620,
             pixel_height: 856,
         },
+        RenderAssetSpec {
+            path: "assets/amps/daybreaker-50-stack@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 2480,
+            pixel_height: 1000,
+        },
+        RenderAssetSpec {
+            path: "assets/amps/nam-loader-rack@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 2480,
+            pixel_height: 1000,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/knobs/daybreaker-black-brass@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/buttons/daybreaker-power-off@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/buttons/daybreaker-power-on@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/daybreaker-jewel-off@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
+        },
+        RenderAssetSpec {
+            path: "assets/controls/leds/daybreaker-jewel-on@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 256,
+            pixel_height: 256,
+        },
+        DAYBREAKER_INPUT_JACK_ASSET,
         RenderAssetSpec {
             path: "assets/cabs/greybound-2x12@2x.png",
             format: RenderAssetFormat::PngRgba,
@@ -5030,6 +5330,7 @@ pub fn preload_render_assets() {
 
     let _ = minotaur_ivory_knob_handles().len();
     let _ = nox30_black_dial_knob_handles().len();
+    let _ = daybreaker_black_brass_knob_handles().len();
     let _ = auralith_black_knob_handles().len();
     let _ = lumen_pearl_knob_handles().len();
     let _ = springfield_stainless_knob_handles().len();
@@ -5094,6 +5395,50 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         }
         "assets/amps/nox30-cropped@2x.png" => {
             decoded_handle!("../assets/amps/nox30-cropped@2x.png", 1620, 856)
+        }
+        "assets/amps/daybreaker-50-stack@2x.png" => {
+            decoded_handle!("../assets/amps/daybreaker-50-stack@2x.png", 2480, 1000)
+        }
+        "assets/amps/nam-loader-rack@2x.png" => {
+            decoded_handle!("../assets/amps/nam-loader-rack@2x.png", 2480, 1000)
+        }
+        "assets/controls/knobs/daybreaker-black-brass@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/knobs/daybreaker-black-brass@2x.png",
+                512,
+                512
+            )
+        }
+        "assets/controls/buttons/daybreaker-power-off@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/buttons/daybreaker-power-off@2x.png",
+                512,
+                512
+            )
+        }
+        "assets/controls/buttons/daybreaker-power-on@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/buttons/daybreaker-power-on@2x.png",
+                512,
+                512
+            )
+        }
+        "assets/controls/leds/daybreaker-jewel-off@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/leds/daybreaker-jewel-off@2x.png",
+                256,
+                256
+            )
+        }
+        "assets/controls/leds/daybreaker-jewel-on@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/leds/daybreaker-jewel-on@2x.png",
+                256,
+                256
+            )
+        }
+        "assets/controls/jacks/daybreaker-input@2x.png" => {
+            decoded_handle!("../assets/controls/jacks/daybreaker-input@2x.png", 512, 512)
         }
         "assets/cabs/greybound-2x12@2x.png" => {
             decoded_handle!("../assets/cabs/greybound-2x12@2x.png", 1821, 864)
@@ -5222,6 +5567,13 @@ fn render_control_asset_handle(
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return nox30_black_dial_knob_handles().get(index).cloned();
     }
+    if asset.image.path == "assets/controls/knobs/daybreaker-black-brass@2x.png"
+        && asset.rotation.is_some()
+    {
+        const FRAME_COUNT: usize = 121;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return daybreaker_black_brass_knob_handles().get(index).cloned();
+    }
     if asset.image.path == "assets/controls/knobs/auralith-black@2x.png" && asset.rotation.is_some()
     {
         const FRAME_COUNT: usize = 121;
@@ -5304,6 +5656,34 @@ fn nox30_black_dial_knob_handles() -> &'static [advanced_image::Handle] {
                     .expect("nox30 knob asset must define a rotation range");
                 let angle = ((rotation.max_degrees - rotation.min_degrees) * t
                     + NOX30_BLACK_DIAL_ROTATION_OFFSET_DEGREES)
+                    .to_radians();
+                let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn daybreaker_black_brass_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/daybreaker-black-brass@2x.png"
+        ))
+        .expect("embedded Daybreaker knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let t = index as f32 / (FRAME_COUNT - 1) as f32;
+                let rotation = DAYBREAKER_BLACK_BRASS_KNOB_ASSET
+                    .rotation
+                    .expect("Daybreaker knob asset must define a rotation range");
+                let angle = (rotation.min_degrees
+                    + (rotation.max_degrees - rotation.min_degrees) * t)
                     .to_radians();
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
@@ -5676,6 +6056,7 @@ struct AmpArt {
     app_profile: AppProfile,
     amp: DeviceState,
     amp_model: AmpModel,
+    nam_loader: NamLoaderState,
     circuit_view: bool,
     scale: f32,
 }
@@ -5720,6 +6101,15 @@ impl canvas::Program<Message> for AmpArt {
 
                 if self.circuit_view {
                     return (canvas::event::Status::Ignored, None);
+                }
+
+                if self.amp_model == AmpModel::NamLoader
+                    && hit_test_nam_loader_button(unscale_size(bounds.size(), self.scale), position)
+                {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::LoadNamRequested),
+                    );
                 }
 
                 if hit_test_amp_bypass(
@@ -5798,6 +6188,12 @@ impl canvas::Program<Message> for AmpArt {
             draw_amp_circuit(&mut frame, logical_size, self.app_profile, self.amp_model);
         } else if render_spec.asset.is_none() || !render_assets_enabled() {
             draw_amp_head(&mut frame, logical_size, &self.amp);
+        }
+        if !self.circuit_view && self.amp_model == AmpModel::Daybreaker50 {
+            draw_daybreaker_amp_overlay(&mut frame, logical_size);
+        }
+        if !self.circuit_view && self.amp_model == AmpModel::NamLoader {
+            draw_nam_loader_overlay(&mut frame, logical_size, &self.nam_loader);
         }
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
         draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
@@ -6251,6 +6647,7 @@ fn fallback_amp_render_spec(model: AmpModel) -> &'static ModelRenderSpec {
     match model {
         AmpModel::Nox30 => &NOX30_AMP_RENDER_SPEC,
         AmpModel::NamLoader => &NAM_LOADER_AMP_RENDER_SPEC,
+        AmpModel::Daybreaker50 => &DAYBREAKER_AMP_RENDER_SPEC,
         AmpModel::WideCombo => &WIDE_COMBO_AMP_RENDER_SPEC,
         AmpModel::LeadHead => &LEAD_HEAD_AMP_RENDER_SPEC,
     }
@@ -6621,7 +7018,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
-        AmpModel::WideCombo => {
+        AmpModel::Daybreaker50 | AmpModel::WideCombo => {
             let amp_w = size.width.min(1210.0);
             let origin = Point::new((size.width - amp_w) * 0.5, 70.0);
             let panel_x = origin.x + 210.0;
@@ -6652,7 +7049,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
-        AmpModel::LeadHead | AmpModel::NamLoader => {
+        AmpModel::LeadHead => {
             let amp_w = size.width.min(1240.0);
             let origin = Point::new((size.width - amp_w) * 0.5, 62.0);
             let panel_x = origin.x + 135.0;
@@ -6688,6 +7085,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
+        AmpModel::NamLoader => Vec::new(),
     }
 }
 
@@ -6822,7 +7220,7 @@ fn draw_amp_spine(frame: &mut Frame, size: Size, app_profile: AppProfile, select
         } else {
             MUTED_INK
         };
-        let name_size = (row.height * 0.20).clamp(25.0, 43.0);
+        let name_size = amp_spine_name_size(name, row.height);
 
         draw_text(
             frame,
@@ -6864,9 +7262,22 @@ fn draw_amp_spine(frame: &mut Frame, size: Size, app_profile: AppProfile, select
 fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
     match model {
         AmpModel::Nox30 => ("NOX 30", "BRITISH"),
+        AmpModel::Daybreaker50 => ("DAYBREAKER", "CLEAN 50"),
         AmpModel::WideCombo => ("STAR", "CLEAN"),
         AmpModel::LeadHead => ("SEVEN", "LEAD"),
         AmpModel::NamLoader => ("NAM", "CAPTURE"),
+    }
+}
+
+/// Keep the amp picker legible without letting longer model names collide with
+/// the selection indicator. Eight characters use the standard type scale;
+/// longer names switch to the compact picker type scale.
+fn amp_spine_name_size(name: &str, row_height: f32) -> f32 {
+    let base_size = (row_height * 0.20).clamp(25.0, 43.0);
+    if name.chars().count() > 8 {
+        base_size * 0.60
+    } else {
+        base_size
     }
 }
 
@@ -8740,6 +9151,218 @@ fn draw_wide_combo_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
                 .with_color(Color::from_rgba(0.82, 0.78, 0.66, 0.20))
                 .with_width(1.0),
         );
+    }
+}
+
+fn draw_daybreaker_amp_overlay(frame: &mut Frame, size: Size) {
+    let render_bounds = amp_render_bounds(size, &DAYBREAKER_AMP_RENDER_SPEC);
+    let origin = Point::new(render_bounds.x, render_bounds.y);
+    let render_size = Size::new(render_bounds.width, render_bounds.height);
+    let label_color = Color::from_rgb(0.16, 0.13, 0.09);
+
+    let jack_center = Point::new(
+        origin.x + render_size.width * 0.265,
+        origin.y + render_size.height * 0.225,
+    );
+    draw_daybreaker_label(
+        frame,
+        "INPUT",
+        Point::new(jack_center.x, jack_center.y + 30.0),
+        10.5,
+        label_color,
+        Horizontal::Center,
+    );
+    for control in DAYBREAKER_AMP_CONTROLS {
+        let RenderControlRole::Parameter(_) = control.role else {
+            continue;
+        };
+        let center = render_control_center(control, origin, render_size);
+        draw_daybreaker_label(
+            frame,
+            control.label,
+            Point::new(center.x, center.y + 30.0),
+            10.5,
+            label_color,
+            Horizontal::Center,
+        );
+    }
+
+    let led = DAYBREAKER_AMP_CONTROLS
+        .iter()
+        .find(|control| control.widget == RenderControlWidget::Led)
+        .expect("Daybreaker must provide a power LED");
+    let toggle = DAYBREAKER_AMP_CONTROLS
+        .iter()
+        .find(|control| control.widget == RenderControlWidget::Toggle)
+        .expect("Daybreaker must provide a power switch");
+    let led_center = render_control_center(led, origin, render_size);
+    let switch_center = render_control_center(toggle, origin, render_size);
+    draw_daybreaker_label(
+        frame,
+        "POWER",
+        Point::new((led_center.x + switch_center.x) * 0.5, led_center.y + 30.0),
+        10.5,
+        label_color,
+        Horizontal::Center,
+    );
+    let badge = rounded_rect(
+        Point::new(
+            origin.x + render_size.width * 0.445,
+            origin.y + render_size.height * 0.525,
+        ),
+        Size::new(render_size.width * 0.11, 24.0),
+        4.0,
+    );
+    frame.fill(&badge, Color::from_rgba(0.055, 0.060, 0.066, 0.90));
+    frame.stroke(
+        &badge,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.82, 0.70, 0.44, 0.84))
+            .with_width(1.0),
+    );
+    draw_text(
+        frame,
+        "DAYBREAKER 50",
+        Point::new(
+            origin.x + render_size.width * 0.500,
+            origin.y + render_size.height * 0.549,
+        ),
+        9.0,
+        Color::from_rgb(0.91, 0.83, 0.61),
+        Horizontal::Center,
+    );
+}
+
+fn draw_daybreaker_label(
+    frame: &mut Frame,
+    content: &str,
+    position: Point,
+    size: f32,
+    color: Color,
+    align: Horizontal,
+) {
+    draw_text(frame, content, position, size, color, align);
+    draw_text(
+        frame,
+        content,
+        Point::new(position.x + 0.55, position.y),
+        size,
+        color,
+        align,
+    );
+}
+
+fn nam_loader_rack_bounds(size: Size) -> Rectangle {
+    amp_render_bounds(size, &NAM_LOADER_AMP_RENDER_SPEC)
+}
+
+fn nam_loader_button_bounds(size: Size) -> Rectangle {
+    let rack = nam_loader_rack_bounds(size);
+    Rectangle {
+        x: rack.x + rack.width * 0.285,
+        y: rack.y + rack.height * 0.650,
+        width: rack.width * 0.220,
+        height: rack.height * 0.105,
+    }
+}
+
+fn hit_test_nam_loader_button(size: Size, position: Point) -> bool {
+    let button = nam_loader_button_bounds(size);
+    position.x >= button.x
+        && position.x <= button.x + button.width
+        && position.y >= button.y
+        && position.y <= button.y + button.height
+}
+
+fn draw_nam_loader_overlay(frame: &mut Frame, size: Size, state: &NamLoaderState) {
+    let rack = nam_loader_rack_bounds(size);
+    let display_center = Point::new(rack.x + rack.width * 0.500, rack.y + rack.height * 0.390);
+    let model_name = state
+        .path
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .and_then(|name| name.to_str())
+        .map(|name| truncate_nam_label(name, 42))
+        .unwrap_or_else(|| "NO MODEL LOADED".to_string());
+    let model_color = if state.path.is_some() {
+        Color::from_rgb(0.71, 0.93, 0.86)
+    } else {
+        Color::from_rgb(0.78, 0.62, 0.44)
+    };
+
+    draw_text(
+        frame,
+        "NAM LOADER",
+        Point::new(display_center.x, display_center.y - 34.0),
+        13.0,
+        Color::from_rgb(0.63, 0.79, 0.87),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        &model_name,
+        Point::new(display_center.x, display_center.y - 5.0),
+        18.0,
+        model_color,
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        "A2 MODEL · EXTERNAL PRE GAIN / POST VOLUME",
+        Point::new(display_center.x, display_center.y + 25.0),
+        10.0,
+        Color::from_rgb(0.49, 0.62, 0.68),
+        Horizontal::Center,
+    );
+
+    let button = nam_loader_button_bounds(size);
+    let button_shape = rounded_rect(Point::new(button.x, button.y), button.size(), 6.0);
+    frame.fill(&button_shape, Color::from_rgb(0.08, 0.30, 0.38));
+    frame.stroke(
+        &button_shape,
+        Stroke::default()
+            .with_color(Color::from_rgb(0.41, 0.86, 0.92))
+            .with_width(1.5),
+    );
+    draw_text(
+        frame,
+        "LOAD .NAM MODEL",
+        Point::new(
+            button.x + button.width * 0.5,
+            button.y + button.height * 0.5,
+        ),
+        13.0,
+        Color::from_rgb(0.90, 0.98, 1.0),
+        Horizontal::Center,
+    );
+    for control in NAM_LOADER_AMP_CONTROLS {
+        let center = render_control_center(control, Point::new(rack.x, rack.y), rack.size());
+        draw_daybreaker_label(
+            frame,
+            control.label,
+            Point::new(center.x, center.y + 30.0),
+            10.5,
+            Color::from_rgb(0.72, 0.80, 0.83),
+            Horizontal::Center,
+        );
+    }
+    draw_text(
+        frame,
+        state.status.as_str(),
+        Point::new(rack.x + rack.width * 0.500, rack.y + rack.height * 0.810),
+        10.0,
+        Color::from_rgb(0.55, 0.62, 0.67),
+        Horizontal::Center,
+    );
+}
+
+fn truncate_nam_label(label: &str, max_chars: usize) -> String {
+    let mut chars = label.chars();
+    let prefix: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{prefix}…")
+    } else {
+        prefix
     }
 }
 
@@ -10694,6 +11317,20 @@ mod tests {
     }
 
     #[test]
+    fn amp_spine_reduces_long_model_names_after_eight_characters() {
+        let row_height = 140.0;
+
+        assert_eq!(
+            amp_spine_name_size("NOX 30", row_height),
+            amp_spine_name_size("DAYBREAK", row_height)
+        );
+        assert!(
+            amp_spine_name_size("DAYBREAKER", row_height)
+                < amp_spine_name_size("DAYBREAK", row_height)
+        );
+    }
+
+    #[test]
     fn auralith_footswitch_hit_test_ignores_status_led() {
         let devices = vec![BoardDeviceSlot {
             source_index: 42,
@@ -10762,6 +11399,74 @@ mod tests {
             pixel_height: 864,
         })
         .is_some());
+    }
+
+    #[test]
+    fn daybreaker_uses_a_transparent_base_with_separate_controls() {
+        let image =
+            image::load_from_memory(include_bytes!("../assets/amps/daybreaker-50-stack@2x.png"))
+                .expect("Daybreaker base asset must decode");
+
+        assert_eq!(image.width(), 2480);
+        assert_eq!(image.height(), 1000);
+        assert!(image.color().has_alpha());
+        assert_eq!(DAYBREAKER_AMP_CONTROLS.len(), 8);
+        assert!(DAYBREAKER_AMP_CONTROLS
+            .iter()
+            .all(|control| control.asset.is_some()));
+        assert!(render_control_asset_handle(DAYBREAKER_BLACK_BRASS_KNOB_ASSET, 0.5).is_some());
+        assert!(render_control_asset_handle(DAYBREAKER_POWER_SWITCH_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(DAYBREAKER_POWER_SWITCH_ASSET, 1.0).is_some());
+        assert!(render_control_asset_handle(DAYBREAKER_JEWEL_LED_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(DAYBREAKER_JEWEL_LED_ASSET, 1.0).is_some());
+        assert!(render_asset_handle(DAYBREAKER_INPUT_JACK_ASSET).is_some());
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/amps/daybreaker-50-stack@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 2480,
+            pixel_height: 1000,
+        })
+        .is_some());
+    }
+
+    #[test]
+    fn nam_loader_uses_a_picker_and_maps_external_gain_and_volume() {
+        let size = Size::new(DESIGN_WIDTH, MAIN_VIEW_HEIGHT);
+        let button = nam_loader_button_bounds(size);
+
+        assert!(amp_knob_layout(size, AmpModel::NamLoader).is_empty());
+        assert_eq!(NAM_LOADER_AMP_CONTROLS.len(), 2);
+        assert!(matches!(
+            NAM_LOADER_AMP_CONTROLS[0].role,
+            RenderControlRole::Parameter(ControlKind::Gain)
+        ));
+        assert!(matches!(
+            NAM_LOADER_AMP_CONTROLS[1].role,
+            RenderControlRole::Parameter(ControlKind::Master)
+        ));
+        assert!(hit_test_nam_loader_button(
+            size,
+            Point::new(
+                button.x + button.width * 0.5,
+                button.y + button.height * 0.5,
+            ),
+        ));
+        assert!(render_asset_handle(
+            NAM_LOADER_AMP_RENDER_SPEC
+                .asset
+                .expect("NAM Loader must have a rack asset"),
+        )
+        .is_some());
+
+        let mut ui = GreyboundUi::default();
+        ui.update(Message::NamFileSelected(Some(PathBuf::from(
+            "/tmp/test-model.nam",
+        ))));
+        assert_eq!(ui.amp_model, AmpModel::NamLoader);
+        assert_eq!(ui.runtime_amp_model_id(), "nam2?path=/tmp/test-model.nam");
+        assert!((ui.runtime_audio_snapshot().amp.output - 1.0).abs() < 1e-6);
+        assert!((nam_loader_output_gain(0.0) - 0.125_892_53).abs() < 1e-6);
+        assert!((nam_loader_output_gain(1.0) - 7.943_282).abs() < 1e-5);
     }
 
     #[test]

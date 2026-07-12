@@ -1,0 +1,33 @@
+{
+  // Daybreaker 50 clean/edge NAM comparison rig.
+  // The amp-head reference has no cab, so keep this rig dry for comparisons.
+  name: "daybreaker-50-clean",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [],
+  fx_loop: [],
+
+  amp: {
+    model: "daybreaker-50",
+    bypassed: false,
+    controls: {
+      volume: 0.38,
+      bass: 0.46,
+      // Temporary mid control until shared amp controls expose `mid`.
+      cut: 0.64,
+      treble: 0.70,
+      drive: 0.04,
+      presence: 0.66,
+      sag: 0.18,
+    },
+  },
+
+  cab: {
+    // Present for a playable default rig; bypass for amp-head NAM comparisons.
+    ir: "lab/references/tone3000-irs/mesa.wav",
+    bypassed: true,
+  },
+}
