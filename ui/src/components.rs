@@ -68,7 +68,7 @@ pub fn draw_knob(frame: &mut Frame, center: Point, radius: f32, spec: KnobSpec<'
             spec.label,
             Point::new(center.x, center.y + radius + 20.0),
             14.0,
-            Color::from_rgb(0.09, 0.08, 0.08),
+            Color::from_rgb(0.87, 0.89, 0.90),
             Horizontal::Center,
         );
     }
@@ -78,11 +78,11 @@ pub fn draw_vertical_meter(frame: &mut Frame, top: Point, height: f32, level: f3
     let track_width = 12.0;
     let fill_height = (height * level.clamp(0.0, 1.0)).max(3.0);
     let track = Path::rectangle(top, iced::Size::new(track_width, height));
-    frame.fill(&track, Color::from_rgba(0.44, 0.52, 0.72, 0.28));
+    frame.fill(&track, Color::from_rgba(0.56, 0.60, 0.64, 0.20));
 
     let fill_top = Point::new(top.x + 2.0, top.y + height - fill_height);
     let fill = Path::rectangle(fill_top, iced::Size::new(track_width - 4.0, fill_height));
-    frame.fill(&fill, Color::from_rgb(0.08, 0.13, 0.28));
+    frame.fill(&fill, Color::from_rgb(0.33, 0.72, 0.66));
 }
 
 fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
@@ -121,7 +121,7 @@ fn draw_ticks(frame: &mut Frame, center: Point, radius: f32, skin: KnobSkin) {
         frame.stroke(
             &Path::line(inner, outer),
             Stroke::default()
-                .with_color(Color::from_rgba(0.08, 0.08, 0.09, alpha))
+                .with_color(Color::from_rgba(0.88, 0.90, 0.92, alpha * 0.55))
                 .with_width(width),
         );
     }
@@ -347,7 +347,7 @@ fn draw_header_dial(frame: &mut Frame, center: Point, radius: f32, value: f32) {
             48,
         ),
         Stroke::default()
-            .with_color(Color::from_rgba(0.47, 0.55, 0.72, 0.36))
+            .with_color(Color::from_rgba(0.56, 0.60, 0.64, 0.42))
             .with_width(5.0),
     );
 
@@ -361,17 +361,17 @@ fn draw_header_dial(frame: &mut Frame, center: Point, radius: f32, value: f32) {
             36,
         ),
         Stroke::default()
-            .with_color(Color::from_rgb(0.10, 0.14, 0.29))
+            .with_color(Color::from_rgb(0.79, 0.54, 0.29))
             .with_width(4.0),
     );
 
     frame.fill(
         &Path::circle(Point::new(center.x + 2.0, center.y + 3.0), radius),
-        Color::from_rgba(0.50, 0.58, 0.76, 0.10),
+        Color::from_rgba(0.0, 0.0, 0.0, 0.42),
     );
     frame.fill(
         &Path::circle(center, radius),
-        Color::from_rgb(0.88, 0.91, 1.0),
+        Color::from_rgb(0.10, 0.12, 0.14),
     );
 
     let angle = knob_angle(value);
@@ -384,8 +384,8 @@ fn draw_header_dial(frame: &mut Frame, center: Point, radius: f32, value: f32) {
             ),
         ),
         Stroke::default()
-            .with_color(Color::from_rgb(0.10, 0.14, 0.29))
-            .with_width(3.0),
+            .with_color(Color::from_rgb(0.84, 0.57, 0.30))
+            .with_width(3.4),
     );
 }
 

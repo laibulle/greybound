@@ -29,13 +29,16 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::OnceLock;
 
-const INK: Color = Color::from_rgb(0.09, 0.12, 0.24);
-const PANEL: Color = Color::from_rgb(0.72, 0.78, 0.91);
+const INK: Color = Color::from_rgb(0.90, 0.91, 0.92);
+const MUTED_INK: Color = Color::from_rgb(0.56, 0.60, 0.64);
+const APP_BACKGROUND: Color = Color::from_rgb(0.047, 0.055, 0.067);
+const CONTROL_SURFACE: Color = Color::from_rgb(0.11, 0.13, 0.15);
+const PANEL: Color = Color::from_rgb(0.082, 0.098, 0.118);
 const PEDAL_CREAM: Color = Color::from_rgb(0.84, 0.80, 0.72);
 const PEDAL_PEACH: Color = Color::from_rgb(0.77, 0.56, 0.45);
 const PEDAL_SAGE: Color = Color::from_rgb(0.67, 0.62, 0.49);
-const TEAL: Color = Color::from_rgb(0.35, 0.56, 0.57);
-const GOLD: Color = Color::from_rgb(0.76, 0.61, 0.35);
+const TEAL: Color = Color::from_rgb(0.33, 0.72, 0.66);
+const GOLD: Color = Color::from_rgb(0.79, 0.54, 0.29);
 pub const DESIGN_WIDTH: f32 = 1600.0;
 pub const DESIGN_HEIGHT: f32 = 900.0;
 const PEDAL_STANDARD_WIDTH: f32 = 300.0;
@@ -50,27 +53,31 @@ pub enum DeviceKind {
     Cab,
 }
 
-struct TopIconButton;
+struct TopNavButton {
+    selected: bool,
+}
 
-impl button::StyleSheet for TopIconButton {
+impl button::StyleSheet for TopNavButton {
     type Style = iced::theme::Theme;
 
     fn active(&self, _style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: None,
-            border_radius: 0.0.into(),
+            background: self.selected.then_some(Background::Color(Color::from_rgba(
+                GOLD.r, GOLD.g, GOLD.b, 0.08,
+            ))),
+            border_radius: 5.0.into(),
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
             shadow_offset: Vector::new(0.0, 0.0),
-            text_color: INK,
+            text_color: if self.selected { GOLD } else { MUTED_INK },
             ..button::Appearance::default()
         }
     }
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.08))),
-            border_radius: 8.0.into(),
+            background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.06))),
+            border_radius: 5.0.into(),
             ..self.active(style)
         }
     }
@@ -85,21 +92,21 @@ impl button::StyleSheet for FooterButton {
 
     fn active(&self, _style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: self
-                .selected
-                .then_some(Background::Color(Color::from_rgba(0.42, 0.47, 0.58, 0.80))),
-            border_radius: 9.0.into(),
+            background: self.selected.then_some(Background::Color(Color::from_rgba(
+                GOLD.r, GOLD.g, GOLD.b, 0.16,
+            ))),
+            border_radius: 5.0.into(),
             border_width: if self.selected { 1.0 } else { 0.0 },
-            border_color: Color::from_rgba(0.72, 0.76, 0.86, 0.40),
+            border_color: Color::from_rgba(GOLD.r, GOLD.g, GOLD.b, 0.36),
             shadow_offset: Vector::new(0.0, 0.0),
-            text_color: Color::from_rgb(0.88, 0.90, 0.95),
+            text_color: if self.selected { INK } else { MUTED_INK },
             ..button::Appearance::default()
         }
     }
 
     fn hovered(&self, style: &Self::Style) -> button::Appearance {
         button::Appearance {
-            background: Some(Background::Color(Color::from_rgba(0.42, 0.47, 0.58, 0.34))),
+            background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.05))),
             ..self.active(style)
         }
     }
@@ -112,11 +119,11 @@ impl container::StyleSheet for FooterContainer {
 
     fn appearance(&self, _style: &Self::Style) -> container::Appearance {
         container::Appearance {
-            text_color: Some(Color::from_rgb(0.80, 0.82, 0.88)),
-            background: Some(Background::Color(Color::from_rgb(0.02, 0.025, 0.03))),
+            text_color: Some(MUTED_INK),
+            background: Some(Background::Color(CONTROL_SURFACE)),
             border_radius: 0.0.into(),
-            border_width: 0.0,
-            border_color: Color::TRANSPARENT,
+            border_width: 1.0,
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.07),
             ..container::Appearance::default()
         }
     }
@@ -134,7 +141,7 @@ impl container::StyleSheet for AppPanelContainer {
     fn appearance(&self, _style: &Self::Style) -> container::Appearance {
         container::Appearance {
             text_color: Some(INK),
-            background: Some(Background::Color(PANEL)),
+            background: Some(Background::Color(APP_BACKGROUND)),
             border_radius: 0.0.into(),
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
@@ -155,10 +162,10 @@ impl container::StyleSheet for ControlBarContainer {
     fn appearance(&self, _style: &Self::Style) -> container::Appearance {
         container::Appearance {
             text_color: Some(INK),
-            background: Some(Background::Color(Color::from_rgba(0.78, 0.83, 0.95, 0.84))),
+            background: Some(Background::Color(CONTROL_SURFACE)),
             border_radius: 0.0.into(),
-            border_width: 0.0,
-            border_color: Color::TRANSPARENT,
+            border_width: 1.0,
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.07),
             ..container::Appearance::default()
         }
     }
@@ -179,7 +186,7 @@ impl container::StyleSheet for GhostContainer {
             background: Some(Background::Color(self.0)),
             border_radius: 14.0.into(),
             border_width: 1.0,
-            border_color: Color::from_rgba(0.12, 0.16, 0.28, 0.12),
+            border_color: Color::from_rgba(1.0, 1.0, 1.0, 0.10),
             ..container::Appearance::default()
         }
     }
@@ -548,6 +555,17 @@ pub enum ViewMode {
     Cab,
     Eq,
     Record,
+}
+
+fn view_mode_label(view_mode: ViewMode) -> &'static str {
+    match view_mode {
+        ViewMode::Pedals => "PEDALS",
+        ViewMode::Amp => "AMP",
+        ViewMode::FxLoop => "LOOP",
+        ViewMode::Cab => "CAB",
+        ViewMode::Eq => "EQ",
+        ViewMode::Record => "REC",
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2583,24 +2601,34 @@ impl GreyboundUi {
     pub fn view(&self) -> Element<'_, Message> {
         let scale = self.scale;
 
-        let mode_tabs = container(
+        let mode_tabs = row![
+            self.view_button(ViewMode::Pedals),
+            self.view_button(ViewMode::Amp),
+            self.view_button(ViewMode::FxLoop),
+            self.view_button(ViewMode::Cab),
+            self.view_button(ViewMode::Eq),
+            self.view_button(ViewMode::Record),
+        ]
+        .spacing(self.s(6.0))
+        .align_items(Alignment::Center);
+
+        let app_header = container(
             row![
-                self.view_button(ViewMode::Pedals),
-                self.view_button(ViewMode::Amp),
-                self.view_button(ViewMode::FxLoop),
-                self.view_button(ViewMode::Cab),
-                self.view_button(ViewMode::Eq),
-                self.view_button(ViewMode::Record),
+                text("GREYBOUND").size(self.font(18.0)).style(INK),
+                Space::with_width(Length::Fill),
+                text("RIG / STUDIO").size(self.font(11.0)).style(MUTED_INK),
+                text("•••").size(self.font(17.0)).style(MUTED_INK),
             ]
-            .spacing(self.s(10.0))
+            .spacing(self.s(20.0))
             .align_items(Alignment::Center),
         )
         .width(Length::Fill)
-        .center_x();
+        .height(Length::Fixed(self.s(48.0)))
+        .padding([self.s(0.0), self.s(30.0)]);
 
         let top = container(
             column![
-                mode_tabs,
+                app_header,
                 row![
                     self.metered_global_knob(
                         "INPUT",
@@ -2617,6 +2645,8 @@ impl GreyboundUi {
                     ),
                     self.doubler_control(),
                     Space::with_width(Length::Fill),
+                    mode_tabs,
+                    Space::with_width(Length::Fill),
                     self.output_metered_global_knob(
                         "OUTPUT",
                         GlobalControl::Output,
@@ -2626,10 +2656,10 @@ impl GreyboundUi {
                         self.meters.output_right
                     ),
                 ]
-                .spacing(self.s(20.0))
+                .spacing(self.s(16.0))
                 .align_items(Alignment::Center),
             ]
-            .spacing(self.s(2.0))
+            .spacing(0)
             .align_items(Alignment::Center),
         )
         .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -2699,7 +2729,7 @@ impl GreyboundUi {
             }
         };
 
-        let bottom_text = Color::from_rgb(0.80, 0.82, 0.88);
+        let bottom_text = MUTED_INK;
         let bottom = container(
             row![
                 button(text("TUNER").size(self.font(14.0)).style(Color::WHITE))
@@ -2708,8 +2738,8 @@ impl GreyboundUi {
                         selected: self.tuner.open || self.tuner.muted
                     }))
                     .padding([self.s(4.0), self.s(10.0)]),
-                text("MIDI").size(self.font(14.0)).style(bottom_text),
-                text("TAP").size(self.font(14.0)).style(bottom_text),
+                text("•  MIDI").size(self.font(14.0)).style(bottom_text),
+                text("•  TAP").size(self.font(14.0)).style(bottom_text),
                 text(format!("{:.1} BPM", self.metronome.bpm))
                     .size(self.font(14.0))
                     .style(bottom_text),
@@ -2725,7 +2755,7 @@ impl GreyboundUi {
                         selected: self.audio_settings.open
                     }))
                     .padding([self.s(4.0), self.s(10.0)]),
-                text("DEVELOPED BY GREYBOUND")
+                text(format!("{} Hz", self.audio_settings.sample_rate))
                     .size(self.font(14.0))
                     .style(bottom_text)
                     .width(Length::Fill)
@@ -2753,18 +2783,15 @@ impl GreyboundUi {
     }
 
     fn view_button(&self, view_mode: ViewMode) -> Element<'_, Message> {
+        let selected = self.view_mode == view_mode;
         button(
-            Canvas::new(ViewIconArt {
-                view_mode,
-                selected: self.view_mode == view_mode,
-                scale: self.scale,
-            })
-            .width(Length::Fixed(self.s(54.0)))
-            .height(Length::Fixed(self.s(48.0))),
+            text(view_mode_label(view_mode))
+                .size(self.font(14.0))
+                .style(if selected { GOLD } else { MUTED_INK }),
         )
         .on_press(Message::SelectView(view_mode))
-        .style(iced::theme::Button::custom(TopIconButton))
-        .padding(0)
+        .style(iced::theme::Button::custom(TopNavButton { selected }))
+        .padding([self.s(10.0), self.s(12.0)])
         .into()
     }
 
@@ -6247,86 +6274,6 @@ fn distance(a: Point, b: Point) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-#[derive(Debug, Clone)]
-struct ViewIconArt {
-    view_mode: ViewMode,
-    selected: bool,
-    scale: f32,
-}
-
-impl canvas::Program<Message> for ViewIconArt {
-    type State = ();
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        renderer: &iced::Renderer,
-        _theme: &iced::Theme,
-        bounds: Rectangle,
-        _cursor: mouse::Cursor,
-    ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
-        frame.scale(self.scale);
-        let logical_size = unscale_size(bounds.size(), self.scale);
-        let center = Point::new(logical_size.width * 0.5, 20.0);
-        let ink = Color::from_rgba(0.09, 0.12, 0.24, if self.selected { 1.0 } else { 0.84 });
-
-        match self.view_mode {
-            ViewMode::Pedals => draw_pedal_view_icon(&mut frame, center, ink),
-            ViewMode::Amp => draw_amp_view_icon(&mut frame, center, ink),
-            ViewMode::FxLoop => draw_fx_loop_view_icon(&mut frame, center, ink),
-            ViewMode::Cab => draw_cab_view_icon(&mut frame, center, ink),
-            ViewMode::Eq => draw_eq_view_icon(&mut frame, center, ink),
-            ViewMode::Record => draw_record_view_icon(&mut frame, center, ink),
-        }
-
-        if self.selected {
-            frame.fill(
-                &Path::circle(Point::new(logical_size.width * 0.5, 42.0), 2.8),
-                ink,
-            );
-        }
-
-        vec![frame.into_geometry()]
-    }
-}
-
-fn draw_pedal_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    let body = rounded_rect(
-        Point::new(center.x - 13.0, center.y - 19.0),
-        Size::new(26.0, 38.0),
-        3.0,
-    );
-    frame.stroke(&body, Stroke::default().with_color(color).with_width(2.8));
-
-    let wave = Path::new(|path| {
-        path.move_to(Point::new(center.x - 8.0, center.y));
-        path.line_to(Point::new(center.x - 4.5, center.y));
-        path.line_to(Point::new(center.x - 3.0, center.y - 8.0));
-        path.line_to(Point::new(center.x + 1.0, center.y + 8.0));
-        path.line_to(Point::new(center.x + 3.5, center.y - 3.0));
-        path.line_to(Point::new(center.x + 6.5, center.y));
-        path.line_to(Point::new(center.x + 9.0, center.y));
-    });
-    frame.stroke(&wave, Stroke::default().with_color(color).with_width(2.8));
-}
-
-fn draw_amp_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    let body = rounded_rect(
-        Point::new(center.x - 22.0, center.y - 10.0),
-        Size::new(44.0, 20.0),
-        2.0,
-    );
-    frame.stroke(&body, Stroke::default().with_color(color).with_width(2.8));
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x - 18.0, center.y),
-            Point::new(center.x + 18.0, center.y),
-        ),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-}
-
 fn draw_amp_model_selector(
     frame: &mut Frame,
     size: Size,
@@ -6460,89 +6407,6 @@ fn draw_amp_model_icon(frame: &mut Frame, center: Point, model: AmpModel, color:
     );
 }
 
-fn draw_fx_loop_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    let top = rounded_rect(
-        Point::new(center.x - 19.0, center.y - 14.0),
-        Size::new(38.0, 12.0),
-        2.0,
-    );
-    let bottom = rounded_rect(
-        Point::new(center.x - 19.0, center.y + 5.0),
-        Size::new(38.0, 12.0),
-        2.0,
-    );
-    frame.stroke(&top, Stroke::default().with_color(color).with_width(2.8));
-    frame.stroke(&bottom, Stroke::default().with_color(color).with_width(2.8));
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x - 24.0, center.y - 4.0),
-            Point::new(center.x - 24.0, center.y + 11.0),
-        ),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x + 24.0, center.y + 11.0),
-            Point::new(center.x + 24.0, center.y - 4.0),
-        ),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x - 24.0, center.y + 11.0),
-            Point::new(center.x - 15.0, center.y + 11.0),
-        ),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x + 15.0, center.y - 4.0),
-            Point::new(center.x + 24.0, center.y - 4.0),
-        ),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-}
-
-fn draw_cab_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    frame.stroke(
-        &Path::circle(center, 18.0),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-    frame.stroke(
-        &Path::circle(center, 5.6),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-}
-
-fn draw_eq_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    for (x, y) in [
-        (center.x - 17.0, center.y - 1.0),
-        (center.x, center.y + 7.0),
-        (center.x + 17.0, center.y - 9.0),
-    ] {
-        frame.stroke(
-            &Path::line(
-                Point::new(x, center.y - 20.0),
-                Point::new(x, center.y + 20.0),
-            ),
-            Stroke::default().with_color(color).with_width(2.8),
-        );
-        frame.fill(&Path::circle(Point::new(x, y), 4.2), PANEL);
-        frame.stroke(
-            &Path::circle(Point::new(x, y), 4.2),
-            Stroke::default().with_color(color).with_width(2.8),
-        );
-    }
-}
-
-fn draw_record_view_icon(frame: &mut Frame, center: Point, color: Color) {
-    frame.stroke(
-        &Path::circle(center, 17.0),
-        Stroke::default().with_color(color).with_width(2.8),
-    );
-    frame.fill(&Path::circle(center, 7.6), color);
-}
-
 #[derive(Debug, Clone)]
 struct RecordStatusArt {
     active: bool,
@@ -6589,7 +6453,7 @@ impl canvas::Program<Message> for RecordStatusArt {
 
 fn draw_stage_circuit_toggle(frame: &mut Frame, size: Size, selected: bool) {
     let center = stage_circuit_toggle_center(size);
-    let ink = Color::from_rgba(0.09, 0.12, 0.24, if selected { 1.0 } else { 0.72 });
+    let ink = Color::from_rgba(INK.r, INK.g, INK.b, if selected { 1.0 } else { 0.52 });
 
     draw_circuit_view_icon(frame, center, ink);
 
@@ -7144,6 +7008,24 @@ impl canvas::Program<Message> for MeterArt {
 
 fn draw_stage_background(frame: &mut Frame, size: Size) {
     frame.fill_rectangle(Point::ORIGIN, size, PANEL);
+
+    // Layered matte bands give the stage depth without turning it into a glossy card.
+    for band in 0..8 {
+        let alpha = 0.030 + band as f32 * 0.005;
+        let y = band as f32 * size.height / 8.0;
+        frame.fill_rectangle(
+            Point::new(0.0, y),
+            Size::new(size.width, size.height / 8.0 + 1.0),
+            Color::from_rgba(0.0, 0.0, 0.0, alpha),
+        );
+    }
+
+    frame.stroke(
+        &Path::line(Point::new(0.0, 0.5), Point::new(size.width, 0.5)),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.045))
+            .with_width(1.0),
+    );
 }
 
 fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
