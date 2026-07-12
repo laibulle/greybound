@@ -1817,7 +1817,12 @@ pub const LEAD_HEAD_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
 pub const NAM_LOADER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "amp.nam-loader",
     surface: STANDARD_AMP_HEAD_SURFACE,
-    asset: None,
+    asset: Some(RenderAssetSpec {
+        path: "assets/amps/nam-loader-rack@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 2480,
+        pixel_height: 1000,
+    }),
     typography: RenderTypographyPolicy::DrawnByUi,
     controls: &[],
 };
@@ -3036,6 +3041,7 @@ impl GreyboundUi {
                     app_profile: self.app_profile,
                     amp: self.amp.clone(),
                     amp_model: self.amp_model,
+                    nam_loader: self.nam_loader.clone(),
                     circuit_view: self.circuit_view,
                     scale,
                 })
@@ -5079,6 +5085,12 @@ pub fn preload_render_assets() {
             pixel_height: 1000,
         },
         RenderAssetSpec {
+            path: "assets/amps/nam-loader-rack@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 2480,
+            pixel_height: 1000,
+        },
+        RenderAssetSpec {
             path: "assets/controls/knobs/daybreaker-black-brass@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 512,
@@ -5353,6 +5365,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         }
         "assets/amps/daybreaker-50-stack@2x.png" => {
             decoded_handle!("../assets/amps/daybreaker-50-stack@2x.png", 2480, 1000)
+        }
+        "assets/amps/nam-loader-rack@2x.png" => {
+            decoded_handle!("../assets/amps/nam-loader-rack@2x.png", 2480, 1000)
         }
         "assets/controls/knobs/daybreaker-black-brass@2x.png" => {
             decoded_handle!(
@@ -6008,6 +6023,7 @@ struct AmpArt {
     app_profile: AppProfile,
     amp: DeviceState,
     amp_model: AmpModel,
+    nam_loader: NamLoaderState,
     circuit_view: bool,
     scale: f32,
 }
@@ -6052,6 +6068,15 @@ impl canvas::Program<Message> for AmpArt {
 
                 if self.circuit_view {
                     return (canvas::event::Status::Ignored, None);
+                }
+
+                if self.amp_model == AmpModel::NamLoader
+                    && hit_test_nam_loader_button(unscale_size(bounds.size(), self.scale), position)
+                {
+                    return (
+                        canvas::event::Status::Captured,
+                        Some(Message::LoadNamRequested),
+                    );
                 }
 
                 if hit_test_amp_bypass(
@@ -6133,6 +6158,9 @@ impl canvas::Program<Message> for AmpArt {
         }
         if !self.circuit_view && self.amp_model == AmpModel::Daybreaker50 {
             draw_daybreaker_amp_overlay(&mut frame, logical_size);
+        }
+        if !self.circuit_view && self.amp_model == AmpModel::NamLoader {
+            draw_nam_loader_overlay(&mut frame, logical_size, &self.nam_loader);
         }
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
         draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
@@ -6988,7 +7016,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
-        AmpModel::LeadHead | AmpModel::NamLoader => {
+        AmpModel::LeadHead => {
             let amp_w = size.width.min(1240.0);
             let origin = Point::new((size.width - amp_w) * 0.5, 62.0);
             let panel_x = origin.x + 135.0;
@@ -7024,6 +7052,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
+        AmpModel::NamLoader => Vec::new(),
     }
 }
 
@@ -9178,6 +9207,109 @@ fn draw_daybreaker_label(
     );
 }
 
+fn nam_loader_rack_bounds(size: Size) -> Rectangle {
+    amp_render_bounds(size, &NAM_LOADER_AMP_RENDER_SPEC)
+}
+
+fn nam_loader_button_bounds(size: Size) -> Rectangle {
+    let rack = nam_loader_rack_bounds(size);
+    Rectangle {
+        x: rack.x + rack.width * 0.395,
+        y: rack.y + rack.height * 0.650,
+        width: rack.width * 0.210,
+        height: rack.height * 0.105,
+    }
+}
+
+fn hit_test_nam_loader_button(size: Size, position: Point) -> bool {
+    let button = nam_loader_button_bounds(size);
+    position.x >= button.x
+        && position.x <= button.x + button.width
+        && position.y >= button.y
+        && position.y <= button.y + button.height
+}
+
+fn draw_nam_loader_overlay(frame: &mut Frame, size: Size, state: &NamLoaderState) {
+    let rack = nam_loader_rack_bounds(size);
+    let display_center = Point::new(rack.x + rack.width * 0.500, rack.y + rack.height * 0.390);
+    let model_name = state
+        .path
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .and_then(|name| name.to_str())
+        .map(|name| truncate_nam_label(name, 42))
+        .unwrap_or_else(|| "NO MODEL LOADED".to_string());
+    let model_color = if state.path.is_some() {
+        Color::from_rgb(0.71, 0.93, 0.86)
+    } else {
+        Color::from_rgb(0.78, 0.62, 0.44)
+    };
+
+    draw_text(
+        frame,
+        "NAM LOADER",
+        Point::new(display_center.x, display_center.y - 34.0),
+        13.0,
+        Color::from_rgb(0.63, 0.79, 0.87),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        &model_name,
+        Point::new(display_center.x, display_center.y - 5.0),
+        18.0,
+        model_color,
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        "A2 MODEL · EMBEDDED MODEL CONTROLS",
+        Point::new(display_center.x, display_center.y + 25.0),
+        10.0,
+        Color::from_rgb(0.49, 0.62, 0.68),
+        Horizontal::Center,
+    );
+
+    let button = nam_loader_button_bounds(size);
+    let button_shape = rounded_rect(Point::new(button.x, button.y), button.size(), 6.0);
+    frame.fill(&button_shape, Color::from_rgb(0.08, 0.30, 0.38));
+    frame.stroke(
+        &button_shape,
+        Stroke::default()
+            .with_color(Color::from_rgb(0.41, 0.86, 0.92))
+            .with_width(1.5),
+    );
+    draw_text(
+        frame,
+        "LOAD .NAM MODEL",
+        Point::new(
+            button.x + button.width * 0.5,
+            button.y + button.height * 0.5,
+        ),
+        13.0,
+        Color::from_rgb(0.90, 0.98, 1.0),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        state.status.as_str(),
+        Point::new(rack.x + rack.width * 0.500, rack.y + rack.height * 0.810),
+        10.0,
+        Color::from_rgb(0.55, 0.62, 0.67),
+        Horizontal::Center,
+    );
+}
+
+fn truncate_nam_label(label: &str, max_chars: usize) -> String {
+    let mut chars = label.chars();
+    let prefix: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{prefix}…")
+    } else {
+        prefix
+    }
+}
+
 fn draw_wide_combo_grille(frame: &mut Frame, origin: Point, size: Size) {
     let dark = Color::from_rgba(0.29, 0.28, 0.24, 0.34);
     let light = Color::from_rgba(0.88, 0.84, 0.72, 0.30);
@@ -11225,6 +11357,34 @@ mod tests {
             pixel_height: 1000,
         })
         .is_some());
+    }
+
+    #[test]
+    fn nam_loader_uses_a_picker_without_unmapped_amp_knobs() {
+        let size = Size::new(DESIGN_WIDTH, MAIN_VIEW_HEIGHT);
+        let button = nam_loader_button_bounds(size);
+
+        assert!(amp_knob_layout(size, AmpModel::NamLoader).is_empty());
+        assert!(hit_test_nam_loader_button(
+            size,
+            Point::new(
+                button.x + button.width * 0.5,
+                button.y + button.height * 0.5,
+            ),
+        ));
+        assert!(render_asset_handle(
+            NAM_LOADER_AMP_RENDER_SPEC
+                .asset
+                .expect("NAM Loader must have a rack asset"),
+        )
+        .is_some());
+
+        let mut ui = GreyboundUi::default();
+        ui.update(Message::NamFileSelected(Some(PathBuf::from(
+            "/tmp/test-model.nam",
+        ))));
+        assert_eq!(ui.amp_model, AmpModel::NamLoader);
+        assert_eq!(ui.runtime_amp_model_id(), "nam2?path=/tmp/test-model.nam");
     }
 
     #[test]
