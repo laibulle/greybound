@@ -1244,6 +1244,34 @@ pub const DAYBREAKER_AMP_CONTROLS: &[RenderControlSpec] = &[
     },
 ];
 
+// NAM models expose their captured behavior internally. These two controls are
+// intentionally external trims: Gain is applied before the model and Volume
+// after it, both with unity at their midpoint.
+pub const NAM_LOADER_AMP_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Gain",
+        anchor_x: 0.625,
+        anchor_y: 0.700,
+        radius: 19.0,
+        hit_radius: 36.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Volume",
+        anchor_x: 0.740,
+        anchor_y: 0.700,
+        radius: 19.0,
+        hit_radius: 36.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(DAYBREAKER_BLACK_BRASS_KNOB_ASSET),
+    },
+];
+
 pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Gain),
@@ -1824,7 +1852,7 @@ pub const NAM_LOADER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
         pixel_height: 1000,
     }),
     typography: RenderTypographyPolicy::DrawnByUi,
-    controls: &[],
+    controls: NAM_LOADER_AMP_CONTROLS,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -3197,6 +3225,7 @@ impl GreyboundUi {
             "none-star" => 0.40 + self.amp.master * 1.20,
             "daybreaker-50" => 0.38 + self.amp.master * 1.10,
             "boxer-seven-lead" => 0.20 + self.amp.master * 1.15,
+            "nam2" => nam_loader_output_gain(self.amp.master),
             _ => 0.58,
         };
         CoreAmpControls {
@@ -4031,6 +4060,10 @@ impl GreyboundUi {
     fn font(&self, value: f32) -> u16 {
         (value * self.scale).round().max(1.0) as u16
     }
+}
+
+fn nam_loader_output_gain(value: f32) -> f32 {
+    10.0_f32.powf((value.clamp(0.0, 1.0) - 0.5) * 36.0 / 20.0)
 }
 
 fn uniform_scale(width: f32, height: f32) -> f32 {
@@ -7187,7 +7220,7 @@ fn draw_amp_spine(frame: &mut Frame, size: Size, app_profile: AppProfile, select
         } else {
             MUTED_INK
         };
-        let name_size = (row.height * 0.20).clamp(25.0, 43.0);
+        let name_size = amp_spine_name_size(name, row.height);
 
         draw_text(
             frame,
@@ -7233,6 +7266,18 @@ fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
         AmpModel::WideCombo => ("STAR", "CLEAN"),
         AmpModel::LeadHead => ("SEVEN", "LEAD"),
         AmpModel::NamLoader => ("NAM", "CAPTURE"),
+    }
+}
+
+/// Keep the amp picker legible without letting longer model names collide with
+/// the selection indicator. Eight characters use the standard type scale;
+/// longer names switch to the compact picker type scale.
+fn amp_spine_name_size(name: &str, row_height: f32) -> f32 {
+    let base_size = (row_height * 0.20).clamp(25.0, 43.0);
+    if name.chars().count() > 8 {
+        base_size * 0.60
+    } else {
+        base_size
     }
 }
 
@@ -9214,9 +9259,9 @@ fn nam_loader_rack_bounds(size: Size) -> Rectangle {
 fn nam_loader_button_bounds(size: Size) -> Rectangle {
     let rack = nam_loader_rack_bounds(size);
     Rectangle {
-        x: rack.x + rack.width * 0.395,
+        x: rack.x + rack.width * 0.285,
         y: rack.y + rack.height * 0.650,
-        width: rack.width * 0.210,
+        width: rack.width * 0.220,
         height: rack.height * 0.105,
     }
 }
@@ -9263,7 +9308,7 @@ fn draw_nam_loader_overlay(frame: &mut Frame, size: Size, state: &NamLoaderState
     );
     draw_text(
         frame,
-        "A2 MODEL · EMBEDDED MODEL CONTROLS",
+        "A2 MODEL · EXTERNAL PRE GAIN / POST VOLUME",
         Point::new(display_center.x, display_center.y + 25.0),
         10.0,
         Color::from_rgb(0.49, 0.62, 0.68),
@@ -9290,6 +9335,17 @@ fn draw_nam_loader_overlay(frame: &mut Frame, size: Size, state: &NamLoaderState
         Color::from_rgb(0.90, 0.98, 1.0),
         Horizontal::Center,
     );
+    for control in NAM_LOADER_AMP_CONTROLS {
+        let center = render_control_center(control, Point::new(rack.x, rack.y), rack.size());
+        draw_daybreaker_label(
+            frame,
+            control.label,
+            Point::new(center.x, center.y + 30.0),
+            10.5,
+            Color::from_rgb(0.72, 0.80, 0.83),
+            Horizontal::Center,
+        );
+    }
     draw_text(
         frame,
         state.status.as_str(),
@@ -11261,6 +11317,20 @@ mod tests {
     }
 
     #[test]
+    fn amp_spine_reduces_long_model_names_after_eight_characters() {
+        let row_height = 140.0;
+
+        assert_eq!(
+            amp_spine_name_size("NOX 30", row_height),
+            amp_spine_name_size("DAYBREAK", row_height)
+        );
+        assert!(
+            amp_spine_name_size("DAYBREAKER", row_height)
+                < amp_spine_name_size("DAYBREAK", row_height)
+        );
+    }
+
+    #[test]
     fn auralith_footswitch_hit_test_ignores_status_led() {
         let devices = vec![BoardDeviceSlot {
             source_index: 42,
@@ -11360,11 +11430,20 @@ mod tests {
     }
 
     #[test]
-    fn nam_loader_uses_a_picker_without_unmapped_amp_knobs() {
+    fn nam_loader_uses_a_picker_and_maps_external_gain_and_volume() {
         let size = Size::new(DESIGN_WIDTH, MAIN_VIEW_HEIGHT);
         let button = nam_loader_button_bounds(size);
 
         assert!(amp_knob_layout(size, AmpModel::NamLoader).is_empty());
+        assert_eq!(NAM_LOADER_AMP_CONTROLS.len(), 2);
+        assert!(matches!(
+            NAM_LOADER_AMP_CONTROLS[0].role,
+            RenderControlRole::Parameter(ControlKind::Gain)
+        ));
+        assert!(matches!(
+            NAM_LOADER_AMP_CONTROLS[1].role,
+            RenderControlRole::Parameter(ControlKind::Master)
+        ));
         assert!(hit_test_nam_loader_button(
             size,
             Point::new(
@@ -11385,6 +11464,9 @@ mod tests {
         ))));
         assert_eq!(ui.amp_model, AmpModel::NamLoader);
         assert_eq!(ui.runtime_amp_model_id(), "nam2?path=/tmp/test-model.nam");
+        assert!((ui.runtime_audio_snapshot().amp.output - 1.0).abs() < 1e-6);
+        assert!((nam_loader_output_gain(0.0) - 0.125_892_53).abs() < 1e-6);
+        assert!((nam_loader_output_gain(1.0) - 7.943_282).abs() < 1e-5);
     }
 
     #[test]

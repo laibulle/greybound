@@ -55,13 +55,20 @@ impl AmpModel for NamAmp {
         }
     }
 
-    fn process(&mut self, input: f32, _controls: AmpControls) -> f32 {
+    fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
         if let Some(processor) = &mut self.processor {
-            processor.process(input).clamp(-4.0, 4.0)
+            let driven_input = input * nam_input_gain(controls.volume);
+            (processor.process(driven_input) * controls.output.max(0.0)).clamp(-4.0, 4.0)
         } else {
             input
         }
     }
+}
+
+/// NAM captures have no universal exposed parameter set. Greybound's `Gain`
+/// is therefore a transparent pre-model trim, centered at unity gain.
+fn nam_input_gain(value: f32) -> f32 {
+    10.0_f32.powf((value.clamp(0.0, 1.0) - 0.5) * 36.0 / 20.0)
 }
 
 fn nam_path_from_model_spec(model_spec: &str) -> Option<&str> {
@@ -90,6 +97,13 @@ mod tests {
 
         assert!(!amp.has_processor());
         assert_eq!(amp.process(0.25, test_controls()), 0.25);
+    }
+
+    #[test]
+    fn input_gain_is_unity_at_the_center_and_bounded_at_the_ends() {
+        assert!((nam_input_gain(0.5) - 1.0).abs() < 1e-6);
+        assert!((nam_input_gain(0.0) - 0.125_892_53).abs() < 1e-6);
+        assert!((nam_input_gain(1.0) - 7.943_282).abs() < 1e-5);
     }
 
     fn test_controls() -> AmpControls {
