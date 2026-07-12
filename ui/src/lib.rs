@@ -5242,7 +5242,7 @@ impl canvas::Program<Message> for BoardArt {
                     );
                 }
 
-                if let Some(model) = hit_test_amp_model_selector(
+                if let Some(model) = hit_test_amp_spine(
                     self.app_profile,
                     unscale_size(bounds.size(), self.scale),
                     position,
@@ -5380,7 +5380,7 @@ impl canvas::Program<Message> for BoardArt {
         }
 
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
-        draw_amp_model_selector(&mut frame, logical_size, self.app_profile, self.amp_model);
+        draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
 
         vec![frame.into_geometry()]
     }
@@ -5431,7 +5431,7 @@ impl canvas::Program<Message> for AmpArt {
                     );
                 }
 
-                if let Some(model) = hit_test_amp_model_selector(
+                if let Some(model) = hit_test_amp_spine(
                     self.app_profile,
                     unscale_size(bounds.size(), self.scale),
                     position,
@@ -5524,7 +5524,7 @@ impl canvas::Program<Message> for AmpArt {
             draw_amp_head(&mut frame, logical_size, &self.amp);
         }
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
-        draw_amp_model_selector(&mut frame, logical_size, self.app_profile, self.amp_model);
+        draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
 }
@@ -5554,7 +5554,7 @@ impl canvas::Program<Message> for CabArt {
             else {
                 return (canvas::event::Status::Ignored, None);
             };
-            if let Some(model) = hit_test_amp_model_selector(
+            if let Some(model) = hit_test_amp_spine(
                 self.app_profile,
                 unscale_size(bounds.size(), self.scale),
                 position,
@@ -5581,9 +5581,10 @@ impl canvas::Program<Message> for CabArt {
         let logical_size = unscale_size(bounds.size(), self.scale);
         draw_stage_background(&mut frame, logical_size);
 
-        let w = logical_size.width.min(760.0);
+        let stage_width = amp_stage_width(logical_size);
+        let w = stage_width.min(760.0);
         let h = 360.0;
-        let origin = Point::new((logical_size.width - w) * 0.5, 78.0);
+        let origin = Point::new((stage_width - w) * 0.5, 78.0);
         let body = rounded_rect(origin, Size::new(w, h), 24.0);
         frame.fill(&body, Color::from_rgb(0.50, 0.45, 0.36));
         frame.stroke(
@@ -5627,7 +5628,7 @@ impl canvas::Program<Message> for CabArt {
             Color::from_rgba(0.05, 0.04, 0.035, 0.72),
             Horizontal::Center,
         );
-        draw_amp_model_selector(&mut frame, logical_size, self.app_profile, self.amp_model);
+        draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
 }
@@ -5677,7 +5678,7 @@ impl canvas::Program<Message> for EqArt {
                 else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                if let Some(model) = hit_test_amp_model_selector(
+                if let Some(model) = hit_test_amp_spine(
                     self.app_profile,
                     unscale_size(bounds.size(), self.scale),
                     position,
@@ -5777,7 +5778,7 @@ impl canvas::Program<Message> for EqArt {
         frame.scale(self.scale);
         let size = unscale_size(bounds.size(), self.scale);
         draw_eq_panel(&mut frame, size, &self.eq);
-        draw_amp_model_selector(&mut frame, size, self.app_profile, self.amp_model);
+        draw_amp_spine(&mut frame, size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
 
@@ -5802,7 +5803,8 @@ struct BoardLayout {
 fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     let count = device_count.max(1) as f32;
     let gap = 74.0;
-    let available_width = size.width - 86.0 - gap * (count - 1.0);
+    let stage_width = amp_stage_width(size);
+    let available_width = stage_width - 86.0 - gap * (count - 1.0);
     let pedal_w = (available_width / count)
         .min(PEDAL_STANDARD_WIDTH)
         .max(220.0);
@@ -5812,7 +5814,7 @@ fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     let total = pedal_w * count + gap * (count - 1.0);
 
     BoardLayout {
-        start_x: (size.width - total) * 0.5,
+        start_x: (stage_width - total) * 0.5,
         gap,
         pedal_w,
         pedal_h,
@@ -5837,7 +5839,7 @@ fn hit_test_pedal(device_count: usize, size: Size, position: Point) -> Option<us
 }
 
 fn stage_circuit_toggle_center(size: Size) -> Point {
-    Point::new(size.width - 54.0, 32.0)
+    Point::new((amp_spine_bounds(size).x - 34.0).max(32.0), 32.0)
 }
 
 fn hit_test_stage_circuit_toggle(size: Size, position: Point) -> bool {
@@ -5872,10 +5874,11 @@ fn fallback_amp_render_spec(model: AmpModel) -> &'static ModelRenderSpec {
 }
 
 fn amp_render_bounds(size: Size, render_spec: &ModelRenderSpec) -> Rectangle {
+    let stage_width = amp_stage_width(size);
     let max_width = render_spec
         .surface
         .logical_width
-        .min((size.width - 80.0).max(1.0));
+        .min((stage_width - 80.0).max(1.0));
     let surface_ratio = render_spec.surface.logical_height / render_spec.surface.logical_width;
     let max_height = (size.height - 112.0).max(1.0);
     let mut width = max_width;
@@ -5886,7 +5889,7 @@ fn amp_render_bounds(size: Size, render_spec: &ModelRenderSpec) -> Rectangle {
     }
 
     Rectangle {
-        x: (size.width - width) * 0.5,
+        x: (stage_width - width) * 0.5,
         y: (size.height - height).max(0.0),
         width,
         height,
@@ -5914,35 +5917,51 @@ fn render_control_center(control: &RenderControlSpec, origin: Point, size: Size)
     )
 }
 
-fn amp_model_selector_layout(app_profile: AppProfile, size: Size) -> Vec<(AmpModel, Point)> {
-    let center_y = size.height - 28.0;
-    let spacing = 72.0;
-    let models = app_profile.amp_models;
-    let start_x = size.width * 0.5 - spacing * (models.len().saturating_sub(1) as f32) * 0.5;
-    models
+fn amp_spine_bounds(size: Size) -> Rectangle {
+    let width = (size.width * 0.19).clamp(190.0, 292.0);
+    Rectangle {
+        x: size.width - width,
+        y: 0.0,
+        width,
+        height: size.height,
+    }
+}
+
+fn amp_stage_width(size: Size) -> f32 {
+    (amp_spine_bounds(size).x - 30.0).max(360.0)
+}
+
+fn amp_spine_layout(app_profile: AppProfile, size: Size) -> Vec<(AmpModel, Rectangle)> {
+    let bounds = amp_spine_bounds(size);
+    let count = app_profile.amp_models.len().max(1) as f32;
+    let row_height = bounds.height / count;
+
+    app_profile
+        .amp_models
         .iter()
         .enumerate()
         .map(|(index, descriptor)| {
             (
                 descriptor.visual,
-                Point::new(start_x + index as f32 * spacing, center_y),
+                Rectangle {
+                    x: bounds.x,
+                    y: bounds.y + index as f32 * row_height,
+                    width: bounds.width,
+                    height: row_height,
+                },
             )
         })
         .collect()
 }
 
-fn hit_test_amp_model_selector(
-    app_profile: AppProfile,
-    size: Size,
-    position: Point,
-) -> Option<AmpModel> {
-    amp_model_selector_layout(app_profile, size)
+fn hit_test_amp_spine(app_profile: AppProfile, size: Size, position: Point) -> Option<AmpModel> {
+    amp_spine_layout(app_profile, size)
         .into_iter()
-        .find(|(_, center)| {
-            position.x >= center.x - 30.0
-                && position.x <= center.x + 30.0
-                && position.y >= center.y - 28.0
-                && position.y <= center.y + 25.0
+        .find(|(_, bounds)| {
+            position.x >= bounds.x
+                && position.x <= bounds.x + bounds.width
+                && position.y >= bounds.y
+                && position.y <= bounds.y + bounds.height
         })
         .map(|(model, _)| model)
 }
@@ -6274,137 +6293,103 @@ fn distance(a: Point, b: Point) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-fn draw_amp_model_selector(
-    frame: &mut Frame,
-    size: Size,
-    app_profile: AppProfile,
-    selected: AmpModel,
-) {
-    for (model, center) in amp_model_selector_layout(app_profile, size) {
-        let ink = Color::from_rgba(1.0, 1.0, 1.0, if model == selected { 0.98 } else { 0.70 });
-        draw_amp_model_icon(frame, center, model, ink);
-        if model == selected {
+fn draw_amp_spine(frame: &mut Frame, size: Size, app_profile: AppProfile, selected: AmpModel) {
+    let spine = amp_spine_bounds(size);
+    frame.fill(
+        &Path::rectangle(Point::new(spine.x, spine.y), spine.size()),
+        Color::from_rgb(0.035, 0.042, 0.052),
+    );
+    frame.stroke(
+        &Path::line(
+            Point::new(spine.x + 0.5, spine.y),
+            Point::new(spine.x + 0.5, spine.y + spine.height),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.12))
+            .with_width(1.0),
+    );
+
+    for (index, (model, row)) in amp_spine_layout(app_profile, size).into_iter().enumerate() {
+        let active = model == selected;
+        if active {
             frame.fill(
-                &Path::circle(Point::new(center.x, center.y + 25.0), 2.6),
-                ink,
+                &Path::rectangle(Point::new(row.x, row.y), row.size()),
+                Color::from_rgba(GOLD.r, GOLD.g, GOLD.b, 0.055),
+            );
+            frame.fill_rectangle(Point::new(row.x, row.y), Size::new(3.0, row.height), GOLD);
+        }
+
+        if index > 0 {
+            frame.stroke(
+                &Path::line(
+                    Point::new(row.x + 1.0, row.y + 0.5),
+                    Point::new(row.x + row.width, row.y + 0.5),
+                ),
+                Stroke::default()
+                    .with_color(Color::from_rgba(1.0, 1.0, 1.0, 0.08))
+                    .with_width(1.0),
+            );
+        }
+
+        let (name, character) = amp_spine_copy(model);
+        let text_x = row.x + 42.0;
+        let center_y = row.y + row.height * 0.5;
+        let name_color = if active {
+            GOLD
+        } else {
+            Color::from_rgb(0.58, 0.60, 0.62)
+        };
+        let character_color = if active {
+            Color::from_rgba(GOLD.r, GOLD.g, GOLD.b, 0.88)
+        } else {
+            MUTED_INK
+        };
+        let name_size = (row.height * 0.20).clamp(25.0, 43.0);
+
+        draw_text(
+            frame,
+            name,
+            Point::new(text_x, center_y - name_size * 0.22),
+            name_size,
+            name_color,
+            Horizontal::Left,
+        );
+        draw_text(
+            frame,
+            character,
+            Point::new(text_x, center_y + name_size * 0.72),
+            12.0,
+            character_color,
+            Horizontal::Left,
+        );
+
+        let indicator = Path::circle(Point::new(row.x + row.width - 32.0, center_y), 8.5);
+        frame.stroke(
+            &indicator,
+            Stroke::default()
+                .with_color(if active {
+                    GOLD
+                } else {
+                    Color::from_rgba(1.0, 1.0, 1.0, 0.24)
+                })
+                .with_width(1.5),
+        );
+        if active {
+            frame.fill(
+                &Path::circle(Point::new(row.x + row.width - 32.0, center_y), 4.7),
+                GOLD,
             );
         }
     }
 }
 
-fn draw_amp_model_icon(frame: &mut Frame, center: Point, model: AmpModel, color: Color) {
+fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
     match model {
-        AmpModel::Nox30 => {
-            let top = rounded_rect(
-                Point::new(center.x - 24.0, center.y - 22.0),
-                Size::new(48.0, 17.0),
-                2.0,
-            );
-            frame.stroke(&top, Stroke::default().with_color(color).with_width(2.0));
-            frame.stroke(
-                &Path::line(
-                    Point::new(center.x - 19.0, center.y - 17.0),
-                    Point::new(center.x + 19.0, center.y - 9.0),
-                ),
-                Stroke::default().with_color(color).with_width(1.4),
-            );
-            frame.stroke(
-                &Path::line(
-                    Point::new(center.x + 19.0, center.y - 17.0),
-                    Point::new(center.x - 19.0, center.y - 9.0),
-                ),
-                Stroke::default().with_color(color).with_width(1.4),
-            );
-        }
-        AmpModel::WideCombo => {
-            let top = rounded_rect(
-                Point::new(center.x - 24.0, center.y - 22.0),
-                Size::new(48.0, 17.0),
-                2.0,
-            );
-            frame.stroke(&top, Stroke::default().with_color(color).with_width(2.0));
-            for index in 0..8 {
-                let x = center.x - 17.5 + index as f32 * 5.0;
-                frame.stroke(
-                    &Path::line(
-                        Point::new(x, center.y - 19.0),
-                        Point::new(x, center.y - 8.0),
-                    ),
-                    Stroke::default().with_color(color).with_width(0.9),
-                );
-            }
-        }
-        AmpModel::LeadHead => {
-            let top = rounded_rect(
-                Point::new(center.x - 25.0, center.y - 23.0),
-                Size::new(50.0, 17.0),
-                2.0,
-            );
-            frame.stroke(&top, Stroke::default().with_color(color).with_width(2.0));
-            for row in 0..2 {
-                let y = center.y - 19.0 + row as f32 * 6.0;
-                frame.stroke(
-                    &Path::line(
-                        Point::new(center.x - 19.0, y),
-                        Point::new(center.x + 19.0, y),
-                    ),
-                    Stroke::default().with_color(color).with_width(1.1),
-                );
-            }
-            frame.stroke(
-                &Path::line(
-                    Point::new(center.x - 10.0, center.y - 28.0),
-                    Point::new(center.x + 10.0, center.y - 28.0),
-                ),
-                Stroke::default().with_color(color).with_width(2.2),
-            );
-        }
-        AmpModel::NamLoader => {
-            let top = rounded_rect(
-                Point::new(center.x - 25.0, center.y - 23.0),
-                Size::new(50.0, 34.0),
-                2.0,
-            );
-            frame.stroke(&top, Stroke::default().with_color(color).with_width(2.0));
-            frame.fill(
-                &Path::circle(Point::new(center.x - 10.0, center.y - 7.0), 3.6),
-                color,
-            );
-            frame.fill(
-                &Path::circle(Point::new(center.x + 10.0, center.y - 7.0), 3.6),
-                color,
-            );
-            frame.stroke(
-                &Path::line(
-                    Point::new(center.x - 16.0, center.y + 6.0),
-                    Point::new(center.x + 16.0, center.y + 6.0),
-                ),
-                Stroke::default().with_color(color).with_width(2.0),
-            );
-        }
+        AmpModel::Nox30 => ("NOX 30", "BRITISH"),
+        AmpModel::WideCombo => ("STAR", "CLEAN"),
+        AmpModel::LeadHead => ("SEVEN", "LEAD"),
+        AmpModel::NamLoader => ("NAM", "CAPTURE"),
     }
-
-    let base = rounded_rect(
-        Point::new(center.x - 27.0, center.y - 1.0),
-        Size::new(54.0, 28.0),
-        2.0,
-    );
-    frame.stroke(&base, Stroke::default().with_color(color).with_width(2.0));
-    frame.stroke(
-        &Path::line(
-            Point::new(center.x - 2.0, center.y - 1.0),
-            Point::new(center.x - 2.0, center.y + 27.0),
-        ),
-        Stroke::default().with_color(color).with_width(1.4),
-    );
-    frame.stroke(
-        &Path::circle(Point::new(center.x - 14.0, center.y + 13.0), 7.4),
-        Stroke::default().with_color(color).with_width(2.0),
-    );
-    frame.stroke(
-        &Path::circle(Point::new(center.x + 13.0, center.y + 13.0), 7.4),
-        Stroke::default().with_color(color).with_width(2.0),
-    );
 }
 
 #[derive(Debug, Clone)]
@@ -7029,18 +7014,19 @@ fn draw_stage_background(frame: &mut Frame, size: Size) {
 }
 
 fn draw_amp_head(frame: &mut Frame, size: Size, amp: &DeviceState) {
+    let stage_size = Size::new(amp_stage_width(size), size.height);
     if amp.model == DeviceModel::WideCombo {
-        draw_wide_combo_amp_head(frame, size, amp);
+        draw_wide_combo_amp_head(frame, stage_size, amp);
         return;
     }
     if amp.model == DeviceModel::LeadHead {
-        draw_boxer_seven_amp_head(frame, size, amp);
+        draw_boxer_seven_amp_head(frame, stage_size, amp);
         return;
     }
 
-    let amp_w = size.width.min(1080.0);
+    let amp_w = stage_size.width.min(1080.0);
     let amp_h = 390.0;
-    let origin = Point::new((size.width - amp_w) * 0.5, 74.0);
+    let origin = Point::new((stage_size.width - amp_w) * 0.5, 74.0);
 
     let shadow = rounded_rect(
         Point::new(origin.x + 12.0, origin.y + 22.0),
@@ -9726,6 +9712,17 @@ fn darken(color: Color, amount: f32) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn amp_spine_selects_each_available_amp_in_one_click() {
+        let profile = AppProfile::greybound_glass();
+        let size = Size::new(DESIGN_WIDTH, 666.0);
+
+        for (model, row) in amp_spine_layout(profile, size) {
+            let center = Point::new(row.x + row.width * 0.5, row.y + row.height * 0.5);
+            assert_eq!(hit_test_amp_spine(profile, size, center), Some(model));
+        }
+    }
 
     #[test]
     fn auralith_footswitch_hit_test_ignores_status_led() {
