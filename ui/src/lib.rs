@@ -3273,98 +3273,34 @@ impl GreyboundUi {
     }
 
     fn recording_view(&self) -> Element<'_, Message> {
-        let recording = &self.recording;
-        let output_name = self
-            .audio_settings
-            .selected_output
-            .as_deref()
-            .unwrap_or("Default output");
-        let file_name = recording
+        let file_name = self
+            .recording
             .path
             .as_ref()
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
-            .unwrap_or("No recording file");
-        let action_label = if recording.active {
-            "STOP RECORDING"
-        } else {
-            "START RECORDING"
-        };
-        let record_button = button(text(action_label).size(self.font(18.0)).style(Color::WHITE))
-            .on_press(Message::ToggleRecording)
-            .style(iced::theme::Button::custom(FooterButton {
-                selected: recording.active,
-            }))
-            .padding([self.s(18.0), self.s(26.0)]);
-        let record_indicator = if recording.active {
-            Color::from_rgb(0.95, 0.14, 0.11)
-        } else {
-            Color::from_rgb(0.30, 0.34, 0.42)
-        };
+            .unwrap_or("No take selected")
+            .to_string();
+        let output_name = self
+            .audio_settings
+            .selected_output
+            .as_deref()
+            .unwrap_or("Default output")
+            .to_string();
 
-        let panel = container(
-            column![
-                row![
-                    Canvas::new(RecordStatusArt {
-                        active: recording.active,
-                        scale: self.scale,
-                    })
-                    .width(Length::Fixed(self.s(150.0)))
-                    .height(Length::Fixed(self.s(150.0))),
-                    column![
-                        text("RECORD").size(self.font(30.0)).style(Color::WHITE),
-                        text(recording.status.as_str())
-                            .size(self.font(17.0))
-                            .style(Color::from_rgb(0.82, 0.84, 0.90)),
-                        record_button,
-                    ]
-                    .spacing(self.s(18.0))
-                    .width(Length::Fill),
-                    container("")
-                        .width(Length::Fixed(self.s(18.0)))
-                        .height(Length::Fixed(self.s(18.0)))
-                        .style(ghost_container(record_indicator)),
-                ]
-                .spacing(self.s(34.0))
-                .align_items(Alignment::Center),
-                self.settings_separator(),
-                row![
-                    self.settings_box_width("Destination", file_name, 390.0),
-                    self.settings_box_width("Output Device", output_name, 390.0),
-                ]
-                .spacing(self.s(44.0)),
-                row![
-                    self.settings_box_width(
-                        "Format",
-                        &format!("Stereo float WAV / {} Hz", self.audio_settings.sample_rate),
-                        390.0
-                    ),
-                    self.settings_box_width(
-                        "Output Level",
-                        &format!(
-                            "L {:>3}%  R {:>3}%",
-                            (self.meters.output_left * 100.0).round() as u32,
-                            (self.meters.output_right * 100.0).round() as u32
-                        ),
-                        390.0
-                    ),
-                ]
-                .spacing(self.s(44.0)),
-            ]
-            .spacing(self.s(30.0)),
-        )
-        .width(Length::Fixed(self.s(980.0)))
-        .height(Length::Fixed(self.s(520.0)))
-        .padding([self.s(46.0), self.s(54.0)])
-        .style(dark_container());
-
-        container(panel)
-            .width(Length::Fixed(self.s(DESIGN_WIDTH)))
-            .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
-            .center_x()
-            .center_y()
-            .style(ghost_container(Color::from_rgba(0.04, 0.05, 0.08, 0.28)))
-            .into()
+        RecordCanvas::new(RecordArt {
+            active: self.recording.active,
+            status: self.recording.status.clone(),
+            take_name: file_name,
+            output_name,
+            sample_rate: self.audio_settings.sample_rate,
+            output_left: self.meters.output_left,
+            output_right: self.meters.output_right,
+            scale: self.scale,
+        })
+        .width(Length::Fixed(self.s(DESIGN_WIDTH)))
+        .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
+        .into()
     }
 
     fn metronome_panel(&self) -> Element<'_, Message> {
@@ -4786,6 +4722,80 @@ fn draw_cab_asset(renderer: &mut iced::Renderer, art: &CabArt, bounds: Size) {
     );
 }
 
+fn draw_record_background(renderer: &iced::Renderer, art: &RecordArt, bounds: Size) -> Geometry {
+    let mut frame = Frame::new(renderer, bounds);
+    frame.scale(art.scale);
+    draw_stage_background(&mut frame, unscale_size(bounds, art.scale));
+    frame.into_geometry()
+}
+
+fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Size) {
+    let logical_size = unscale_size(bounds, art.scale);
+    let layout = record_layout(logical_size);
+
+    for (asset, rect) in [
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/rack-chassis.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1983,
+                pixel_height: 793,
+            },
+            layout.rack,
+        ),
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/vu-meter.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1536,
+                pixel_height: 1024,
+            },
+            layout.left_meter,
+        ),
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/vu-meter.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1536,
+                pixel_height: 1024,
+            },
+            layout.right_meter,
+        ),
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/timecode-display.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1695,
+                pixel_height: 928,
+            },
+            layout.display,
+        ),
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/rec-button.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1254,
+                pixel_height: 1254,
+            },
+            layout.record_button,
+        ),
+        (
+            RenderAssetSpec {
+                path: "assets/record/atomic/take-card.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1024,
+                pixel_height: 1536,
+            },
+            layout.take_card,
+        ),
+    ] {
+        let Some(handle) = render_asset_handle(asset) else {
+            continue;
+        };
+        advanced_image::Renderer::draw(renderer, handle, scaled_rectangle(rect, art.scale));
+    }
+}
+
 fn draw_amp_control_assets(renderer: &mut iced::Renderer, art: &AmpArt, bounds: Size) {
     if art.circuit_view || !render_assets_enabled() {
         return;
@@ -4876,6 +4886,36 @@ pub fn preload_render_assets() {
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1821,
             pixel_height: 864,
+        },
+        RenderAssetSpec {
+            path: "assets/record/atomic/rack-chassis.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1983,
+            pixel_height: 793,
+        },
+        RenderAssetSpec {
+            path: "assets/record/atomic/vu-meter.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1536,
+            pixel_height: 1024,
+        },
+        RenderAssetSpec {
+            path: "assets/record/atomic/timecode-display.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1695,
+            pixel_height: 928,
+        },
+        RenderAssetSpec {
+            path: "assets/record/atomic/rec-button.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1254,
+            pixel_height: 1254,
+        },
+        RenderAssetSpec {
+            path: "assets/record/atomic/take-card.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1024,
+            pixel_height: 1536,
         },
         RenderAssetSpec {
             path: "assets/effects/eq-rose-gold-clean-v2@2x.png",
@@ -5090,6 +5130,21 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         }
         "assets/cabs/greybound-2x12@2x.png" => {
             decoded_handle!("../assets/cabs/greybound-2x12@2x.png", 1821, 864)
+        }
+        "assets/record/atomic/rack-chassis.png" => {
+            decoded_handle!("../assets/record/atomic/rack-chassis.png", 1983, 793)
+        }
+        "assets/record/atomic/vu-meter.png" => {
+            decoded_handle!("../assets/record/atomic/vu-meter.png", 1536, 1024)
+        }
+        "assets/record/atomic/timecode-display.png" => {
+            decoded_handle!("../assets/record/atomic/timecode-display.png", 1695, 928)
+        }
+        "assets/record/atomic/rec-button.png" => {
+            decoded_handle!("../assets/record/atomic/rec-button.png", 1254, 1254)
+        }
+        "assets/record/atomic/take-card.png" => {
+            decoded_handle!("../assets/record/atomic/take-card.png", 1024, 1536)
         }
         "assets/effects/eq-rose-gold@2x.png" => {
             decoded_handle!("../assets/effects/eq-rose-gold@2x.png", 2816, 784)
@@ -6281,6 +6336,91 @@ fn cab_render_bounds(size: Size) -> Rectangle {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RecordLayout {
+    rack: Rectangle,
+    left_meter: Rectangle,
+    right_meter: Rectangle,
+    display: Rectangle,
+    record_button: Rectangle,
+    waveform: Rectangle,
+    take_card: Rectangle,
+}
+
+fn record_layout(size: Size) -> RecordLayout {
+    let rack_width = (size.width * 0.61).clamp(720.0, 980.0);
+    let rack_height = rack_width * (793.0 / 1983.0);
+    let card_width = (rack_width * 0.20).clamp(154.0, 208.0);
+    let card_height = card_width * 1.5;
+    let total_width = rack_width + card_width + 42.0;
+    let rack = Rectangle {
+        x: ((size.width - total_width) * 0.5).max(28.0),
+        y: ((size.height - rack_height) * 0.5).max(34.0),
+        width: rack_width,
+        height: rack_height,
+    };
+    let meter_width = rack.width * 0.205;
+    let meter_height = meter_width * (1024.0 / 1536.0);
+    let meter_y = rack.y + rack.height * 0.15;
+    let left_meter = Rectangle {
+        x: rack.x + rack.width * 0.085,
+        y: meter_y,
+        width: meter_width,
+        height: meter_height,
+    };
+    let right_meter = Rectangle {
+        x: left_meter.x + meter_width * 1.04,
+        ..left_meter
+    };
+    let display = Rectangle {
+        x: rack.x + rack.width * 0.47,
+        y: rack.y + rack.height * 0.20,
+        width: rack.width * 0.25,
+        height: rack.height * 0.20,
+    };
+    let button_size = rack.height * 0.35;
+    let record_button = Rectangle {
+        x: rack.x + rack.width * 0.77,
+        y: rack.y + rack.height * 0.15,
+        width: button_size,
+        height: button_size,
+    };
+    let waveform = Rectangle {
+        x: rack.x + rack.width * 0.10,
+        y: rack.y + rack.height * 0.62,
+        width: rack.width * 0.78,
+        height: rack.height * 0.17,
+    };
+    let take_card = Rectangle {
+        x: rack.x + rack.width + 42.0,
+        y: rack.y + (rack.height - card_height) * 0.5,
+        width: card_width,
+        height: card_height,
+    };
+
+    RecordLayout {
+        rack,
+        left_meter,
+        right_meter,
+        display,
+        record_button,
+        waveform,
+        take_card,
+    }
+}
+
+fn record_button_center(size: Size) -> Point {
+    let button = record_layout(size).record_button;
+    Point::new(
+        button.x + button.width * 0.5,
+        button.y + button.height * 0.5,
+    )
+}
+
+fn record_button_radius(size: Size) -> f32 {
+    record_layout(size).record_button.width * 0.5
+}
+
 fn fallback_device_render_spec(model: DeviceModel) -> &'static ModelRenderSpec {
     match model {
         DeviceModel::Lumen => &LUMEN_PEDAL_RENDER_SPEC,
@@ -6778,13 +6918,48 @@ fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
 }
 
 #[derive(Debug, Clone)]
-struct RecordStatusArt {
+struct RecordArt {
     active: bool,
+    status: String,
+    take_name: String,
+    output_name: String,
+    sample_rate: u32,
+    output_left: f32,
+    output_right: f32,
     scale: f32,
 }
 
-impl canvas::Program<Message> for RecordStatusArt {
+impl canvas::Program<Message> for RecordArt {
     type State = ();
+
+    fn update(
+        &self,
+        _state: &mut Self::State,
+        event: canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> (canvas::event::Status, Option<Message>) {
+        if let canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event {
+            let Some(position) = cursor
+                .position_in(bounds)
+                .map(|position| unscale_point(position, self.scale))
+            else {
+                return (canvas::event::Status::Ignored, None);
+            };
+            let logical_size = unscale_size(bounds.size(), self.scale);
+            let center = record_button_center(logical_size);
+            let dx = position.x - center.x;
+            let dy = position.y - center.y;
+            if dx * dx + dy * dy <= record_button_radius(logical_size).powi(2) * 1.42 {
+                return (
+                    canvas::event::Status::Captured,
+                    Some(Message::ToggleRecording),
+                );
+            }
+        }
+
+        (canvas::event::Status::Ignored, None)
+    }
 
     fn draw(
         &self,
@@ -6797,27 +6972,302 @@ impl canvas::Program<Message> for RecordStatusArt {
         let mut frame = Frame::new(renderer, bounds.size());
         frame.scale(self.scale);
         let logical_size = unscale_size(bounds.size(), self.scale);
-        let center = Point::new(logical_size.width * 0.5, logical_size.height * 0.5);
-        let ring_color = Color::from_rgba(1.0, 1.0, 1.0, 0.82);
-        let fill_color = if self.active {
-            Color::from_rgb(0.95, 0.14, 0.11)
+        let layout = record_layout(logical_size);
+        let center = record_button_center(logical_size);
+        let radius = record_button_radius(logical_size);
+        let transport_label = if self.active {
+            "WRITE · LIVE".to_string()
         } else {
-            Color::from_rgb(0.24, 0.27, 0.34)
+            format!("READY · {} Hz", self.sample_rate)
         };
 
-        frame.stroke(
-            &Path::circle(center, 54.0),
-            Stroke::default().with_color(ring_color).with_width(3.2),
+        if self.active {
+            frame.stroke(
+                &Path::circle(center, radius * 1.18),
+                Stroke::default()
+                    .with_color(Color::from_rgba(1.0, 0.16, 0.12, 0.82))
+                    .with_width(2.2),
+            );
+            frame.fill(
+                &Path::circle(Point::new(center.x, center.y + radius * 1.48), 3.2),
+                Color::from_rgb(0.98, 0.18, 0.14),
+            );
+        }
+
+        draw_text(
+            &mut frame,
+            "REC",
+            center,
+            radius * 0.24,
+            Color::from_rgba(1.0, 0.93, 0.90, 0.94),
+            Horizontal::Center,
         );
-        frame.fill(&Path::circle(center, 34.0), fill_color);
-        frame.stroke(
-            &Path::circle(center, 34.0),
-            Stroke::default()
-                .with_color(Color::from_rgba(0.0, 0.0, 0.0, 0.28))
-                .with_width(2.0),
+        draw_text(
+            &mut frame,
+            transport_label.as_str(),
+            Point::new(
+                layout.display.x + layout.display.width * 0.5,
+                layout.display.y + layout.display.height * 0.56,
+            ),
+            (layout.display.height * 0.20).clamp(12.0, 20.0),
+            if self.active {
+                Color::from_rgb(1.0, 0.30, 0.20)
+            } else {
+                Color::from_rgba(0.95, 0.65, 0.34, 0.80)
+            },
+            Horizontal::Center,
+        );
+
+        draw_record_vu_needle(&mut frame, layout.left_meter, self.output_left, GOLD);
+        draw_record_vu_needle(&mut frame, layout.right_meter, self.output_right, GOLD);
+        draw_record_waveform(
+            &mut frame,
+            layout.waveform,
+            self.output_left,
+            self.output_right,
+            self.active,
+        );
+        draw_record_take_card(
+            &mut frame,
+            layout.take_card,
+            self.take_name.as_str(),
+            self.output_name.as_str(),
+            self.sample_rate,
+            self.status.as_str(),
         );
 
         vec![frame.into_geometry()]
+    }
+}
+
+fn draw_record_vu_needle(frame: &mut Frame, meter: Rectangle, level: f32, color: Color) {
+    let pivot = Point::new(meter.x + meter.width * 0.5, meter.y + meter.height * 0.70);
+    let angle = -2.55 + level.clamp(0.0, 1.0) * 2.00;
+    let length = meter.width.min(meter.height) * 0.34;
+    let tip = Point::new(
+        pivot.x + angle.cos() * length,
+        pivot.y + angle.sin() * length,
+    );
+    frame.stroke(
+        &Path::line(pivot, tip),
+        Stroke::default()
+            .with_color(Color::from_rgba(color.r, color.g, color.b, 0.88))
+            .with_width(1.6),
+    );
+    frame.fill(&Path::circle(pivot, 2.6), Color::from_rgb(0.10, 0.07, 0.04));
+}
+
+fn draw_record_waveform(frame: &mut Frame, bounds: Rectangle, left: f32, right: f32, active: bool) {
+    let panel = rounded_rect(Point::new(bounds.x, bounds.y), bounds.size(), 5.0);
+    frame.fill(&panel, Color::from_rgba(0.005, 0.008, 0.010, 0.75));
+    frame.stroke(
+        &panel,
+        Stroke::default()
+            .with_color(Color::from_rgba(0.86, 0.58, 0.30, 0.30))
+            .with_width(1.0),
+    );
+
+    let center_y = bounds.y + bounds.height * 0.5;
+    let amplitude = (left.max(right) * bounds.height * 0.34).max(2.0);
+    let trace = Path::new(|path| {
+        for index in 0..96 {
+            let progress = index as f32 / 95.0;
+            let x = bounds.x + bounds.width * progress;
+            let carrier = (progress * 68.0).sin();
+            let envelope = 0.34 + (progress * 9.0).sin().abs() * 0.66;
+            let y = center_y + carrier * amplitude * envelope;
+            if index == 0 {
+                path.move_to(Point::new(x, y));
+            } else {
+                path.line_to(Point::new(x, y));
+            }
+        }
+    });
+    frame.stroke(
+        &trace,
+        Stroke::default()
+            .with_color(if active {
+                Color::from_rgb(0.96, 0.24, 0.17)
+            } else {
+                Color::from_rgba(GOLD.r, GOLD.g, GOLD.b, 0.74)
+            })
+            .with_width(1.2),
+    );
+}
+
+fn draw_record_take_card(
+    frame: &mut Frame,
+    card: Rectangle,
+    take_name: &str,
+    output_name: &str,
+    sample_rate: u32,
+    status: &str,
+) {
+    let x = card.x + card.width * 0.50;
+    let dark_ink = Color::from_rgb(0.11, 0.10, 0.085);
+    let format_summary = format!("STEREO · {sample_rate} Hz");
+    draw_text(
+        frame,
+        "TAKE",
+        Point::new(x, card.y + card.height * 0.22),
+        (card.width * 0.095).clamp(10.0, 16.0),
+        dark_ink,
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        take_name,
+        Point::new(x, card.y + card.height * 0.34),
+        (card.width * 0.058).clamp(8.0, 11.0),
+        dark_ink,
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        output_name,
+        Point::new(x, card.y + card.height * 0.47),
+        (card.width * 0.052).clamp(7.0, 10.0),
+        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.76),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        format_summary.as_str(),
+        Point::new(x, card.y + card.height * 0.58),
+        (card.width * 0.048).clamp(7.0, 9.0),
+        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.72),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        status,
+        Point::new(x, card.y + card.height * 0.70),
+        (card.width * 0.046).clamp(7.0, 9.0),
+        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.68),
+        Horizontal::Center,
+    );
+}
+
+#[derive(Debug, Clone)]
+struct RecordCanvas {
+    width: Length,
+    height: Length,
+    art: RecordArt,
+}
+
+impl RecordCanvas {
+    fn new(art: RecordArt) -> Self {
+        Self {
+            width: Length::Fixed(100.0),
+            height: Length::Fixed(100.0),
+            art,
+        }
+    }
+
+    fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+}
+
+impl Widget<Message, iced::Renderer> for RecordCanvas {
+    fn width(&self) -> Length {
+        self.width
+    }
+
+    fn height(&self) -> Length {
+        self.height
+    }
+
+    fn layout(&self, _renderer: &iced::Renderer, limits: &layout::Limits) -> layout::Node {
+        let limits = limits.width(self.width).height(self.height);
+        layout::Node::new(limits.resolve(Size::ZERO))
+    }
+
+    fn tag(&self) -> tree::Tag {
+        struct Tag<T>(T);
+        tree::Tag::of::<Tag<()>>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(())
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) -> iced::event::Status {
+        let canvas_event = match event {
+            Event::Mouse(event) => Some(canvas::Event::Mouse(event)),
+            Event::Touch(event) => Some(canvas::Event::Touch(event)),
+            Event::Keyboard(event) => Some(canvas::Event::Keyboard(event)),
+            _ => None,
+        };
+        let Some(canvas_event) = canvas_event else {
+            return iced::event::Status::Ignored;
+        };
+
+        let state = tree.state.downcast_mut::<()>();
+        let (status, message) = self
+            .art
+            .update(state, canvas_event, layout.bounds(), cursor);
+        if let Some(message) = message {
+            shell.publish(message);
+        }
+        status
+    }
+
+    fn mouse_interaction(
+        &self,
+        _tree: &Tree,
+        _layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        mouse::Interaction::Pointer
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let bounds = layout.bounds();
+        if bounds.width < 1.0 || bounds.height < 1.0 {
+            return;
+        }
+
+        let state = tree.state.downcast_ref::<()>();
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            let background = draw_record_background(renderer, &self.art, bounds.size());
+            renderer.draw(vec![background]);
+            draw_record_assets(renderer, &self.art, bounds.size());
+            renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
+        });
+    }
+}
+
+impl<'a> From<RecordCanvas> for Element<'a, Message> {
+    fn from(record: RecordCanvas) -> Self {
+        Element::new(record)
     }
 }
 
@@ -10399,6 +10849,44 @@ mod tests {
             pixel_height: 887,
         })
         .is_some());
+    }
+
+    #[test]
+    fn atomic_recording_assets_decode() {
+        for asset in [
+            RenderAssetSpec {
+                path: "assets/record/atomic/rack-chassis.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1983,
+                pixel_height: 793,
+            },
+            RenderAssetSpec {
+                path: "assets/record/atomic/vu-meter.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1536,
+                pixel_height: 1024,
+            },
+            RenderAssetSpec {
+                path: "assets/record/atomic/timecode-display.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1695,
+                pixel_height: 928,
+            },
+            RenderAssetSpec {
+                path: "assets/record/atomic/rec-button.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1254,
+                pixel_height: 1254,
+            },
+            RenderAssetSpec {
+                path: "assets/record/atomic/take-card.png",
+                format: RenderAssetFormat::PngRgba,
+                pixel_width: 1024,
+                pixel_height: 1536,
+            },
+        ] {
+            assert!(render_asset_handle(asset).is_some(), "{}", asset.path);
+        }
     }
 
     #[test]
