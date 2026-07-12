@@ -139,6 +139,16 @@ implemented. Free now exposes Daybreaker 50 as a selectable amp beside Nox30;
 the plugin builds both signal chains at initialization and switches between
 them without allocating on the audio thread. This exposes the existing
 Daybreaker runtime, not the unresolved SSS #002 tone/deep circuit revision.
+The Free rendering uses a photorealistic, transparent-background Daybreaker
+head on a matching 2x12 cabinet asset. Its panel intentionally contains no
+baked controls, LED, or control labels: the knobs and power LED remain separate
+reactive UI assets. The input jack, control labels, badge, and power switch are
+also rendered as a separate Daybreaker UI layer; the switch and LED remain
+clickable/stateful rather than becoming pixels in the cabinet image.
+The six controls use a dedicated photorealistic black-machined/brass-ring knob
+asset with runtime rotation; the power switch has distinct photorealistic off
+and on assets. The input jack is likewise a dedicated photorealistic,
+transparent asset rather than a vector element in the background.
 The focused checks passed on 2026-07-12:
 
 - `cargo test -p greybound`: 191 tests passed;
