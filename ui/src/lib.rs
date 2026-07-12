@@ -3273,26 +3273,8 @@ impl GreyboundUi {
     }
 
     fn recording_view(&self) -> Element<'_, Message> {
-        let file_name = self
-            .recording
-            .path
-            .as_ref()
-            .and_then(|path| path.file_name())
-            .and_then(|name| name.to_str())
-            .unwrap_or("No take selected")
-            .to_string();
-        let output_name = self
-            .audio_settings
-            .selected_output
-            .as_deref()
-            .unwrap_or("Default output")
-            .to_string();
-
         RecordCanvas::new(RecordArt {
             active: self.recording.active,
-            status: self.recording.status.clone(),
-            take_name: file_name,
-            output_name,
             sample_rate: self.audio_settings.sample_rate,
             output_left: self.meters.output_left,
             output_right: self.meters.output_right,
@@ -4738,8 +4720,8 @@ fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Si
             RenderAssetSpec {
                 path: "assets/record/atomic/rack-chassis.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1983,
-                pixel_height: 793,
+                pixel_width: 1757,
+                pixel_height: 425,
             },
             layout.rack,
         ),
@@ -4747,8 +4729,8 @@ fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Si
             RenderAssetSpec {
                 path: "assets/record/atomic/vu-meter.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1536,
-                pixel_height: 1024,
+                pixel_width: 1331,
+                pixel_height: 705,
             },
             layout.left_meter,
         ),
@@ -4756,8 +4738,8 @@ fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Si
             RenderAssetSpec {
                 path: "assets/record/atomic/vu-meter.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1536,
-                pixel_height: 1024,
+                pixel_width: 1331,
+                pixel_height: 705,
             },
             layout.right_meter,
         ),
@@ -4765,8 +4747,8 @@ fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Si
             RenderAssetSpec {
                 path: "assets/record/atomic/timecode-display.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1695,
-                pixel_height: 928,
+                pixel_width: 1230,
+                pixel_height: 364,
             },
             layout.display,
         ),
@@ -4774,19 +4756,10 @@ fn draw_record_assets(renderer: &mut iced::Renderer, art: &RecordArt, bounds: Si
             RenderAssetSpec {
                 path: "assets/record/atomic/rec-button.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1254,
-                pixel_height: 1254,
+                pixel_width: 958,
+                pixel_height: 965,
             },
             layout.record_button,
-        ),
-        (
-            RenderAssetSpec {
-                path: "assets/record/atomic/take-card.png",
-                format: RenderAssetFormat::PngRgba,
-                pixel_width: 1024,
-                pixel_height: 1536,
-            },
-            layout.take_card,
         ),
     ] {
         let Some(handle) = render_asset_handle(asset) else {
@@ -4890,32 +4863,26 @@ pub fn preload_render_assets() {
         RenderAssetSpec {
             path: "assets/record/atomic/rack-chassis.png",
             format: RenderAssetFormat::PngRgba,
-            pixel_width: 1983,
-            pixel_height: 793,
+            pixel_width: 1757,
+            pixel_height: 425,
         },
         RenderAssetSpec {
             path: "assets/record/atomic/vu-meter.png",
             format: RenderAssetFormat::PngRgba,
-            pixel_width: 1536,
-            pixel_height: 1024,
+            pixel_width: 1331,
+            pixel_height: 705,
         },
         RenderAssetSpec {
             path: "assets/record/atomic/timecode-display.png",
             format: RenderAssetFormat::PngRgba,
-            pixel_width: 1695,
-            pixel_height: 928,
+            pixel_width: 1230,
+            pixel_height: 364,
         },
         RenderAssetSpec {
             path: "assets/record/atomic/rec-button.png",
             format: RenderAssetFormat::PngRgba,
-            pixel_width: 1254,
-            pixel_height: 1254,
-        },
-        RenderAssetSpec {
-            path: "assets/record/atomic/take-card.png",
-            format: RenderAssetFormat::PngRgba,
-            pixel_width: 1024,
-            pixel_height: 1536,
+            pixel_width: 958,
+            pixel_height: 965,
         },
         RenderAssetSpec {
             path: "assets/effects/eq-rose-gold-clean-v2@2x.png",
@@ -5132,19 +5099,16 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
             decoded_handle!("../assets/cabs/greybound-2x12@2x.png", 1821, 864)
         }
         "assets/record/atomic/rack-chassis.png" => {
-            decoded_handle!("../assets/record/atomic/rack-chassis.png", 1983, 793)
+            decoded_handle!("../assets/record/atomic/rack-chassis.png", 1757, 425)
         }
         "assets/record/atomic/vu-meter.png" => {
-            decoded_handle!("../assets/record/atomic/vu-meter.png", 1536, 1024)
+            decoded_handle!("../assets/record/atomic/vu-meter.png", 1331, 705)
         }
         "assets/record/atomic/timecode-display.png" => {
-            decoded_handle!("../assets/record/atomic/timecode-display.png", 1695, 928)
+            decoded_handle!("../assets/record/atomic/timecode-display.png", 1230, 364)
         }
         "assets/record/atomic/rec-button.png" => {
-            decoded_handle!("../assets/record/atomic/rec-button.png", 1254, 1254)
-        }
-        "assets/record/atomic/take-card.png" => {
-            decoded_handle!("../assets/record/atomic/take-card.png", 1024, 1536)
+            decoded_handle!("../assets/record/atomic/rec-button.png", 958, 965)
         }
         "assets/effects/eq-rose-gold@2x.png" => {
             decoded_handle!("../assets/effects/eq-rose-gold@2x.png", 2816, 784)
@@ -6344,24 +6308,21 @@ struct RecordLayout {
     display: Rectangle,
     record_button: Rectangle,
     waveform: Rectangle,
-    take_card: Rectangle,
 }
 
 fn record_layout(size: Size) -> RecordLayout {
     let rack_width = (size.width * 0.61).clamp(720.0, 980.0);
-    let rack_height = rack_width * (793.0 / 1983.0);
-    let card_width = (rack_width * 0.20).clamp(154.0, 208.0);
-    let card_height = card_width * 1.5;
-    let total_width = rack_width + card_width + 42.0;
+    let rack_height = rack_width * (425.0 / 1757.0);
     let rack = Rectangle {
-        x: ((size.width - total_width) * 0.5).max(28.0),
+        x: ((size.width - rack_width) * 0.5).max(28.0),
         y: ((size.height - rack_height) * 0.5).max(34.0),
         width: rack_width,
         height: rack_height,
     };
-    let meter_width = rack.width * 0.205;
-    let meter_height = meter_width * (1024.0 / 1536.0);
-    let meter_y = rack.y + rack.height * 0.15;
+    let row_center_y = rack.y + rack.height * 0.45;
+    let meter_width = rack.width * 0.195;
+    let meter_height = meter_width * (705.0 / 1331.0);
+    let meter_y = row_center_y - meter_height * 0.5;
     let left_meter = Rectangle {
         x: rack.x + rack.width * 0.085,
         y: meter_y,
@@ -6373,31 +6334,24 @@ fn record_layout(size: Size) -> RecordLayout {
         ..left_meter
     };
     let display = Rectangle {
-        x: rack.x + rack.width * 0.47,
-        y: rack.y + rack.height * 0.20,
-        width: rack.width * 0.25,
-        height: rack.height * 0.20,
+        x: rack.x + rack.width * 0.53,
+        y: row_center_y - rack.height * 0.105,
+        width: rack.width * 0.21,
+        height: rack.height * 0.21,
     };
-    let button_size = rack.height * 0.35;
+    let button_size = rack.height * 0.31;
     let record_button = Rectangle {
-        x: rack.x + rack.width * 0.77,
-        y: rack.y + rack.height * 0.15,
+        x: rack.x + rack.width * 0.79,
+        y: row_center_y - button_size * 0.5,
         width: button_size,
         height: button_size,
     };
     let waveform = Rectangle {
-        x: rack.x + rack.width * 0.10,
-        y: rack.y + rack.height * 0.62,
-        width: rack.width * 0.78,
-        height: rack.height * 0.17,
+        x: rack.x + rack.width * 0.11,
+        y: rack.y + rack.height * 0.72,
+        width: rack.width * 0.75,
+        height: rack.height * 0.12,
     };
-    let take_card = Rectangle {
-        x: rack.x + rack.width + 42.0,
-        y: rack.y + (rack.height - card_height) * 0.5,
-        width: card_width,
-        height: card_height,
-    };
-
     RecordLayout {
         rack,
         left_meter,
@@ -6405,7 +6359,6 @@ fn record_layout(size: Size) -> RecordLayout {
         display,
         record_button,
         waveform,
-        take_card,
     }
 }
 
@@ -6920,9 +6873,6 @@ fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
 #[derive(Debug, Clone)]
 struct RecordArt {
     active: bool,
-    status: String,
-    take_name: String,
-    output_name: String,
     sample_rate: u32,
     output_left: f32,
     output_right: f32,
@@ -7018,8 +6968,8 @@ impl canvas::Program<Message> for RecordArt {
             Horizontal::Center,
         );
 
-        draw_record_vu_needle(&mut frame, layout.left_meter, self.output_left, GOLD);
-        draw_record_vu_needle(&mut frame, layout.right_meter, self.output_right, GOLD);
+        draw_record_vu_meter(&mut frame, layout.left_meter, self.output_left, "L");
+        draw_record_vu_meter(&mut frame, layout.right_meter, self.output_right, "R");
         draw_record_waveform(
             &mut frame,
             layout.waveform,
@@ -7027,23 +6977,15 @@ impl canvas::Program<Message> for RecordArt {
             self.output_right,
             self.active,
         );
-        draw_record_take_card(
-            &mut frame,
-            layout.take_card,
-            self.take_name.as_str(),
-            self.output_name.as_str(),
-            self.sample_rate,
-            self.status.as_str(),
-        );
-
         vec![frame.into_geometry()]
     }
 }
 
-fn draw_record_vu_needle(frame: &mut Frame, meter: Rectangle, level: f32, color: Color) {
-    let pivot = Point::new(meter.x + meter.width * 0.5, meter.y + meter.height * 0.70);
-    let angle = -2.55 + level.clamp(0.0, 1.0) * 2.00;
-    let length = meter.width.min(meter.height) * 0.34;
+fn draw_record_vu_meter(frame: &mut Frame, meter: Rectangle, level: f32, channel: &str) {
+    let pivot = Point::new(meter.x + meter.width * 0.5, meter.y + meter.height * 0.83);
+    let deflection = level.clamp(0.0, 1.0).powf(0.38);
+    let angle = -2.62 + deflection * 2.18;
+    let length = meter.width * 0.43;
     let tip = Point::new(
         pivot.x + angle.cos() * length,
         pivot.y + angle.sin() * length,
@@ -7051,10 +6993,45 @@ fn draw_record_vu_needle(frame: &mut Frame, meter: Rectangle, level: f32, color:
     frame.stroke(
         &Path::line(pivot, tip),
         Stroke::default()
-            .with_color(Color::from_rgba(color.r, color.g, color.b, 0.88))
-            .with_width(1.6),
+            .with_color(Color::from_rgba(0.18, 0.025, 0.018, 0.92))
+            .with_width(4.4),
     );
-    frame.fill(&Path::circle(pivot, 2.6), Color::from_rgb(0.10, 0.07, 0.04));
+    frame.stroke(
+        &Path::line(pivot, tip),
+        Stroke::default()
+            .with_color(Color::from_rgb(0.95, 0.16, 0.10))
+            .with_width(1.75),
+    );
+    frame.stroke(
+        &Path::line(
+            pivot,
+            Point::new(
+                pivot.x - angle.cos() * meter.width * 0.075,
+                pivot.y - angle.sin() * meter.width * 0.075,
+            ),
+        ),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.66, 0.08, 0.05, 0.86))
+            .with_width(2.0),
+    );
+    frame.fill(
+        &Path::circle(pivot, meter.height * 0.025),
+        Color::from_rgb(0.14, 0.045, 0.028),
+    );
+    frame.stroke(
+        &Path::circle(pivot, meter.height * 0.025),
+        Stroke::default()
+            .with_color(Color::from_rgba(0.94, 0.69, 0.38, 0.72))
+            .with_width(0.8),
+    );
+    draw_text(
+        frame,
+        channel,
+        Point::new(meter.x + meter.width * 0.5, meter.y + meter.height * 0.92),
+        (meter.height * 0.085).clamp(9.0, 14.0),
+        Color::from_rgba(0.17, 0.10, 0.05, 0.72),
+        Horizontal::Center,
+    );
 }
 
 fn draw_record_waveform(frame: &mut Frame, bounds: Rectangle, left: f32, right: f32, active: bool) {
@@ -7092,59 +7069,6 @@ fn draw_record_waveform(frame: &mut Frame, bounds: Rectangle, left: f32, right: 
                 Color::from_rgba(GOLD.r, GOLD.g, GOLD.b, 0.74)
             })
             .with_width(1.2),
-    );
-}
-
-fn draw_record_take_card(
-    frame: &mut Frame,
-    card: Rectangle,
-    take_name: &str,
-    output_name: &str,
-    sample_rate: u32,
-    status: &str,
-) {
-    let x = card.x + card.width * 0.50;
-    let dark_ink = Color::from_rgb(0.11, 0.10, 0.085);
-    let format_summary = format!("STEREO · {sample_rate} Hz");
-    draw_text(
-        frame,
-        "TAKE",
-        Point::new(x, card.y + card.height * 0.22),
-        (card.width * 0.095).clamp(10.0, 16.0),
-        dark_ink,
-        Horizontal::Center,
-    );
-    draw_text(
-        frame,
-        take_name,
-        Point::new(x, card.y + card.height * 0.34),
-        (card.width * 0.058).clamp(8.0, 11.0),
-        dark_ink,
-        Horizontal::Center,
-    );
-    draw_text(
-        frame,
-        output_name,
-        Point::new(x, card.y + card.height * 0.47),
-        (card.width * 0.052).clamp(7.0, 10.0),
-        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.76),
-        Horizontal::Center,
-    );
-    draw_text(
-        frame,
-        format_summary.as_str(),
-        Point::new(x, card.y + card.height * 0.58),
-        (card.width * 0.048).clamp(7.0, 9.0),
-        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.72),
-        Horizontal::Center,
-    );
-    draw_text(
-        frame,
-        status,
-        Point::new(x, card.y + card.height * 0.70),
-        (card.width * 0.046).clamp(7.0, 9.0),
-        Color::from_rgba(dark_ink.r, dark_ink.g, dark_ink.b, 0.68),
-        Horizontal::Center,
     );
 }
 
@@ -10857,32 +10781,26 @@ mod tests {
             RenderAssetSpec {
                 path: "assets/record/atomic/rack-chassis.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1983,
-                pixel_height: 793,
+                pixel_width: 1757,
+                pixel_height: 425,
             },
             RenderAssetSpec {
                 path: "assets/record/atomic/vu-meter.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1536,
-                pixel_height: 1024,
+                pixel_width: 1331,
+                pixel_height: 705,
             },
             RenderAssetSpec {
                 path: "assets/record/atomic/timecode-display.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1695,
-                pixel_height: 928,
+                pixel_width: 1230,
+                pixel_height: 364,
             },
             RenderAssetSpec {
                 path: "assets/record/atomic/rec-button.png",
                 format: RenderAssetFormat::PngRgba,
-                pixel_width: 1254,
-                pixel_height: 1254,
-            },
-            RenderAssetSpec {
-                path: "assets/record/atomic/take-card.png",
-                format: RenderAssetFormat::PngRgba,
-                pixel_width: 1024,
-                pixel_height: 1536,
+                pixel_width: 958,
+                pixel_height: 965,
             },
         ] {
             assert!(render_asset_handle(asset).is_some(), "{}", asset.path);
