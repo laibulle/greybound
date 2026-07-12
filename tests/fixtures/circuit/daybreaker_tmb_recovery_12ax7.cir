@@ -1,0 +1,75 @@
+* Daybreaker 50 low-plate classic TMB plus ECC83 recovery-stage fixture.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_tmb_recovery_12ax7.cir
+*
+* Scope:
+* - Project-owned post-TMB recovery hypothesis used to establish the electrical
+*   boundary before a runtime integration.
+* - The passive network has an explicit 38k source and 470k recovery-grid load.
+* - The recovery stage uses the existing project ECC83 common-cathode topology.
+* - Values are not attributed to the captured NAM or any Dumble revision.
+
+.param BRAW=280
+.param BASS=0.46
+.param MID=0.64
+.param TREBLE=0.70
+.param RSOURCE=38k
+.param RSLOPE=100k
+.param CTREBLE=250p
+.param CBASS=22n
+.param CMID=22n
+.param TREBLE_TAPER={pow(10, 2 * TREBLE - 2)}
+.param BASS_TAPER={pow(10, 2 * BASS - 2)}
+.param MID_TAPER={pow(10, 2 * MID - 2)}
+
+VRAW raw 0 DC {BRAW}
+RSUP raw bplus 12k
+CSUP bplus 0 22u IC={BRAW}
+
+VIN source 0 SIN(0 20m 1k)
+RSOURCE source input {RSOURCE}
+
+* Passive TMB network. The recovery grid leak is its downstream load.
+RSLOPE input tone {RSLOPE}
+CTREBLE input treble_top {CTREBLE}
+RTREBLE_TOP treble_top stack_output {1 + 1Meg * (1 - TREBLE_TAPER)}
+RTREBLE_BOTTOM stack_output 0 {1 + 1Meg * TREBLE_TAPER}
+CBASS tone bass_node {CBASS}
+RBASS bass_node 0 {1 + 1Meg * BASS_TAPER}
+CMID tone mid_node {CMID}
+RMID mid_node 0 {6.8k + 18.2k * MID_TAPER}
+
+* Recovery stage: AC coupling, grid return, 100k plate, 2.2k / 1u cathode.
+COUT stack_output grid 22n
+RGRID grid 0 470k
+RPLATE bplus plate 100k
+RK cath 0 2.2k
+CK cath 0 1u
+XTRIODE plate grid cath 12AX7_KOREN
+
+* Recovery plate coupling into the following 1M grid load. This is an explicit
+* AC boundary; the next stage must not receive the plate's DC operating point.
+CPLATE plate recovery_output 22n
+RRECOVERY_LOAD recovery_output 0 1Meg
+
+.save v(source) v(input) v(tone) v(stack_output) v(grid) v(plate) v(recovery_output) v(cath) v(bplus)
+
+.control
+set filetype=ascii
+op
+print v(plate) v(cath) v(bplus)
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_daybreaker_tmb_recovery_12ax7.dat v(source) v(input) v(tone) v(stack_output) v(grid) v(plate) v(recovery_output) v(cath) v(bplus)
+quit
+.endc
+
+* Koren-style triode approximation. This mirrors the existing project fixture.
+.subckt 12AX7_KOREN P G K
+.param MU=100 EX=1.4 KG1=1060 KP=600 KVB=300
+E1 n1 0 VALUE={ln(1 + exp(KP * (1 / MU + V(G,K) / max(V(P,K), 1)))) / KP}
+G1 P K VALUE={(V(P,K) / KG1) * pow(max(V(n1), 0), EX) * sqrt(max(V(P,K), 0) / KVB)}
+Cpk P K 1.7p
+Cgp G P 1.6p
+Cgk G K 1.6p
+.ends 12AX7_KOREN
+
+.end

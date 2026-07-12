@@ -1,0 +1,54 @@
+* Daybreaker source-informed SSS #002 High/Low filter-chain hypothesis.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_high_low_chain.cir
+*
+* The ASC routing places R79 between the High output node and the Low ladder.
+* Low is therefore a selectable shunt load, not an audio path in series. The
+* The source drawing has no switch-position override, so its subcircuit default
+* `POS=1` selects High-1 and Low-1 here. This is a drawing default, not proof
+* of the unknown NAM capture's settings.
+
+.param RSOURCE=100k
+.param RLOAD=1Meg
+
+* R5 is the preceding U4 plate load. The C6/R53/L2/R34/C37 network is
+* transcribed as drawn: C37 bypasses the R53 + L2 + R34 series branch.
+VIN source 0 AC 1
+RSOURCE source u4_plate {RSOURCE}
+C6 u4_plate pre_filter 10n
+C37 pre_filter high_input 1n
+R53 pre_filter r53_out 100k
+RL2 r53_out l2_series 59
+L2 l2_series l2_out 300m
+R34 l2_out high_input 470k
+C44 high_input 0 3n
+
+* Default High position 1 directly bypasses R70. Other positions are evaluated
+* by changing only this selected branch in a copied fixture.
+R70 high_input output 820k
+R71 output 0 100k
+RSW_HIGH high_input output 1
+CHIGH high_input output 1a
+RLOAD output 0 {RLOAD}
+
+* Default Low position 1 selects the top of the ladder. C45 bridges the ladder.
+R79 output low_common 270k
+RSW_LOW1 low_common low_0 1
+R72 low_0 low_1 39k
+R73 low_1 low_2 68k
+R74 low_2 low_3 100k
+R75 low_3 low_4 180k
+R76 low_4 low_5 270k
+R77 low_5 low_6 390k
+R78 low_6 0 12k
+C45 low_0 low_6 10n
+
+.save v(source) v(high_input) v(output) v(low_common)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_sss002_high_low_chain.dat mag(v(source)) mag(v(high_input)) mag(v(output)) mag(v(low_common))
+quit
+.endc
+
+.end

@@ -1,0 +1,45 @@
+* Daybreaker 50 post-tone presence / output-filter ngspice fixture.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_presence_filter.cir
+*
+* Scope:
+* - Project-owned high-filter hypothesis following the main tone network.
+* - 22k / 4.7n high-pass and 22k / 1.5n low-pass form a bounded presence band.
+* - The same 22k / 1.5n output pole represents transformer/leakage rolloff.
+* - Active recovery sums the full-band path and controlled presence-band path.
+*
+* This is not a Dumble schematic. The SSS reference family is reported to use
+* post-TMB high/low filters; these component values are an explicit first
+* Greybound hypothesis to validate against the amp-head NAM.
+
+.param PRESENCE=0.66
+.param RHP=22k
+.param CHP=4.7n
+.param RLP=22k
+.param CLP=1.5n
+.param HIGH_BLEND={0.18 + PRESENCE * 2.4}
+
+VIN in 0 AC 1
+
+* Transformer/leakage low-pass path.
+RTRANS in transformer 1
+RTRANS_LP transformer transformer_lp {RLP}
+CTRANS_LP transformer_lp 0 {CLP}
+
+* High filter: RC high-pass followed by RC low-pass, then active recovery.
+CHIGH transformer presence_hp {CHP}
+RHIGH presence_hp 0 {RHP}
+RPRES presence_hp presence_band {RLP}
+CPRES presence_band 0 {CLP}
+
+BOUT output 0 V={v(transformer_lp) + HIGH_BLEND * v(presence_band)}
+
+.save v(in) v(transformer_lp) v(presence_band) v(output)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_presence_filter.dat mag(v(in)) mag(v(transformer_lp)) mag(v(presence_band)) mag(v(output))
+quit
+.endc
+
+.end

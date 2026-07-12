@@ -17,6 +17,7 @@ pub(in crate::amp) struct Daybreaker50 {
     gain_bright_filter: OnePoleLowpass,
     recovery_coupling: WdfHighpass,
     phase_inverter_coupling: WdfHighpass,
+    presence_highpass: WdfHighpass,
     presence_filter: OnePoleLowpass,
     transformer_highpass: WdfHighpass,
     transformer_lowpass: OnePoleLowpass,
@@ -36,9 +37,10 @@ impl Daybreaker50 {
             gain_bright_filter: OnePoleLowpass::new(sample_rate, 3_100.0),
             recovery_coupling: WdfHighpass::from_rc(sample_rate, 330_000.0, 22e-9),
             phase_inverter_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
-            presence_filter: OnePoleLowpass::new(sample_rate, 3_800.0),
+            presence_highpass: WdfHighpass::from_rc(sample_rate, 22_000.0, 4.7e-9),
+            presence_filter: OnePoleLowpass::new(sample_rate, 4_823.0),
             transformer_highpass: WdfHighpass::from_rc(sample_rate, 100_000.0, 68e-9),
-            transformer_lowpass: OnePoleLowpass::new(sample_rate, 32_000.0),
+            transformer_lowpass: OnePoleLowpass::new(sample_rate, 4_823.0),
             bias_envelope: EnvelopeFollower::new(sample_rate, 0.016, 0.320),
             supply_sag: EnvelopeFollower::new(sample_rate, 0.042, 0.680),
             power_stage: PushPull6L6Stage::new(power_stage_params(sample_rate)),
@@ -66,13 +68,13 @@ impl AmpModel for Daybreaker50 {
 
     #[inline]
     fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
-        let input = self.input_coupling.process(input);
         let volume = controls.volume.clamp(0.0, 1.0);
         let edge = (controls.drive.clamp(0.0, 1.0) * 0.68
             + ((volume - 0.78) / 0.22).clamp(0.0, 1.0) * 0.32)
             .clamp(0.0, 1.0);
         let master = controls.output.clamp(0.0, 2.0);
 
+        let input = self.input_coupling.process(input);
         let first_bypass = self.first_cathode_bypass.process(input);
         let first_stage = triode_stage(input * 1.18 + first_bypass * 0.12, 0.105);
         let toned = self.tone_stack(first_stage, controls.bass, controls.cut, controls.treble);
@@ -89,11 +91,15 @@ impl AmpModel for Daybreaker50 {
             triode_stage(recovery * (1.04 + edge * 0.16), 0.050) * (0.34 + master * 0.72);
 
         let presence_amount = controls.presence.clamp(0.0, 1.0);
-        self.presence_filter
-            .set_cutoff(self.sample_rate, 1_300.0 + presence_amount * 4_600.0);
-        let presence_low = self.presence_filter.process(master_signal);
-        let presence_shaped =
-            presence_low + (master_signal - presence_low) * (0.26 + presence_amount * 0.58);
+        let presence_band = self
+            .presence_filter
+            .process(self.presence_highpass.process(master_signal));
+        // Active recovery after the post-tone High filter. The 22k / 4.7n
+        // high-pass and 22k / 1.5n low-pass boundaries are mirrored in the
+        // Daybreaker SPICE fixture; this gain is the controlled recovery ratio,
+        // not an EQ makeup trim.
+        let presence_recovery_gain = 0.18 + presence_amount * 2.4;
+        let presence_shaped = master_signal + presence_band * presence_recovery_gain;
 
         let pi_input = self
             .phase_inverter_coupling

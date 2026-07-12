@@ -73,6 +73,113 @@ class NoneStarTonePresenceSpiceMetrics:
 
 
 @dataclass(frozen=True)
+class DaybreakerPresenceFilterSpiceMetrics:
+    transformer_1khz_db: float
+    presence_band_1khz_db: float
+    output_1khz_db: float
+    output_4khz_db: float
+    output_8khz_db: float
+    output_16khz_db: float
+    output_minus_1khz_4khz_db: float
+    output_minus_1khz_16khz_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerClassicTmbSpiceMetrics:
+    input_1khz_db: float
+    output_100hz_db: float
+    output_250hz_db: float
+    output_1khz_db: float
+    output_4khz_db: float
+    output_8khz_db: float
+    output_16khz_db: float
+    output_minus_1khz_4khz_db: float
+    output_minus_1khz_16khz_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002HighLowSpiceMetrics:
+    high_100hz_db: tuple[float, ...]
+    high_1khz_db: tuple[float, ...]
+    high_8khz_db: tuple[float, ...]
+    high_8khz_minus_1khz_db: tuple[float, ...]
+    low_100hz_db: tuple[float, ...]
+    low_1khz_db: tuple[float, ...]
+    low_8khz_db: tuple[float, ...]
+    low_8khz_minus_1khz_db: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002HighLowChainSpiceMetrics:
+    output_100hz_db: float
+    output_1khz_db: float
+    output_8khz_db: float
+    output_16khz_db: float
+    output_minus_1khz_8khz_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002ToneDeepSpiceMetrics:
+    grid_100hz_db: float
+    grid_1khz_db: float
+    grid_8khz_db: float
+    grid_16khz_db: float
+    grid_minus_1khz_8khz_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002U37RecoverySpiceMetrics:
+    plate_dc_v: float
+    cathode_dc_v: float
+    bplus_dc_v: float
+    filter_output_rms_v: float
+    plate_rms_v: float
+    recovery_output_rms_v: float
+    plate_gain: float
+    plate_gain_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002U4PlateSpiceMetrics:
+    plate_dc_v: float
+    cathode_dc_v: float
+    hta_dc_v: float
+    grid_rms_v: float
+    plate_rms_v: float
+    output_rms_v: float
+    plate_gain: float
+    plate_gain_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerSss002U5VolumeU4SpiceMetrics:
+    plate_dc_v: float
+    cathode_dc_v: float
+    hta_dc_v: float
+    source_rms_v: float
+    wiper_rms_v: float
+    grid_rms_v: float
+    output_rms_v: float
+    wiper_gain: float
+    wiper_gain_db: float
+    plate_gain: float
+    plate_gain_db: float
+
+
+@dataclass(frozen=True)
+class DaybreakerTmbRecoverySpiceMetrics:
+    plate_dc_v: float
+    cathode_dc_v: float
+    bplus_dc_v: float
+    stack_output_rms_v: float
+    grid_rms_v: float
+    plate_rms_v: float
+    recovery_output_rms_v: float
+    plate_gain: float
+    plate_gain_db: float
+
+
+@dataclass(frozen=True)
 class CommonCathodeDatasetCase:
     stimulus_id: str
     kind: str
@@ -117,6 +224,76 @@ FIXTURES = {
         tmp_data_path=Path("/tmp/greybound_none_star_tone_presence.dat"),
         signals=("input", "tone", "output"),
     ),
+    "daybreaker-presence-filter": SpiceFixture(
+        name="daybreaker-presence-filter",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_presence_filter.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_presence_filter.dat"),
+        signals=("input", "transformer", "presence_band", "output"),
+    ),
+    "daybreaker-classic-tmb": SpiceFixture(
+        name="daybreaker-classic-tmb",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_classic_tmb.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_classic_tmb.dat"),
+        signals=("source", "input", "tone", "output"),
+    ),
+    "daybreaker-sss002-classic-tmb": SpiceFixture(
+        name="daybreaker-sss002-classic-tmb",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_classic_tmb.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_classic_tmb.dat"),
+        signals=("source", "input", "tone", "output"),
+    ),
+    "daybreaker-sss002-high-low-filters": SpiceFixture(
+        name="daybreaker-sss002-high-low-filters",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_high_low_filters.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_high_low_filters.dat"),
+        signals=(
+            "source",
+            "high_1", "high_2", "high_3", "high_4", "high_5", "high_6", "high_7",
+            "low_1", "low_2", "low_3", "low_4", "low_5", "low_6", "low_7",
+        ),
+    ),
+    "daybreaker-sss002-high-low-chain": SpiceFixture(
+        name="daybreaker-sss002-high-low-chain",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_high_low_chain.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_high_low_chain.dat"),
+        signals=("source", "high_input", "output", "low_common"),
+    ),
+    "daybreaker-sss002-tone-deep-asc": SpiceFixture(
+        name="daybreaker-sss002-tone-deep-asc",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_tone_deep_asc.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_tone_deep_asc.dat"),
+        signals=("source", "plate", "tone_source", "treble_wiper", "bass_wiper", "u5_input", "volume_wiper", "grid"),
+    ),
+    "daybreaker-sss002-tone-deep-layout": SpiceFixture(
+        name="daybreaker-sss002-tone-deep-layout",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_tone_deep_layout.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_tone_deep_layout.dat"),
+        signals=("source", "plate", "tone_source", "treble_wiper", "bass_wiper", "u5_input", "volume_wiper", "grid"),
+    ),
+    "daybreaker-sss002-high-low-u37-recovery": SpiceFixture(
+        name="daybreaker-sss002-high-low-u37-recovery",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_high_low_u37_recovery.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_high_low_u37_recovery.dat"),
+        signals=("source", "high_input", "filter_output", "plate", "cath", "recovery_output", "bplus"),
+    ),
+    "daybreaker-sss002-u4-plate-stage": SpiceFixture(
+        name="daybreaker-sss002-u4-plate-stage",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_u4_plate_stage.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_u4_plate_stage.dat"),
+        signals=("source", "grid", "plate", "cath", "output", "hta"),
+    ),
+    "daybreaker-sss002-u5-volume-u4": SpiceFixture(
+        name="daybreaker-sss002-u5-volume-u4",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_sss002_u5_volume_u4.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_sss002_u5_volume_u4.dat"),
+        signals=("source", "wiper", "grid", "plate", "cath", "output", "hta"),
+    ),
+    "daybreaker-tmb-recovery-12ax7": SpiceFixture(
+        name="daybreaker-tmb-recovery-12ax7",
+        netlist_path=Path("tests/fixtures/circuit/daybreaker_tmb_recovery_12ax7.cir"),
+        tmp_data_path=Path("/tmp/greybound_daybreaker_tmb_recovery_12ax7.dat"),
+        signals=("source", "input", "tone", "stack_output", "grid", "plate", "recovery_output", "cath", "bplus"),
+    ),
 }
 
 
@@ -144,6 +321,33 @@ def run_spice_fixture(name: str, output_dir: Path, repo_root: Path) -> tuple[Pat
     elif fixture.name == "none-star-tone-presence":
         metrics = none_star_tone_presence_metrics(trace)
         write_none_star_tone_presence_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-presence-filter":
+        metrics = daybreaker_presence_filter_metrics(trace)
+        write_daybreaker_presence_filter_report(report_path, fixture, data_path, metrics)
+    elif fixture.name in {"daybreaker-classic-tmb", "daybreaker-sss002-classic-tmb"}:
+        metrics = daybreaker_classic_tmb_metrics(trace)
+        write_daybreaker_classic_tmb_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-sss002-high-low-filters":
+        metrics = daybreaker_sss002_high_low_metrics(trace)
+        write_daybreaker_sss002_high_low_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-sss002-high-low-chain":
+        metrics = daybreaker_sss002_high_low_chain_metrics(trace)
+        write_daybreaker_sss002_high_low_chain_report(report_path, fixture, data_path, metrics)
+    elif fixture.name in {"daybreaker-sss002-tone-deep-asc", "daybreaker-sss002-tone-deep-layout"}:
+        metrics = daybreaker_sss002_tone_deep_metrics(trace)
+        write_daybreaker_sss002_tone_deep_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-sss002-high-low-u37-recovery":
+        metrics = daybreaker_sss002_u37_recovery_metrics(trace)
+        write_daybreaker_sss002_u37_recovery_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-sss002-u4-plate-stage":
+        metrics = daybreaker_sss002_u4_plate_metrics(trace)
+        write_daybreaker_sss002_u4_plate_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-sss002-u5-volume-u4":
+        metrics = daybreaker_sss002_u5_volume_u4_metrics(trace)
+        write_daybreaker_sss002_u5_volume_u4_report(report_path, fixture, data_path, metrics)
+    elif fixture.name == "daybreaker-tmb-recovery-12ax7":
+        metrics = daybreaker_tmb_recovery_metrics(trace)
+        write_daybreaker_tmb_recovery_report(report_path, fixture, data_path, metrics)
     else:
         raise ValueError(f"no report writer for {fixture.name}")
     return data_path, report_path
@@ -1127,6 +1331,264 @@ def none_star_tone_presence_metrics(trace: SpiceTrace) -> NoneStarTonePresenceSp
     )
 
 
+def daybreaker_presence_filter_metrics(trace: SpiceTrace) -> DaybreakerPresenceFilterSpiceMetrics:
+    frequencies = trace.time_s
+    if np.any(frequencies <= 0.0):
+        raise ValueError("Daybreaker presence-filter AC trace requires positive frequency values")
+
+    input_mag = np.maximum(trace.signals["input"], 1.0e-12)
+    transformer_mag = np.maximum(trace.signals["transformer"], 1.0e-12)
+    presence_mag = np.maximum(trace.signals["presence_band"], 1.0e-12)
+    output_mag = np.maximum(trace.signals["output"], 1.0e-12)
+    transformer_gain_db = 20.0 * np.log10(transformer_mag / input_mag)
+    presence_gain_db = 20.0 * np.log10(presence_mag / input_mag)
+    output_gain_db = 20.0 * np.log10(output_mag / input_mag)
+
+    def at_hz(values: np.ndarray, frequency_hz: float) -> float:
+        return float(np.interp(np.log10(frequency_hz), np.log10(frequencies), values))
+
+    output_1khz = at_hz(output_gain_db, 1_000.0)
+    output_4khz = at_hz(output_gain_db, 4_000.0)
+    output_16khz = at_hz(output_gain_db, 16_000.0)
+    return DaybreakerPresenceFilterSpiceMetrics(
+        transformer_1khz_db=at_hz(transformer_gain_db, 1_000.0),
+        presence_band_1khz_db=at_hz(presence_gain_db, 1_000.0),
+        output_1khz_db=output_1khz,
+        output_4khz_db=output_4khz,
+        output_8khz_db=at_hz(output_gain_db, 8_000.0),
+        output_16khz_db=output_16khz,
+        output_minus_1khz_4khz_db=output_4khz - output_1khz,
+        output_minus_1khz_16khz_db=output_16khz - output_1khz,
+    )
+
+
+def daybreaker_classic_tmb_metrics(trace: SpiceTrace) -> DaybreakerClassicTmbSpiceMetrics:
+    frequencies = trace.time_s
+    if np.any(frequencies <= 0.0):
+        raise ValueError("Daybreaker classic-TMB AC trace requires positive frequency values")
+
+    source_mag = np.maximum(trace.signals["source"], 1.0e-12)
+    input_mag = np.maximum(trace.signals["input"], 1.0e-12)
+    output_mag = np.maximum(trace.signals["output"], 1.0e-12)
+    input_gain_db = 20.0 * np.log10(input_mag / source_mag)
+    output_gain_db = 20.0 * np.log10(output_mag / source_mag)
+
+    def at_hz(values: np.ndarray, frequency_hz: float) -> float:
+        return float(np.interp(np.log10(frequency_hz), np.log10(frequencies), values))
+
+    output_1khz = at_hz(output_gain_db, 1_000.0)
+    output_4khz = at_hz(output_gain_db, 4_000.0)
+    output_16khz = at_hz(output_gain_db, 16_000.0)
+    return DaybreakerClassicTmbSpiceMetrics(
+        input_1khz_db=at_hz(input_gain_db, 1_000.0),
+        output_100hz_db=at_hz(output_gain_db, 100.0),
+        output_250hz_db=at_hz(output_gain_db, 250.0),
+        output_1khz_db=output_1khz,
+        output_4khz_db=output_4khz,
+        output_8khz_db=at_hz(output_gain_db, 8_000.0),
+        output_16khz_db=output_16khz,
+        output_minus_1khz_4khz_db=output_4khz - output_1khz,
+        output_minus_1khz_16khz_db=output_16khz - output_1khz,
+    )
+
+
+def daybreaker_sss002_high_low_metrics(trace: SpiceTrace) -> DaybreakerSss002HighLowSpiceMetrics:
+    frequencies = trace.time_s
+    if np.any(frequencies <= 0.0):
+        raise ValueError("Daybreaker SSS #002 High/Low AC trace requires positive frequency values")
+
+    source_mag = np.maximum(trace.signals["source"], 1.0e-12)
+
+    def gains(prefix: str) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        values = []
+        for index in range(1, 8):
+            magnitude = np.maximum(trace.signals[f"{prefix}_{index}"], 1.0e-12)
+            response_db = 20.0 * np.log10(magnitude / source_mag)
+            at_hz = lambda frequency_hz: float(
+                np.interp(np.log10(frequency_hz), np.log10(frequencies), response_db)
+            )
+            at_100hz = at_hz(100.0)
+            at_1khz = at_hz(1_000.0)
+            at_8khz = at_hz(8_000.0)
+            values.append((at_100hz, at_1khz, at_8khz, at_8khz - at_1khz))
+        return tuple(tuple(row[column] for row in values) for column in range(4))
+
+    high_100hz, high_1khz, high_8khz, high_tilt = gains("high")
+    low_100hz, low_1khz, low_8khz, low_tilt = gains("low")
+    return DaybreakerSss002HighLowSpiceMetrics(
+        high_100hz_db=high_100hz,
+        high_1khz_db=high_1khz,
+        high_8khz_db=high_8khz,
+        high_8khz_minus_1khz_db=high_tilt,
+        low_100hz_db=low_100hz,
+        low_1khz_db=low_1khz,
+        low_8khz_db=low_8khz,
+        low_8khz_minus_1khz_db=low_tilt,
+    )
+
+
+def daybreaker_sss002_high_low_chain_metrics(
+    trace: SpiceTrace,
+) -> DaybreakerSss002HighLowChainSpiceMetrics:
+    frequencies = trace.time_s
+    if np.any(frequencies <= 0.0):
+        raise ValueError("Daybreaker SSS #002 High/Low chain AC trace requires positive frequency values")
+
+    source_mag = np.maximum(trace.signals["source"], 1.0e-12)
+    output_mag = np.maximum(trace.signals["output"], 1.0e-12)
+    output_gain_db = 20.0 * np.log10(output_mag / source_mag)
+
+    def at_hz(frequency_hz: float) -> float:
+        return float(np.interp(np.log10(frequency_hz), np.log10(frequencies), output_gain_db))
+
+    output_1khz = at_hz(1_000.0)
+    output_8khz = at_hz(8_000.0)
+    return DaybreakerSss002HighLowChainSpiceMetrics(
+        output_100hz_db=at_hz(100.0),
+        output_1khz_db=output_1khz,
+        output_8khz_db=output_8khz,
+        output_16khz_db=at_hz(16_000.0),
+        output_minus_1khz_8khz_db=output_8khz - output_1khz,
+    )
+
+
+def daybreaker_sss002_tone_deep_metrics(trace: SpiceTrace) -> DaybreakerSss002ToneDeepSpiceMetrics:
+    frequencies = trace.time_s
+    source_magnitude = np.maximum(trace.signals["source"], 1.0e-12)
+    grid_magnitude = np.maximum(trace.signals["grid"], 1.0e-12)
+    grid_gain_db = 20.0 * np.log10(grid_magnitude / source_magnitude)
+
+    def at_hz(frequency_hz: float) -> float:
+        return float(np.interp(np.log10(frequency_hz), np.log10(frequencies), grid_gain_db))
+
+    grid_1khz_db = at_hz(1_000.0)
+    grid_8khz_db = at_hz(8_000.0)
+    return DaybreakerSss002ToneDeepSpiceMetrics(
+        grid_100hz_db=at_hz(100.0),
+        grid_1khz_db=grid_1khz_db,
+        grid_8khz_db=grid_8khz_db,
+        grid_16khz_db=at_hz(16_000.0),
+        grid_minus_1khz_8khz_db=grid_8khz_db - grid_1khz_db,
+    )
+
+
+def daybreaker_sss002_u37_recovery_metrics(
+    trace: SpiceTrace,
+    settle_time_s: float = 0.080,
+) -> DaybreakerSss002U37RecoverySpiceMetrics:
+    mask = trace.time_s >= settle_time_s
+    if not np.any(mask):
+        raise ValueError("Daybreaker SSS #002 U37 trace is too short for settled metrics")
+
+    filter_output = trace.signals["filter_output"][mask]
+    plate = trace.signals["plate"][mask]
+    recovery_output = trace.signals["recovery_output"][mask]
+    cathode = trace.signals["cath"][mask]
+    bplus = trace.signals["bplus"][mask]
+    filter_output_rms = rms(_remove_dc(filter_output))
+    plate_rms = rms(_remove_dc(plate))
+    return DaybreakerSss002U37RecoverySpiceMetrics(
+        plate_dc_v=float(np.mean(plate)),
+        cathode_dc_v=float(np.mean(cathode)),
+        bplus_dc_v=float(np.mean(bplus)),
+        filter_output_rms_v=filter_output_rms,
+        plate_rms_v=plate_rms,
+        recovery_output_rms_v=rms(_remove_dc(recovery_output)),
+        plate_gain=plate_rms / max(filter_output_rms, 1.0e-12),
+        plate_gain_db=linear_to_db(plate_rms / max(filter_output_rms, 1.0e-12)),
+    )
+
+
+def daybreaker_sss002_u4_plate_metrics(
+    trace: SpiceTrace,
+    settle_time_s: float = 0.080,
+) -> DaybreakerSss002U4PlateSpiceMetrics:
+    mask = trace.time_s >= settle_time_s
+    if not np.any(mask):
+        raise ValueError("Daybreaker SSS #002 U4 trace is too short for settled metrics")
+
+    grid = trace.signals["grid"][mask]
+    plate = trace.signals["plate"][mask]
+    output = trace.signals["output"][mask]
+    cathode = trace.signals["cath"][mask]
+    hta = trace.signals["hta"][mask]
+    grid_rms = rms(_remove_dc(grid))
+    plate_rms = rms(_remove_dc(plate))
+    return DaybreakerSss002U4PlateSpiceMetrics(
+        plate_dc_v=float(np.mean(plate)),
+        cathode_dc_v=float(np.mean(cathode)),
+        hta_dc_v=float(np.mean(hta)),
+        grid_rms_v=grid_rms,
+        plate_rms_v=plate_rms,
+        output_rms_v=rms(_remove_dc(output)),
+        plate_gain=plate_rms / max(grid_rms, 1.0e-12),
+        plate_gain_db=linear_to_db(plate_rms / max(grid_rms, 1.0e-12)),
+    )
+
+
+def daybreaker_sss002_u5_volume_u4_metrics(
+    trace: SpiceTrace,
+    settle_time_s: float = 0.080,
+) -> DaybreakerSss002U5VolumeU4SpiceMetrics:
+    mask = trace.time_s >= settle_time_s
+    if not np.any(mask):
+        raise ValueError("Daybreaker SSS #002 U5/U4 trace is too short for settled metrics")
+
+    source = trace.signals["source"][mask]
+    wiper = trace.signals["wiper"][mask]
+    grid = trace.signals["grid"][mask]
+    plate = trace.signals["plate"][mask]
+    output = trace.signals["output"][mask]
+    cathode = trace.signals["cath"][mask]
+    hta = trace.signals["hta"][mask]
+    source_rms = rms(_remove_dc(source))
+    wiper_rms = rms(_remove_dc(wiper))
+    grid_rms = rms(_remove_dc(grid))
+    plate_rms = rms(_remove_dc(plate))
+    return DaybreakerSss002U5VolumeU4SpiceMetrics(
+        plate_dc_v=float(np.mean(plate)),
+        cathode_dc_v=float(np.mean(cathode)),
+        hta_dc_v=float(np.mean(hta)),
+        source_rms_v=source_rms,
+        wiper_rms_v=wiper_rms,
+        grid_rms_v=grid_rms,
+        output_rms_v=rms(_remove_dc(output)),
+        wiper_gain=wiper_rms / max(source_rms, 1.0e-12),
+        wiper_gain_db=linear_to_db(wiper_rms / max(source_rms, 1.0e-12)),
+        plate_gain=plate_rms / max(grid_rms, 1.0e-12),
+        plate_gain_db=linear_to_db(plate_rms / max(grid_rms, 1.0e-12)),
+    )
+
+
+def daybreaker_tmb_recovery_metrics(
+    trace: SpiceTrace,
+    settle_time_s: float = 0.060,
+) -> DaybreakerTmbRecoverySpiceMetrics:
+    mask = trace.time_s >= settle_time_s
+    if not np.any(mask):
+        raise ValueError("Daybreaker TMB-recovery trace is too short for settled metrics")
+
+    stack_output = trace.signals["stack_output"][mask]
+    grid = trace.signals["grid"][mask]
+    plate = trace.signals["plate"][mask]
+    recovery_output = trace.signals["recovery_output"][mask]
+    cathode = trace.signals["cath"][mask]
+    bplus = trace.signals["bplus"][mask]
+    stack_output_rms = rms(_remove_dc(stack_output))
+    plate_rms = rms(_remove_dc(plate))
+    return DaybreakerTmbRecoverySpiceMetrics(
+        plate_dc_v=float(np.mean(plate)),
+        cathode_dc_v=float(np.mean(cathode)),
+        bplus_dc_v=float(np.mean(bplus)),
+        stack_output_rms_v=stack_output_rms,
+        grid_rms_v=rms(_remove_dc(grid)),
+        plate_rms_v=plate_rms,
+        recovery_output_rms_v=rms(_remove_dc(recovery_output)),
+        plate_gain=plate_rms / max(stack_output_rms, 1.0e-12),
+        plate_gain_db=linear_to_db(plate_rms / max(stack_output_rms, 1.0e-12)),
+    )
+
+
 def write_common_cathode_report(
     path: Path,
     fixture: SpiceFixture,
@@ -1219,6 +1681,480 @@ Gains are relative to the 1 V AC input source.
 Use this fixture as a regression guard for the current component-level
 hypothesis. It is useful if a future change accidentally turns the None Star
 presence control back into a passive high-frequency attenuation stage.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_presence_filter_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerPresenceFilterSpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice batch AC sweep
+
+## Circuit Scope
+
+This project-owned fixture isolates the Daybreaker post-tone high-filter and
+transformer-rolloff hypothesis. It is not a Dumble schematic. The filter uses a
+`22 kOhm / 4.7 nF` high-pass followed by a `22 kOhm / 1.5 nF` low-pass presence
+band, summed through an active recovery path with the transformer low-pass.
+
+The hypothesis is useful only if it moves the NAM comparison toward more
+1-8 kHz energy while reducing excess 8-18 kHz air without a global EQ change.
+
+## AC Sweep
+
+Gains are relative to the 1 V AC input source.
+
+| Frequency / Metric | Gain |
+| --- | ---: |
+| Transformer path at 1 kHz | {metrics.transformer_1khz_db:.2f} dB |
+| Presence band at 1 kHz | {metrics.presence_band_1khz_db:.2f} dB |
+| Output at 1 kHz | {metrics.output_1khz_db:.2f} dB |
+| Output at 4 kHz | {metrics.output_4khz_db:.2f} dB |
+| Output at 8 kHz | {metrics.output_8khz_db:.2f} dB |
+| Output at 16 kHz | {metrics.output_16khz_db:.2f} dB |
+| 4 kHz minus 1 kHz output tilt | {metrics.output_minus_1khz_4khz_db:.2f} dB |
+| 16 kHz minus 1 kHz output tilt | {metrics.output_minus_1khz_16khz_db:.2f} dB |
+
+## Engineering Notes
+
+Promote this cell only when the matching Rust implementation improves the fixed
+Daybreaker-vs-NAM report and preserves clean monitor health. Otherwise retain
+the fixture as a rejected hypothesis and move to the next component.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_classic_tmb_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerClassicTmbSpiceMetrics,
+) -> None:
+    source_note = (
+        "This project-owned fixture uses a `38 kOhm` plate-source boundary, `470 kOhm` "
+        "recovery-grid load, `100 kOhm` slope resistor, `250 pF` treble capacitor, "
+        "and `22 nF` bass/mid capacitors."
+        if fixture.name == "daybreaker-classic-tmb"
+        else "This source-informed SSS #002 hypothesis uses a `68 kOhm` plate-source "
+        "boundary, `470 kOhm` recovery-grid load, `100 kOhm` slope resistor, `250 pF` "
+        "treble capacitor, `100 nF` bass capacitor, `47 nF` mid capacitor, `250 kOhm` "
+        "bass/treble pots, and `100 kOhm` mid pot."
+    )
+    source_resistance = "38 kOhm" if fixture.name == "daybreaker-classic-tmb" else "68 kOhm"
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice batch AC sweep
+
+## Circuit Scope
+
+This is Greybound's source/load-aware low-plate classic TMB hypothesis for the
+Daybreaker. {source_note} These values establish a reproducible implementation
+boundary; they are not proof of the NAM source revision.
+
+## AC Sweep
+
+Gains are relative to the 1 V source before the `{source_resistance}` source resistance.
+
+| Frequency / Metric | Gain |
+| --- | ---: |
+| Tone-stack input at 1 kHz | {metrics.input_1khz_db:.2f} dB |
+| Output at 100 Hz | {metrics.output_100hz_db:.2f} dB |
+| Output at 250 Hz | {metrics.output_250hz_db:.2f} dB |
+| Output at 1 kHz | {metrics.output_1khz_db:.2f} dB |
+| Output at 4 kHz | {metrics.output_4khz_db:.2f} dB |
+| Output at 8 kHz | {metrics.output_8khz_db:.2f} dB |
+| Output at 16 kHz | {metrics.output_16khz_db:.2f} dB |
+| 4 kHz minus 1 kHz output tilt | {metrics.output_minus_1khz_4khz_db:.2f} dB |
+| 16 kHz minus 1 kHz output tilt | {metrics.output_minus_1khz_16khz_db:.2f} dB |
+
+## Engineering Notes
+
+The deliberate insertion loss must be recovered by a downstream gain stage;
+do not normalize it inside this cell. Promote the matching runtime component
+only if fixed-control, fixed-stimulus Rust and NAM checks agree with this AC
+reference and preserve monitor health.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_high_low_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002HighLowSpiceMetrics,
+) -> None:
+    def rows(
+        at_100hz: tuple[float, ...],
+        at_1khz: tuple[float, ...],
+        at_8khz: tuple[float, ...],
+        tilt: tuple[float, ...],
+    ) -> str:
+        return "\n".join(
+            f"| {index} | {at_100hz[index - 1]:.2f} dB | {at_1khz[index - 1]:.2f} dB | "
+            f"{at_8khz[index - 1]:.2f} dB | {tilt[index - 1]:+.2f} dB |"
+            for index in range(1, 8)
+        )
+
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice batch AC sweep
+
+## Circuit Scope
+
+This is a component-routing reference transcribed from the public SSS #002
+drawing. It is not a Dumble production schematic and does not identify the NAM
+capture's switch positions, tube operating points, or source/load impedances.
+
+Each High and Low position is measured as an isolated copy so that the other
+six measurement loads cannot alter its transfer. The explicit 1 kOhm source
+and 1 MOhm load are fixture boundaries, not inferred amplifier values.
+
+High position 1 directly bypasses `R70`; positions 2 through 7 select `C39`,
+`C40`, `C41`, `C42`, `C43`, and `C38`, respectively. `C44 = 3 nF` remains a
+fixed shunt. Low position 1 through 7 select successive taps on `R72..R78`;
+`C45 = 10 nF` spans the top and bottom of that ladder.
+
+## High Switch Sweep
+
+Gains are relative to the 1 V AC fixture source.
+
+| Position | 100 Hz | 1 kHz | 8 kHz | 8 kHz minus 1 kHz |
+| ---: | ---: | ---: | ---: | ---: |
+{rows(metrics.high_100hz_db, metrics.high_1khz_db, metrics.high_8khz_db, metrics.high_8khz_minus_1khz_db)}
+
+## Low Switch Sweep
+
+| Position | 100 Hz | 1 kHz | 8 kHz | 8 kHz minus 1 kHz |
+| ---: | ---: | ---: | ---: | ---: |
+{rows(metrics.low_100hz_db, metrics.low_1khz_db, metrics.low_8khz_db, metrics.low_8khz_minus_1khz_db)}
+
+## Engineering Notes
+
+This fixture is evidence for the individual switch-network topology and its
+relative response only. Do not promote a position into the runtime model until
+the position is justified by reference capture settings or a whole-rig NAM
+comparison with the neighboring tube/load boundary held fixed.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_high_low_chain_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002HighLowChainSpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice batch AC sweep
+
+## Circuit Scope
+
+This project-owned fixture traces the source drawing's relevant connection:
+the High output remains the audio output and `R79` feeds the selected Low
+ladder as a shunt load. The source drawing does not override the rotary
+subcircuit's `POS=1` default, so this fixture uses High position 1 (the direct
+`R70` bypass) and Low position 1 (the ladder top). Those are drawing defaults,
+not claimed NAM capture settings.
+
+The source uses U4's `R5 = 100 kOhm` plate-load boundary, followed by the
+drawn C6/R53/L2/R34/C37 network; the output uses an explicit 1 MOhm load. This
+still excludes the triode's finite plate resistance, bias point, and all other
+tube stages.
+
+## AC Sweep
+
+Gains are relative to the 1 V AC fixture source.
+
+| Frequency / Metric | Output gain |
+| --- | ---: |
+| 100 Hz | {metrics.output_100hz_db:.2f} dB |
+| 1 kHz | {metrics.output_1khz_db:.2f} dB |
+| 8 kHz | {metrics.output_8khz_db:.2f} dB |
+| 16 kHz | {metrics.output_16khz_db:.2f} dB |
+| 8 kHz minus 1 kHz tilt | {metrics.output_minus_1khz_8khz_db:+.2f} dB |
+
+## Engineering Notes
+
+Use this chain as the integration reference, not the isolated High or Low
+position sweeps. A runtime default remains unjustified until the capture's
+switch settings or the adjoining physical stage boundary are evidenced.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_tone_deep_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002ToneDeepSpiceMetrics,
+) -> None:
+    revision = "ASC values" if fixture.name.endswith("-asc") else "public-layout values"
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice AC sweep
+
+## Circuit Scope
+
+This is the SSS #002 U2/U3/U5 and U34/U35 tone/Deep branch using the ASC wire
+topology and its executable defaults (`GUITARMIC = 1`, `DEEP = 0`). This report
+uses the distinct **{revision}** candidate. It does not select a NAM setting,
+claim a hardware revision, or authorize a runtime port.
+
+## AC Response at U4 Grid Boundary
+
+Gains are relative to the fixture's 1 V AC source with its explicit 100 kOhm
+plate-source boundary and 1 GOhm U4-grid measurement load.
+
+| Frequency / Metric | Grid gain |
+| --- | ---: |
+| 100 Hz | {metrics.grid_100hz_db:.2f} dB |
+| 1 kHz | {metrics.grid_1khz_db:.2f} dB |
+| 8 kHz | {metrics.grid_8khz_db:.2f} dB |
+| 16 kHz | {metrics.grid_16khz_db:.2f} dB |
+| 8 kHz minus 1 kHz tilt | {metrics.grid_minus_1khz_8khz_db:+.2f} dB |
+
+## Engineering Notes
+
+Compare this report only with the other discrete revision candidate. Do not mix
+values across the ASC and public-layout sources; their disagreement is large
+enough to change both the midband level and the spectrum materially.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_u4_plate_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002U4PlateSpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice operating point and settled 1 kHz transient
+
+## Circuit Scope
+
+This fixture isolates U4 before the C6/High-Low network: `R5 = 100 kOhm`,
+`R4/C5 = 1.5 kOhm / 5 uF`, `R69 = 68 kOhm`, and `C6 = 10 nF`. `HT-A = 440 V`
+follows the source drawing's V1. The 1 Mohm grid return and following load are
+explicit measurement boundaries for the unresolved U5 volume-pot interaction.
+
+## Operating Point and Settled Response
+
+The source is a 20 mV-peak 1 kHz sine. AC metrics exclude the first 80 ms.
+
+| Metric | Value |
+| --- | ---: |
+| Plate DC | {metrics.plate_dc_v:.3f} V |
+| Cathode DC | {metrics.cathode_dc_v:.3f} V |
+| HT-A DC | {metrics.hta_dc_v:.3f} V |
+| Grid RMS | {metrics.grid_rms_v * 1000.0:.3f} mV |
+| Plate RMS after DC removal | {metrics.plate_rms_v * 1000.0:.3f} mV |
+| C6 output RMS | {metrics.output_rms_v * 1000.0:.3f} mV |
+| Plate gain relative to grid | {metrics.plate_gain:.2f}x |
+| Plate gain | {metrics.plate_gain_db:.2f} dB |
+
+## Engineering Notes
+
+Use this cell to establish the plate-side source seen by the following passive
+network. Do not infer the U5 pot setting or a normalized audio gain from it.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_u5_volume_u4_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002U5VolumeU4SpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice operating point and settled 1 kHz transient
+
+## Circuit Scope
+
+This fixture replaces U4's provisional 1 Mohm grid-return measurement boundary
+with the source drawing's U5 volume control. U5 is `pot_pow`, `Rtot = 1 Mohm`,
+`Rtap = 100 kOhm`, `tap = 0.5`, and the drawing's explicit `VOL = 0.5`; that
+is a 900 kOhm source-to-wiper leg and a 100 kOhm wiper-to-ground leg. The wiper
+feeds the drawn `R69 = 68 kOhm` grid series resistor.
+
+The ideal source at U5's top is still a declared pre-volume measurement
+boundary. This establishes the U5/U4 component behavior, not the complete
+loaded U5 boundary: R65 returns from U5's wiper into the switchable Deep
+network, while U2/U3 form the actual source network. It does not claim the
+upstream tone-stack source impedance or a NAM capture volume setting.
+
+## Operating Point and Settled Response
+
+The source is a 20 mV-peak 1 kHz sine. AC metrics exclude the first 80 ms.
+
+| Metric | Value |
+| --- | ---: |
+| Plate DC | {metrics.plate_dc_v:.3f} V |
+| Cathode DC | {metrics.cathode_dc_v:.3f} V |
+| HT-A DC | {metrics.hta_dc_v:.3f} V |
+| Source RMS | {metrics.source_rms_v * 1000.0:.3f} mV |
+| U5 wiper RMS | {metrics.wiper_rms_v * 1000.0:.3f} mV |
+| U4 grid RMS | {metrics.grid_rms_v * 1000.0:.3f} mV |
+| C6 output RMS | {metrics.output_rms_v * 1000.0:.3f} mV |
+| U5 wiper gain | {metrics.wiper_gain:.4f}x |
+| U5 wiper gain | {metrics.wiper_gain_db:.2f} dB |
+| U4 plate gain relative to grid | {metrics.plate_gain:.2f}x |
+| U4 plate gain | {metrics.plate_gain_db:.2f} dB |
+
+## Engineering Notes
+
+This supersedes the standalone U4 fixture's arbitrary grid-return boundary for
+the drawing-default `VOL = 0.5` condition. It remains a component-level port
+until the upstream tone-stack output impedance is traced and represented.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_sss002_u37_recovery_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerSss002U37RecoverySpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice operating point and settled 1 kHz transient
+
+## Circuit Scope
+
+This fixture joins the High-1/Low-1 drawing-default filter chain to U37: the
+drawing's Sylvania 7025 common-cathode stage with `R80 = 100 kOhm` and
+`R81/C46 = 1 kOhm / 1 uF`. It uses the `R5 = 100 kOhm` plate-source boundary plus the
+drawn C6/R53/L2/R34/C37 network. `HT4 =
+300 V` and the following `470 kOhm` load are explicit hypotheses, not NAM
+capture facts.
+
+## Operating Point and Settled Response
+
+The source is a 20 mV-peak 1 kHz sine. AC metrics exclude the first 80 ms.
+
+| Metric | Value |
+| --- | ---: |
+| Plate DC | {metrics.plate_dc_v:.3f} V |
+| Cathode DC | {metrics.cathode_dc_v:.3f} V |
+| B+ DC | {metrics.bplus_dc_v:.3f} V |
+| Filter output RMS | {metrics.filter_output_rms_v * 1000.0:.3f} mV |
+| Plate RMS after DC removal | {metrics.plate_rms_v * 1000.0:.3f} mV |
+| Coupled recovery output RMS | {metrics.recovery_output_rms_v * 1000.0:.3f} mV |
+| Plate gain relative to filter output | {metrics.plate_gain:.2f}x |
+| Plate gain | {metrics.plate_gain_db:.2f} dB |
+
+## Engineering Notes
+
+This verifies that the passive network's insertion loss is followed by a real
+gain stage. Establish the HT4 rail and following-stage load more strongly
+before using the fixture to set normalized runtime gain or nonlinear drive.
+""",
+        encoding="utf-8",
+    )
+
+
+def write_daybreaker_tmb_recovery_report(
+    path: Path,
+    fixture: SpiceFixture,
+    data_path: Path,
+    metrics: DaybreakerTmbRecoverySpiceMetrics,
+) -> None:
+    path.write_text(
+        f"""# SPICE Fixture Report: {fixture.name}
+
+## Inputs
+
+- Netlist: `{fixture.netlist_path}`
+- Data: `{data_path}`
+- Source: ngspice operating point and settled 1 kHz transient
+
+## Circuit Scope
+
+This project-owned fixture connects the Daybreaker passive classic-TMB
+hypothesis to a `470 kOhm` grid return and ECC83 common-cathode recovery stage.
+It establishes the recovery gain and loading boundary that a runtime integration
+must preserve. It is not a Dumble schematic and does not identify the NAM
+capture's revision or component values.
+
+## Operating Point and Settled Response
+
+The source is a 20 mV-peak 1 kHz sine. AC metrics exclude the first 60 ms.
+
+| Metric | Value |
+| --- | ---: |
+| Plate DC | {metrics.plate_dc_v:.3f} V |
+| Cathode DC | {metrics.cathode_dc_v:.3f} V |
+| B+ DC | {metrics.bplus_dc_v:.3f} V |
+| TMB output RMS | {metrics.stack_output_rms_v * 1000.0:.3f} mV |
+| Grid RMS | {metrics.grid_rms_v * 1000.0:.3f} mV |
+| Plate RMS after DC removal | {metrics.plate_rms_v * 1000.0:.3f} mV |
+| Coupled recovery output RMS | {metrics.recovery_output_rms_v * 1000.0:.3f} mV |
+| Plate gain relative to TMB output | {metrics.plate_gain:.2f}x |
+| Plate gain | {metrics.plate_gain_db:.2f} dB |
+
+## Engineering Notes
+
+The recovery stage provides electrical makeup for passive insertion loss. A
+runtime port must make its normalized-voltage conversion explicit and match this
+cell before the whole-amp NAM comparison is used to judge the change.
 """,
         encoding="utf-8",
     )

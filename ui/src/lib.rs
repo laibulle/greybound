@@ -2061,6 +2061,23 @@ impl DeviceState {
         }
     }
 
+    pub fn daybreaker_50() -> Self {
+        Self {
+            name: "DAYBREAKER 50".to_string(),
+            kind: DeviceKind::Amp,
+            model: DeviceModel::WideCombo,
+            bypassed: false,
+            gain: 0.38,
+            drive: 0.04,
+            bass: 0.46,
+            treble: 0.70,
+            cut: 0.64,
+            presence: 0.66,
+            sag: 0.18,
+            master: 0.15,
+        }
+    }
+
     pub fn lead_head() -> Self {
         Self {
             name: "LEAD HEAD".to_string(),
@@ -2479,7 +2496,7 @@ fn device_state_for_amp_model(model: AmpModel) -> DeviceState {
     match model {
         AmpModel::Nox30 => DeviceState::nox30(),
         AmpModel::NamLoader => DeviceState::nam_loader(),
-        AmpModel::Daybreaker50 => DeviceState::wide_combo(),
+        AmpModel::Daybreaker50 => DeviceState::daybreaker_50(),
         AmpModel::WideCombo => DeviceState::wide_combo(),
         AmpModel::LeadHead => DeviceState::lead_head(),
     }

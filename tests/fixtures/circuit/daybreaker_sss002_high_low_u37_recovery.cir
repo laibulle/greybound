@@ -1,0 +1,80 @@
+* SSS #002 High/Low drawing-default chain followed by the U37 recovery stage.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_high_low_u37_recovery.cir
+*
+* Scope: project-owned reconstruction of the drawn component boundary. R5 is
+* modeled as a 100k plate-source boundary; U37 is the following 7025
+* common-cathode stage with R80 = 100k and R81/C46 = 1k/1u. The HT4 voltage and
+* following 470k load are explicit hypotheses pending full power-rail tracing.
+
+.param BPLUS=300
+.param RSOURCE=100k
+.param RLOAD=470k
+
+VRAW braw 0 DC {BPLUS}
+RBPLUS braw bplus 1
+CBPLUS bplus 0 22u
+VIN source 0 SIN(0 20m 1k)
+RSOURCE source u4_plate {RSOURCE}
+C6 u4_plate pre_filter 10n
+C37 pre_filter high_input 1n
+R53 pre_filter r53_out 100k
+RL2 r53_out l2_series 59
+L2 l2_series l2_out 300m
+R34 l2_out high_input 470k
+C44 high_input 0 3n
+
+* Drawing-default High-1 / Low-1: R70 direct bypass and top ladder tap.
+R70 high_input filter_output 820k
+R71 filter_output 0 100k
+RSW_HIGH high_input filter_output 1
+R79 filter_output low_common 270k
+RSW_LOW1 low_common low_0 1
+R72 low_0 low_1 39k
+R73 low_1 low_2 68k
+R74 low_2 low_3 100k
+R75 low_3 low_4 180k
+R76 low_4 low_5 270k
+R77 low_5 low_6 390k
+R78 low_6 0 12k
+C45 low_0 low_6 10n
+
+* U37 from the drawing: 100k plate, 1k / 1u cathode network.
+R80 bplus plate 100k
+R81 cath 0 1k
+C46 cath 0 1u
+XU37 plate filter_output cath 7025_KOREN
+
+* The drawing couples the following stage through C47 = 0.22u. R82 is used as
+* its explicit 470k grid-load hypothesis for this isolated boundary.
+C47 plate recovery_output 0.22u
+R82 recovery_output 0 {RLOAD}
+
+.save v(source) v(high_input) v(filter_output) v(plate) v(cath) v(recovery_output) v(bplus)
+
+.control
+set filetype=ascii
+op
+print v(plate) v(cath) v(bplus)
+tran 1u 160m 0 1u
+wrdata /tmp/greybound_daybreaker_sss002_high_low_u37_recovery.dat v(source) v(high_input) v(filter_output) v(plate) v(cath) v(recovery_output) v(bplus)
+quit
+.endc
+
+* Sylvania 7025 parameters from the drawing's Koren_Tubes.INC.
+.subckt 7025_KOREN P G K
+.param MU=102.50 EX=1.409 KG1=1598.8 KP=813.82 KVB=44.9 VCT=0.50 RGI=2k
+E1 n1 0 VALUE={V(P,K)/KP*LOG(1+EXP(KP*(1/MU+(V(G,K)+VCT)/SQRT(KVB+V(P,K)*V(P,K))))) }
+RE1 n1 0 1G
+* ngspice has no PWRS() helper; E1 is non-negative in this triode region,
+* so this is the source expression's positive-domain PWR + PWRS result.
+G1 P K VALUE={2*pow(max(V(n1),0),EX)/KG1}
+RCP P K 1G
+Cpk P K 0.9p
+Cgp G P 2.4p
+Cgk G K 2.3p
+D3 ngrid K D_KOREN
+RGRID G ngrid {RGI}
+.model D_KOREN D(IS=1N RS=1 CJO=10PF TT=1N)
+.ends 7025_KOREN
+
+.end

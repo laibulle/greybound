@@ -1,0 +1,52 @@
+* SSS #002 tone/Deep branch — public-layout revision, isolated AC comparison.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_tone_deep_layout.cir
+*
+* This retains the ASC's executable wire topology and U34/U35 switch defaults,
+* but substitutes only the conflicting R63..R67 values recorded in the public
+* layout. It is a distinct revision candidate, never a mixed circuit.
+
+VAC source 0 AC 1
+RSOURCE source plate 100k
+
+* U2/U3 pot_pow, U33 linear, all at their explicit .5 defaults.
+C1 plate treble_top 360p
+R3 plate tone_source 100k
+C3 tone_source bass_top 100n
+C34 tone_source mid_wiper 47n
+RMID mid_wiper 0 50k
+RU2_TOP treble_top treble_wiper 225k
+RU2_BOTTOM treble_wiper treble_return 25k
+RU3_TOP bass_top bass_wiper 225k
+RU3_BOTTOM bass_wiper bass_bottom 25k
+R7 bass_bottom 0 1.8k
+
+* U34 at GUITARMIC=1: 1a->2a and 1b->2b.
+RSW_U34_A treble_return c35_input 1m
+RSW_U34_B bass_wiper bass_output 1m
+C35 c35_input 0 4.7n
+R63 bass_output u5_input 100
+RSW_U2_WIPER treble_wiper u5_input 1m
+
+* U35 at DEEP=0: 1a->3a and 1b->3b.
+R64 tone_source deep_common 1Meg
+R65 volume_wiper deep_common 10k
+C36 deep_common deep_return 10n
+R66 deep_common deep_return 8.2k
+R67 deep_return 0 3.3Meg
+
+* U5 at VOL=.5 and its R69/U4-grid measurement boundary.
+RU5_TOP u5_input volume_wiper 900k
+RU5_BOTTOM volume_wiper 0 100k
+R69 volume_wiper grid 68k
+RGRID grid 0 1Gig
+
+.save v(source) v(plate) v(tone_source) v(treble_wiper) v(bass_wiper) v(u5_input) v(volume_wiper) v(grid)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_sss002_tone_deep_layout.dat mag(v(source)) mag(v(plate)) mag(v(tone_source)) mag(v(treble_wiper)) mag(v(bass_wiper)) mag(v(u5_input)) mag(v(volume_wiper)) mag(v(grid))
+quit
+.endc
+
+.end

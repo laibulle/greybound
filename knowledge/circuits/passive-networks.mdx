@@ -8,6 +8,7 @@ Passive networks are reusable circuit components, not model pages. They describe
 ## Current Uses
 
 - Nox30 Top Boost style tone stack.
+- Daybreaker low-plate classic TMB candidate.
 - Muffin passive tone blend target.
 - Future amp tone stacks and FX-loop return networks.
 - Cable capacitance in `ConnectionState`.
@@ -30,6 +31,20 @@ Top Boost tone network:
   so the reusable tone-stack component satisfies the same AC-coupled contract as
   the surrounding Nox30 preamp path. This is intentionally below the guitar band
   and should not be used to normalize insertion loss.
+
+Daybreaker low-plate classic TMB candidate:
+
+- Uses a six-node trapezoidal MNA solve with split treble pot, bass rheostat,
+  mid resistor, and three capacitors.
+- Explicit default boundaries are `38 kOhm` source impedance and `470 kOhm`
+  recovery-grid load; they are a documented Daybreaker hypothesis rather than
+  values attributed to the external NAM capture.
+- The matching `daybreaker_classic_tmb.cir` fixture provides the 48 kHz
+  fixed-control insertion-loss check.
+- `ClassicTmbRecoveryStage` adds the loaded project ECC83 recovery stage and
+  matches `daybreaker_tmb_recovery_12ax7.cir` at its operating point and 1 kHz
+  small-signal response. It retains physical volts at its input/output; a model
+  must define the surrounding normalized-voltage mapping before adopting it.
 
 Cut/presence network:
 

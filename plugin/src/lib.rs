@@ -5,8 +5,8 @@ use greybound::{
 };
 use greybound_plugin_ui::{PluginIcedApp, PluginUiConfig};
 use greybound_ui::{
-    normalized_gain, preload_render_assets, AppProfile, DeviceModel, GreyboundUi, Message,
-    RuntimeDeviceSection, DESIGN_HEIGHT, DESIGN_WIDTH,
+    normalized_gain, preload_render_assets, AmpModel, AppProfile, DeviceModel, GreyboundUi,
+    Message, RuntimeDeviceSection, DESIGN_HEIGHT, DESIGN_WIDTH,
 };
 use nih_plug::prelude::*;
 use std::num::NonZeroU32;
@@ -20,17 +20,59 @@ const OUTPUT_MIN_DB: f32 = -24.0;
 const OUTPUT_MAX_DB: f32 = 6.0;
 const METER_RMS_SCALE: f64 = 1_000_000_000.0;
 
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
+enum FreeAmpModel {
+    #[id = "nox30"]
+    #[name = "Nox30"]
+    Nox30,
+    #[id = "daybreaker-50"]
+    #[name = "Daybreaker 50"]
+    Daybreaker50,
+}
+
+impl FreeAmpModel {
+    const fn index(self) -> usize {
+        match self {
+            Self::Nox30 => 0,
+            Self::Daybreaker50 => 1,
+        }
+    }
+
+    const fn model_id(self) -> &'static str {
+        match self {
+            Self::Nox30 => "nox30",
+            Self::Daybreaker50 => "daybreaker-50",
+        }
+    }
+
+    const fn ui_model(self) -> AmpModel {
+        match self {
+            Self::Nox30 => AmpModel::Nox30,
+            Self::Daybreaker50 => AmpModel::Daybreaker50,
+        }
+    }
+
+    const fn from_ui_model(model: AmpModel) -> Option<Self> {
+        match model {
+            AmpModel::Nox30 => Some(Self::Nox30),
+            AmpModel::Daybreaker50 => Some(Self::Daybreaker50),
+            AmpModel::NamLoader | AmpModel::WideCombo | AmpModel::LeadHead => None,
+        }
+    }
+}
+
 pub struct GreyboundPlugin {
     params: Arc<GreyboundParams>,
     meters: Arc<PluginMeters>,
-    channels: Vec<SignalChain>,
+    channels: [Vec<SignalChain>; 2],
     speakers: Vec<SpeakerStage>,
-    chain_config: SignalChainConfig,
     sample_rate: Option<f32>,
 }
 
 #[derive(Params)]
 struct GreyboundParams {
+    #[id = "amp_model"]
+    amp_model: EnumParam<FreeAmpModel>,
     #[id = "gain"]
     gain: FloatParam,
     #[id = "bass"]
@@ -41,6 +83,12 @@ struct GreyboundParams {
     tone: FloatParam,
     #[id = "sag"]
     sag: FloatParam,
+    #[id = "amp_drive"]
+    amp_drive: FloatParam,
+    #[id = "amp_presence"]
+    amp_presence: FloatParam,
+    #[id = "amp_master"]
+    amp_master: FloatParam,
     #[id = "master"]
     master: FloatParam,
     #[id = "speaker_ir"]
@@ -84,9 +132,8 @@ impl Default for GreyboundPlugin {
         Self {
             params: Arc::new(GreyboundParams::default()),
             meters: Arc::new(PluginMeters::default()),
-            channels: Vec::new(),
+            channels: [Vec::new(), Vec::new()],
             speakers: Vec::new(),
-            chain_config: plugin_signal_chain_config(AppProfile::greybound_free(), "nox30"),
             sample_rate: None,
         }
     }
@@ -95,6 +142,7 @@ impl Default for GreyboundPlugin {
 impl Default for GreyboundParams {
     fn default() -> Self {
         Self {
+            amp_model: EnumParam::new("Amp Model", FreeAmpModel::Nox30),
             gain: FloatParam::new(
                 "Top Boost Volume",
                 0.58,
@@ -119,6 +167,26 @@ impl Default for GreyboundParams {
                 .with_unit(" %")
                 .with_value_to_string(formatters::v2s_f32_percentage(0))
                 .with_string_to_value(formatters::s2v_f32_percentage()),
+            amp_drive: FloatParam::new("Amp Drive", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 })
+                .with_unit(" %")
+                .with_value_to_string(formatters::v2s_f32_percentage(0))
+                .with_string_to_value(formatters::s2v_f32_percentage()),
+            amp_presence: FloatParam::new(
+                "Amp Presence",
+                0.0,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
+            amp_master: FloatParam::new(
+                "Amp Master",
+                0.45,
+                FloatRange::Linear { min: 0.0, max: 1.0 },
+            )
+            .with_unit(" %")
+            .with_value_to_string(formatters::v2s_f32_percentage(0))
+            .with_string_to_value(formatters::s2v_f32_percentage()),
             master: FloatParam::new(
                 "Output Trim",
                 0.58,
@@ -291,9 +359,25 @@ impl Plugin for GreyboundPlugin {
         buffer_config: &BufferConfig,
         context: &mut impl InitContext<Self>,
     ) -> bool {
-        let chain_config = self.chain_config.clone();
         self.sample_rate = Some(buffer_config.sample_rate);
-        self.channels = build_signal_chains(buffer_config.sample_rate, 1, &chain_config);
+        self.channels = [
+            build_signal_chains(
+                buffer_config.sample_rate,
+                1,
+                &plugin_signal_chain_config(
+                    AppProfile::greybound_free(),
+                    FreeAmpModel::Nox30.model_id(),
+                ),
+            ),
+            build_signal_chains(
+                buffer_config.sample_rate,
+                1,
+                &plugin_signal_chain_config(
+                    AppProfile::greybound_free(),
+                    FreeAmpModel::Daybreaker50.model_id(),
+                ),
+            ),
+        ];
         let sample_rate = buffer_config.sample_rate as u32;
         self.speakers = (0..1)
             .map(|_| {
@@ -308,8 +392,10 @@ impl Plugin for GreyboundPlugin {
     }
 
     fn reset(&mut self) {
-        for channel in &mut self.channels {
-            channel.reset();
+        for channels in &mut self.channels {
+            for channel in channels {
+                channel.reset();
+            }
         }
         for speaker in &mut self.speakers {
             speaker.reset();
@@ -322,6 +408,8 @@ impl Plugin for GreyboundPlugin {
         _aux: &mut AuxiliaryBuffers,
         _context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        let amp_model = self.params.amp_model.value();
+        let channels = &mut self.channels[amp_model.index()];
         for mut channel_samples in buffer.iter_samples() {
             let input = channel_samples
                 .get_mut(0)
@@ -332,9 +420,9 @@ impl Plugin for GreyboundPlugin {
                 bass: self.params.bass.smoothed.next(),
                 cut: self.params.cut.smoothed.next(),
                 treble: self.params.tone.smoothed.next(),
-                output: NOX30_OUTPUT_GAIN,
-                drive: 0.0,
-                presence: 0.0,
+                output: amp_output_gain(amp_model, self.params.amp_master.smoothed.next()),
+                drive: self.params.amp_drive.smoothed.next(),
+                presence: self.params.amp_presence.smoothed.next(),
                 sag: self.params.sag.smoothed.next(),
             };
             let overdrive_controls = MinotaurControls {
@@ -384,7 +472,7 @@ impl Plugin for GreyboundPlugin {
                 OUTPUT_MAX_DB,
             );
             self.meters.record_input(input);
-            let amp_output = self.channels[0].process(input, chain_controls);
+            let amp_output = channels[0].process(input, chain_controls);
             let cabbed = self.speakers[0].process(amp_output, self.params.speaker_ir.value());
             let output = cabbed * output_gain;
             self.meters.record_output(output, output);
@@ -468,6 +556,15 @@ fn plugin_signal_chain_config(app_profile: AppProfile, amp_model: &str) -> Signa
     config
 }
 
+fn amp_output_gain(model: FreeAmpModel, master: f32) -> f32 {
+    match model {
+        FreeAmpModel::Nox30 => NOX30_OUTPUT_GAIN,
+        // This follows the Free UI's Daybreaker output mapping. It is distinct
+        // from the global output trim, which remains after the speaker stage.
+        FreeAmpModel::Daybreaker50 => 0.38 + master.clamp(0.0, 1.0) * 1.10,
+    }
+}
+
 fn build_signal_chains(
     sample_rate: f32,
     channels: usize,
@@ -515,19 +612,32 @@ impl GreyboundPluginApp {
             width: DESIGN_WIDTH as u32,
             height: DESIGN_HEIGHT as u32,
         });
-        let app = Self {
+        let mut app = Self {
             ui,
             params,
             meters,
             context,
         };
-        app.sync_params_from_ui();
+        app.sync_amp_model_from_param();
         app
+    }
+
+    fn sync_amp_model_from_param(&mut self) {
+        let amp_model = self.params.amp_model.value().ui_model();
+        if self.ui.amp_model != amp_model {
+            self.ui.update(Message::SelectAmpModel(amp_model));
+        }
     }
 
     fn sync_params_from_ui(&self) {
         let amp = &self.ui.amp;
         unsafe {
+            if let Some(amp_model) = FreeAmpModel::from_ui_model(self.ui.amp_model) {
+                self.context.raw_set_parameter_normalized(
+                    self.params.amp_model.as_ptr(),
+                    amp_model.index() as f32,
+                );
+            }
             self.context
                 .raw_set_parameter_normalized(self.params.gain.as_ptr(), amp.gain);
             self.context
@@ -538,6 +648,12 @@ impl GreyboundPluginApp {
                 .raw_set_parameter_normalized(self.params.tone.as_ptr(), amp.treble);
             self.context
                 .raw_set_parameter_normalized(self.params.sag.as_ptr(), amp.sag);
+            self.context
+                .raw_set_parameter_normalized(self.params.amp_drive.as_ptr(), amp.drive);
+            self.context
+                .raw_set_parameter_normalized(self.params.amp_presence.as_ptr(), amp.presence);
+            self.context
+                .raw_set_parameter_normalized(self.params.amp_master.as_ptr(), amp.master);
             self.context
                 .raw_set_parameter_normalized(self.params.master.as_ptr(), self.ui.output_gain);
             self.context.raw_set_parameter_normalized(
@@ -642,6 +758,7 @@ impl PluginIcedApp for GreyboundPluginApp {
     type Message = Message;
 
     fn on_frame(&mut self) {
+        self.sync_amp_model_from_param();
         let (input, output_left, output_right) = self.meters.snapshot_levels();
         self.ui.update(Message::MeterLevelsChanged {
             input,
@@ -672,7 +789,8 @@ impl PluginIcedApp for GreyboundPluginApp {
 
 impl ClapPlugin for GreyboundPlugin {
     const CLAP_ID: &'static str = "com.greybound.graybox-amp";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("Nox30 circuit-informed guitar amp");
+    const CLAP_DESCRIPTION: Option<&'static str> =
+        Some("Selectable Nox30 and Daybreaker 50 circuit-informed guitar amps");
     const CLAP_MANUAL_URL: Option<&'static str> = None;
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] = &[
@@ -721,11 +839,15 @@ mod tests {
         let snapshot = ui.runtime_audio_snapshot();
         let params = GreyboundParams::default();
 
+        assert_eq!(params.amp_model.value(), FreeAmpModel::Nox30);
         assert_eq!(params.gain.value(), ui.amp.gain);
         assert_eq!(params.bass.value(), ui.amp.bass);
         assert_eq!(params.cut.value(), ui.amp.cut);
         assert_eq!(params.tone.value(), ui.amp.treble);
         assert_eq!(params.sag.value(), ui.amp.sag);
+        assert_eq!(params.amp_drive.value(), ui.amp.drive);
+        assert_eq!(params.amp_presence.value(), ui.amp.presence);
+        assert_eq!(params.amp_master.value(), ui.amp.master);
         assert_eq!(params.master.value(), ui.output_gain);
         assert_eq!(params.speaker_ir.value(), snapshot.cab_mix > 0.0);
         assert!(!params.lumen.value());
@@ -741,6 +863,25 @@ mod tests {
         assert_eq!(params.lumen_mix.value(), LumenControls::default().mix);
         assert!(params.overdrive.value());
         assert!(params.auralith.value());
+    }
+
+    #[test]
+    fn free_amp_models_select_the_matching_core_runtime() {
+        assert_eq!(FreeAmpModel::Nox30.model_id(), "nox30");
+        assert_eq!(FreeAmpModel::Daybreaker50.model_id(), "daybreaker-50");
+        assert_eq!(
+            FreeAmpModel::Daybreaker50.ui_model(),
+            AmpModel::Daybreaker50
+        );
+        assert_eq!(amp_output_gain(FreeAmpModel::Daybreaker50, 0.15), 0.545);
+        assert_eq!(
+            plugin_signal_chain_config(
+                AppProfile::greybound_free(),
+                FreeAmpModel::Daybreaker50.model_id(),
+            )
+            .amp_model,
+            "daybreaker-50"
+        );
     }
 
     #[test]

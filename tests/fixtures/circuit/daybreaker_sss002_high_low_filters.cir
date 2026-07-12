@@ -1,0 +1,182 @@
+* Daybreaker source-informed SSS #002 High/Low filter-bank topology.
+* Run with: ngspice -b tests/fixtures/circuit/daybreaker_sss002_high_low_filters.cir
+*
+* This is a project-owned measurement fixture, not a claim that the attached
+* source and load impedances reproduce an unknown NAM capture. The switch-bank
+* component values and routing are transcribed from the public SSS #002 drawing:
+* High: R70 820k, R71 100k, C39 150p, C40 330p, C41 1n, C42 2.4n,
+* C43 5.1n, C38 10n, and the fixed C44 3n shunt.
+* Low: R72..R78 = 39k, 68k, 100k, 180k, 270k, 390k, 12k, with C45 10n
+* between the top and bottom of the selectable ladder and R79 270k in series.
+
+.param RSOURCE=1k
+.param RLOAD=1Meg
+
+VIN source 0 AC 1
+
+* The 1 nF coupling and 470 kOhm return are retained as the measured bank's
+* upstream boundary. RSOURCE is deliberately explicit and is not an inferred
+* tube output impedance. The High positions are independent replicas so their
+* measurement loads do not interact with one another.
+RSOURCE_H1 source h1_coupled {RSOURCE}
+C37_H1 h1_coupled h1_input 1n
+R34_H1 h1_input 0 470k
+C44_H1 h1_input 0 3n
+R70_H1 h1_input high_1 820k
+R71_H1 high_1 0 100k
+* A 1 Ohm closed-contact approximation avoids an ill-conditioned MNA pivot;
+* it is negligible beside the documented 820 kOhm / 100 kOhm network.
+RSW_H1 h1_input high_1 1
+RLOAD_H1 high_1 0 {RLOAD}
+
+RSOURCE_H2 source h2_coupled {RSOURCE}
+C37_H2 h2_coupled h2_input 1n
+R34_H2 h2_input 0 470k
+C44_H2 h2_input 0 3n
+R70_H2 h2_input high_2 820k
+R71_H2 high_2 0 100k
+C39_H2 h2_input high_2 150p
+RLOAD_H2 high_2 0 {RLOAD}
+
+RSOURCE_H3 source h3_coupled {RSOURCE}
+C37_H3 h3_coupled h3_input 1n
+R34_H3 h3_input 0 470k
+C44_H3 h3_input 0 3n
+R70_H3 h3_input high_3 820k
+R71_H3 high_3 0 100k
+C40_H3 h3_input high_3 330p
+RLOAD_H3 high_3 0 {RLOAD}
+
+RSOURCE_H4 source h4_coupled {RSOURCE}
+C37_H4 h4_coupled h4_input 1n
+R34_H4 h4_input 0 470k
+C44_H4 h4_input 0 3n
+R70_H4 h4_input high_4 820k
+R71_H4 high_4 0 100k
+C41_H4 h4_input high_4 1n
+RLOAD_H4 high_4 0 {RLOAD}
+
+RSOURCE_H5 source h5_coupled {RSOURCE}
+C37_H5 h5_coupled h5_input 1n
+R34_H5 h5_input 0 470k
+C44_H5 h5_input 0 3n
+R70_H5 h5_input high_5 820k
+R71_H5 high_5 0 100k
+C42_H5 h5_input high_5 2.4n
+RLOAD_H5 high_5 0 {RLOAD}
+
+RSOURCE_H6 source h6_coupled {RSOURCE}
+C37_H6 h6_coupled h6_input 1n
+R34_H6 h6_input 0 470k
+C44_H6 h6_input 0 3n
+R70_H6 h6_input high_6 820k
+R71_H6 high_6 0 100k
+C43_H6 h6_input high_6 5.1n
+RLOAD_H6 high_6 0 {RLOAD}
+
+RSOURCE_H7 source h7_coupled {RSOURCE}
+C37_H7 h7_coupled h7_input 1n
+R34_H7 h7_input 0 470k
+C44_H7 h7_input 0 3n
+R70_H7 h7_input high_7 820k
+R71_H7 high_7 0 100k
+C38_H7 h7_input high_7 10n
+RLOAD_H7 high_7 0 {RLOAD}
+
+* Seven independent copies of the Low switch positions. Each switch connects
+* the post-R79 output to a tap on R72..R78. C45 bypasses R72..R77 at high
+* frequency, exactly as in the drawing.
+R79_L1 source low_1 270k
+RLOAD_L1 low_1 0 {RLOAD}
+RSW_L1 low_1 l1_0 1
+R72_L1 l1_0 l1_1 39k
+R73_L1 l1_1 l1_2 68k
+R74_L1 l1_2 l1_3 100k
+R75_L1 l1_3 l1_4 180k
+R76_L1 l1_4 l1_5 270k
+R77_L1 l1_5 l1_6 390k
+R78_L1 l1_6 0 12k
+C45_L1 l1_0 l1_6 10n
+
+R79_L2 source low_2 270k
+RLOAD_L2 low_2 0 {RLOAD}
+RSW_L2 low_2 l2_1 1
+R72_L2 l2_0 l2_1 39k
+R73_L2 l2_1 l2_2 68k
+R74_L2 l2_2 l2_3 100k
+R75_L2 l2_3 l2_4 180k
+R76_L2 l2_4 l2_5 270k
+R77_L2 l2_5 l2_6 390k
+R78_L2 l2_6 0 12k
+C45_L2 l2_0 l2_6 10n
+
+R79_L3 source low_3 270k
+RLOAD_L3 low_3 0 {RLOAD}
+RSW_L3 low_3 l3_2 1
+R72_L3 l3_0 l3_1 39k
+R73_L3 l3_1 l3_2 68k
+R74_L3 l3_2 l3_3 100k
+R75_L3 l3_3 l3_4 180k
+R76_L3 l3_4 l3_5 270k
+R77_L3 l3_5 l3_6 390k
+R78_L3 l3_6 0 12k
+C45_L3 l3_0 l3_6 10n
+
+R79_L4 source low_4 270k
+RLOAD_L4 low_4 0 {RLOAD}
+RSW_L4 low_4 l4_3 1
+R72_L4 l4_0 l4_1 39k
+R73_L4 l4_1 l4_2 68k
+R74_L4 l4_2 l4_3 100k
+R75_L4 l4_3 l4_4 180k
+R76_L4 l4_4 l4_5 270k
+R77_L4 l4_5 l4_6 390k
+R78_L4 l4_6 0 12k
+C45_L4 l4_0 l4_6 10n
+
+R79_L5 source low_5 270k
+RLOAD_L5 low_5 0 {RLOAD}
+RSW_L5 low_5 l5_4 1
+R72_L5 l5_0 l5_1 39k
+R73_L5 l5_1 l5_2 68k
+R74_L5 l5_2 l5_3 100k
+R75_L5 l5_3 l5_4 180k
+R76_L5 l5_4 l5_5 270k
+R77_L5 l5_5 l5_6 390k
+R78_L5 l5_6 0 12k
+C45_L5 l5_0 l5_6 10n
+
+R79_L6 source low_6 270k
+RLOAD_L6 low_6 0 {RLOAD}
+RSW_L6 low_6 l6_5 1
+R72_L6 l6_0 l6_1 39k
+R73_L6 l6_1 l6_2 68k
+R74_L6 l6_2 l6_3 100k
+R75_L6 l6_3 l6_4 180k
+R76_L6 l6_4 l6_5 270k
+R77_L6 l6_5 l6_6 390k
+R78_L6 l6_6 0 12k
+C45_L6 l6_0 l6_6 10n
+
+R79_L7 source low_7 270k
+RLOAD_L7 low_7 0 {RLOAD}
+RSW_L7 low_7 l7_6 1
+R72_L7 l7_0 l7_1 39k
+R73_L7 l7_1 l7_2 68k
+R74_L7 l7_2 l7_3 100k
+R75_L7 l7_3 l7_4 180k
+R76_L7 l7_4 l7_5 270k
+R77_L7 l7_5 l7_6 390k
+R78_L7 l7_6 0 12k
+C45_L7 l7_0 l7_6 10n
+
+.save v(source) v(high_1) v(high_2) v(high_3) v(high_4) v(high_5) v(high_6) v(high_7) v(low_1) v(low_2) v(low_3) v(low_4) v(low_5) v(low_6) v(low_7)
+
+.control
+set filetype=ascii
+ac dec 36 40 18000
+wrdata /tmp/greybound_daybreaker_sss002_high_low_filters.dat mag(v(source)) mag(v(high_1)) mag(v(high_2)) mag(v(high_3)) mag(v(high_4)) mag(v(high_5)) mag(v(high_6)) mag(v(high_7)) mag(v(low_1)) mag(v(low_2)) mag(v(low_3)) mag(v(low_4)) mag(v(low_5)) mag(v(low_6)) mag(v(low_7))
+quit
+.endc
+
+.end

@@ -459,6 +459,61 @@ lab-spice-none-star-tone-presence:
 		--fixture none-star-tone-presence \
 		--output-dir "$(SPICE_OUTPUT_DIR)"
 
+lab-spice-daybreaker-presence-filter:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-presence-filter \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-classic-tmb:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-classic-tmb \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-classic-tmb:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-classic-tmb \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-high-low-filters:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-high-low-filters \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-high-low-chain:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-high-low-chain \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-tone-deep-asc:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-tone-deep-asc \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-tone-deep-layout:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-tone-deep-layout \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-high-low-u37-recovery:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-high-low-u37-recovery \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-u4-plate-stage:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-u4-plate-stage \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-sss002-u5-volume-u4:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-sss002-u5-volume-u4 \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
+lab-spice-daybreaker-tmb-recovery:
+	uv --project lab run greybound-lab spice-run \
+		--fixture daybreaker-tmb-recovery-12ax7 \
+		--output-dir "$(SPICE_OUTPUT_DIR)"
+
 lab-triage-minotaur-klon: lab-spice-klon lab-benchmark-minotaur-klon
 	uv --project lab run greybound-lab minotaur-klon-triage \
 		--spice-data "$(SPICE_OUTPUT_DIR)/klon-centaur.dat" \
@@ -662,4 +717,5 @@ site-deploy: landing-deploy docs-deploy
 
 vercel-deploy: landing-deploy
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-inspect-daybreaker-nam lab-download-daybreaker-nam lab-render-nam lab-render-none-star-nam lab-render-daybreaker-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
+.PHONY: lab-spice-daybreaker-sss002-u5-volume-u4 lab-spice-daybreaker-sss002-tone-deep-asc lab-spice-daybreaker-sss002-tone-deep-layout
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-inspect-daybreaker-nam lab-download-daybreaker-nam lab-render-nam lab-render-none-star-nam lab-render-daybreaker-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-spice-daybreaker-presence-filter lab-spice-daybreaker-classic-tmb lab-spice-daybreaker-sss002-classic-tmb lab-spice-daybreaker-sss002-high-low-filters lab-spice-daybreaker-sss002-high-low-chain lab-spice-daybreaker-sss002-high-low-u37-recovery lab-spice-daybreaker-sss002-u4-plate-stage lab-spice-daybreaker-tmb-recovery lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
