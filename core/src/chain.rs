@@ -546,6 +546,14 @@ pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
                 ..STANDARD_AMP_VISUAL
             },
         },
+        "nam2" | "nam-loader" => AmpModelDescriptor {
+            id: "nam2",
+            label: "NAM Loader",
+            visual: DeviceVisualDescriptor {
+                color: "graphite",
+                ..STANDARD_AMP_VISUAL
+            },
+        },
         _ => AmpModelDescriptor {
             id: "unknown",
             label: "Amp",

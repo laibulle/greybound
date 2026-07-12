@@ -1744,6 +1744,7 @@ dependencies = [
  "realfft",
  "rill-core-wdf",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

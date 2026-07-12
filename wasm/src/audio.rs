@@ -24,7 +24,7 @@ thread_local! {
 pub struct WebAudioSnapshot {
     controls: RuntimeControls,
     app_profile: AppProfile,
-    amp_model: &'static str,
+    amp_model: String,
     period_size: u32,
 }
 
@@ -33,7 +33,7 @@ impl WebAudioSnapshot {
         Self {
             controls: RuntimeControls::from_ui(ui),
             app_profile: ui.app_profile,
-            amp_model: ui.amp_model_id(),
+            amp_model: ui.runtime_amp_model_id(),
             period_size: ui.audio_settings.period_size,
         }
     }
@@ -109,7 +109,7 @@ impl WebAudioEngine {
 
         let runtime = Rc::new(RefCell::new(WebAudioRuntime::new(
             sample_rate,
-            snapshot.amp_model,
+            snapshot.amp_model.as_str(),
             snapshot.app_profile,
         )));
         let controls = Rc::new(RefCell::new(snapshot.controls));

@@ -372,6 +372,8 @@ pub enum Message {
     AudioBufferSizeSelected(String),
     LoadWavRequested,
     WavFileSelected(Option<PathBuf>),
+    LoadNamRequested,
+    NamFileSelected(Option<PathBuf>),
     ToggleRecording,
     RecordingFileSelected(Option<PathBuf>),
     RecordingStarted(PathBuf),
@@ -551,6 +553,7 @@ pub enum ViewMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AmpModel {
     Nox30,
+    NamLoader,
     WideCombo,
     LeadHead,
 }
@@ -559,6 +562,7 @@ impl AmpModel {
     fn id(self) -> &'static str {
         match self {
             Self::Nox30 => "nox30",
+            Self::NamLoader => "nam2",
             Self::WideCombo => "wide-combo",
             Self::LeadHead => "lead-head",
         }
@@ -1476,6 +1480,14 @@ pub const LEAD_HEAD_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     controls: &[],
 };
 
+pub const NAM_LOADER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "amp.nam-loader",
+    surface: STANDARD_AMP_HEAD_SURFACE,
+    asset: None,
+    typography: RenderTypographyPolicy::DrawnByUi,
+    controls: &[],
+};
+
 #[derive(Debug, Clone, Copy)]
 pub struct AppAmpModelDescriptor {
     pub id: &'static str,
@@ -1582,13 +1594,22 @@ fn boxer_seven_lead_circuit_descriptor() -> Option<&'static greybound::CircuitDe
     greybound::amp_circuit_descriptor("boxer-seven-lead")
 }
 
-const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[AppAmpModelDescriptor {
-    id: "nox30",
-    label: "Nox30",
-    visual: AmpModel::Nox30,
-    render: &NOX30_AMP_RENDER_SPEC,
-    circuit: nox30_circuit_descriptor,
-}];
+const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[
+    AppAmpModelDescriptor {
+        id: "nox30",
+        label: "Nox30",
+        visual: AmpModel::Nox30,
+        render: &NOX30_AMP_RENDER_SPEC,
+        circuit: nox30_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "nam2",
+        label: "NAM Loader",
+        visual: AmpModel::NamLoader,
+        render: &NAM_LOADER_AMP_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+];
 const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
     AppDeviceModelDescriptor {
         id: "lumen",
@@ -1826,6 +1847,23 @@ impl DeviceState {
         }
     }
 
+    pub fn nam_loader() -> Self {
+        Self {
+            name: "NAM LOADER".to_string(),
+            kind: DeviceKind::Amp,
+            model: DeviceModel::LeadHead,
+            bypassed: false,
+            gain: 0.50,
+            drive: 0.0,
+            bass: 0.50,
+            treble: 0.50,
+            cut: 0.50,
+            presence: 0.50,
+            sag: 0.50,
+            master: 0.50,
+        }
+    }
+
     pub fn wide_combo() -> Self {
         Self {
             name: "WIDE COMBO".to_string(),
@@ -1984,6 +2022,7 @@ pub struct GreyboundUi {
     pub output_gain: f32,
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
+    pub nam_loader: NamLoaderState,
     pub recording: RecordingState,
     pub metronome: MetronomeState,
     pub tuner: TunerState,
@@ -1993,6 +2032,21 @@ pub struct GreyboundUi {
     pub view_mode: ViewMode,
     pub circuit_view: bool,
     pub scale: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct NamLoaderState {
+    pub path: Option<PathBuf>,
+    pub status: String,
+}
+
+impl Default for NamLoaderState {
+    fn default() -> Self {
+        Self {
+            path: None,
+            status: "No NAM model loaded".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2195,6 +2249,7 @@ impl GreyboundUi {
             output_gain: 0.58,
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
+            nam_loader: NamLoaderState::default(),
             recording: RecordingState::default(),
             metronome: MetronomeState::default(),
             tuner: TunerState::default(),
@@ -2243,6 +2298,7 @@ fn device_state_for_model(model: DeviceModel) -> DeviceState {
 fn device_state_for_amp_model(model: AmpModel) -> DeviceState {
     match model {
         AmpModel::Nox30 => DeviceState::nox30(),
+        AmpModel::NamLoader => DeviceState::nam_loader(),
         AmpModel::WideCombo => DeviceState::wide_combo(),
         AmpModel::LeadHead => DeviceState::lead_head(),
     }
@@ -2395,6 +2451,19 @@ impl GreyboundUi {
                     self.audio_settings.status = "Restarting audio engine".to_string();
                 } else {
                     self.audio_settings.status = "WAV file selection canceled".to_string();
+                }
+            }
+            Message::LoadNamRequested => {
+                self.nam_loader.status = "Opening NAM model picker".to_string();
+            }
+            Message::NamFileSelected(path) => {
+                if let Some(path) = path {
+                    self.nam_loader.path = Some(path);
+                    self.nam_loader.status = "Restarting audio engine with NAM model".to_string();
+                    self.select_amp_model(AmpModel::NamLoader);
+                    self.audio_settings.status = "Restarting audio engine".to_string();
+                } else {
+                    self.nam_loader.status = "NAM model selection canceled".to_string();
                 }
             }
             Message::ToggleRecording => {
@@ -2706,6 +2775,22 @@ impl GreyboundUi {
             .unwrap_or_else(|| self.amp_model.id())
     }
 
+    pub fn runtime_amp_model_id(&self) -> String {
+        match self.amp_model {
+            AmpModel::NamLoader => self
+                .nam_loader
+                .path
+                .as_ref()
+                .map(|path| format!("nam2?path={}", path.display()))
+                .unwrap_or_else(|| "nam2".to_string()),
+            _ => self.amp_model_id().to_string(),
+        }
+    }
+
+    pub fn has_loaded_nam_model(&self) -> bool {
+        self.nam_loader.path.is_some()
+    }
+
     pub fn runtime_audio_snapshot(&self) -> RuntimeAudioSnapshot {
         RuntimeAudioSnapshot {
             input_gain: normalized_gain(self.input_gain, -24.0, 24.0),
@@ -2912,6 +2997,13 @@ impl GreyboundUi {
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
             .unwrap_or("No WAV loaded");
+        let nam_name = self
+            .nam_loader
+            .path
+            .as_ref()
+            .and_then(|path| path.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or("No NAM loaded");
         let input_source = row![
             button(text("LIVE INPUT").size(self.font(15.0)).style(Color::WHITE))
                 .on_press(Message::AudioInputSourceSelected(
@@ -2939,6 +3031,26 @@ impl GreyboundUi {
         ]
         .spacing(self.s(12.0))
         .align_items(Alignment::Center);
+        let nam_loader = row![
+            button(text("LOAD NAM").size(self.font(15.0)).style(Color::WHITE))
+                .on_press(Message::LoadNamRequested)
+                .style(iced::theme::Button::custom(FooterButton {
+                    selected: self.amp_model == AmpModel::NamLoader
+                }))
+                .padding([self.s(13.0), self.s(18.0)]),
+            container(text(nam_name).size(self.font(15.0)).style(Color::WHITE))
+                .width(Length::FillPortion(2))
+                .center_y(),
+            container(
+                text(self.nam_loader.status.as_str())
+                    .size(self.font(15.0))
+                    .style(Color::from_rgb(0.82, 0.84, 0.90))
+            )
+            .width(Length::FillPortion(3))
+            .center_y(),
+        ]
+        .spacing(self.s(12.0))
+        .align_items(Alignment::Center);
 
         let content = column![
             row![
@@ -2960,6 +3072,7 @@ impl GreyboundUi {
             .spacing(self.s(44.0)),
             self.settings_separator(),
             self.settings_select_field("Input Source", input_source.into(), 846.0),
+            self.settings_select_field("NAM Loader", nam_loader.into(), 846.0),
             row![
                 self.settings_select_field("Audio Input Device", input.into(), 390.0),
                 self.settings_select_field("Audio Output Device", output.into(), 390.0),
@@ -5725,6 +5838,7 @@ fn amp_render_spec(app_profile: AppProfile, model: AmpModel) -> &'static ModelRe
 fn fallback_amp_render_spec(model: AmpModel) -> &'static ModelRenderSpec {
     match model {
         AmpModel::Nox30 => &NOX30_AMP_RENDER_SPEC,
+        AmpModel::NamLoader => &NAM_LOADER_AMP_RENDER_SPEC,
         AmpModel::WideCombo => &WIDE_COMBO_AMP_RENDER_SPEC,
         AmpModel::LeadHead => &LEAD_HEAD_AMP_RENDER_SPEC,
     }
@@ -6014,7 +6128,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
-        AmpModel::LeadHead => {
+        AmpModel::LeadHead | AmpModel::NamLoader => {
             let amp_w = size.width.min(1240.0);
             let origin = Point::new((size.width - amp_w) * 0.5, 62.0);
             let panel_x = origin.x + 135.0;
@@ -6296,6 +6410,29 @@ fn draw_amp_model_icon(frame: &mut Frame, center: Point, model: AmpModel, color:
                     Point::new(center.x + 10.0, center.y - 28.0),
                 ),
                 Stroke::default().with_color(color).with_width(2.2),
+            );
+        }
+        AmpModel::NamLoader => {
+            let top = rounded_rect(
+                Point::new(center.x - 25.0, center.y - 23.0),
+                Size::new(50.0, 34.0),
+                2.0,
+            );
+            frame.stroke(&top, Stroke::default().with_color(color).with_width(2.0));
+            frame.fill(
+                &Path::circle(Point::new(center.x - 10.0, center.y - 7.0), 3.6),
+                color,
+            );
+            frame.fill(
+                &Path::circle(Point::new(center.x + 10.0, center.y - 7.0), 3.6),
+                color,
+            );
+            frame.stroke(
+                &Path::line(
+                    Point::new(center.x - 16.0, center.y + 6.0),
+                    Point::new(center.x + 16.0, center.y + 6.0),
+                ),
+                Stroke::default().with_color(color).with_width(2.0),
             );
         }
     }

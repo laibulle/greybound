@@ -6,7 +6,8 @@ mod windowing;
 use audio::LiveAudioEngine;
 use audio_devices::refresh_audio_devices;
 use greybound_ui::{
-    preload_render_assets, AudioInputSource, GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH,
+    preload_render_assets, AmpModel, AudioInputSource, GreyboundUi, Message, DESIGN_HEIGHT,
+    DESIGN_WIDTH,
 };
 use iced::{Application, Command, Element, Settings, Subscription};
 use mcp_sidecar::AudioLabMcpSidecar;
@@ -150,6 +151,19 @@ impl Application for Desktop {
             return Command::perform(pick_wav_file(), Message::WavFileSelected);
         }
 
+        if matches!(message, Message::LoadNamRequested) {
+            self.ui.update(message);
+            return Command::perform(pick_nam_file(), Message::NamFileSelected);
+        }
+
+        if matches!(message, Message::SelectAmpModel(AmpModel::NamLoader))
+            && !self.ui.has_loaded_nam_model()
+        {
+            self.ui.update(Message::SelectAmpModel(AmpModel::NamLoader));
+            self.ui.update(Message::LoadNamRequested);
+            return Command::perform(pick_nam_file(), Message::NamFileSelected);
+        }
+
         if matches!(message, Message::ToggleRecording) {
             let was_recording = self.ui.recording.active;
             self.ui.update(message);
@@ -261,6 +275,7 @@ impl Application for Desktop {
             | Message::AudioSampleRateSelected(_)
             | Message::AudioBufferSizeSelected(_)
             | Message::WavFileSelected(Some(_))
+            | Message::NamFileSelected(Some(_))
             | Message::SelectAmpModel(_) => true,
             Message::AudioInputSourceSelected(AudioInputSource::LiveInput) => true,
             Message::AudioInputSourceSelected(AudioInputSource::WavFile) => {
@@ -334,6 +349,14 @@ fn tuner_subscription(open: bool) -> Subscription<Message> {
 async fn pick_wav_file() -> Option<PathBuf> {
     rfd::AsyncFileDialog::new()
         .add_filter("WAV audio", &["wav", "wave"])
+        .pick_file()
+        .await
+        .map(|file| file.path().to_path_buf())
+}
+
+async fn pick_nam_file() -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .add_filter("Neural Amp Modeler", &["nam"])
         .pick_file()
         .await
         .map(|file| file.path().to_path_buf())

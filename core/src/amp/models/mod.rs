@@ -1,9 +1,11 @@
 mod boxer_seven;
+mod nam;
 mod none_star;
 mod nox30;
 
 use super::{AmpControls, NeuralCellMode, Nox30OperatingPoint, StageBoundaryState};
 use boxer_seven::BoxerSevenLead;
+use nam::NamAmp;
 use none_star::NoneStar;
 use nox30::Nox30Current;
 use std::path::PathBuf;
@@ -31,6 +33,7 @@ pub(super) fn configure_none_star_power_6l6_neural(
 
 pub(in crate::amp) enum AmpCore {
     BoxerSevenLead(BoxerSevenLead),
+    Nam(NamAmp),
     NoneStar(NoneStar),
     Nox30(Nox30Current),
 }
@@ -49,6 +52,7 @@ impl AmpCore {
             "none-star" | "lonestar-special" | "lone-star-special" | "lonestar" => {
                 Self::NoneStar(NoneStar::new(sample_rate))
             }
+            "nam2" | "nam-loader" => Self::Nam(NamAmp::new(model)),
             "nox30" | "nox30-experimental" => {
                 Self::Nox30(Nox30Current::new_with_model(sample_rate, model))
             }
@@ -59,6 +63,7 @@ impl AmpCore {
     pub(super) fn reset(&mut self) {
         match self {
             Self::BoxerSevenLead(model) => model.reset(),
+            Self::Nam(model) => model.reset(),
             Self::NoneStar(model) => model.reset(),
             Self::Nox30(model) => model.reset(),
         }
@@ -67,14 +72,14 @@ impl AmpCore {
     pub(super) fn nox30_operating_point(&self) -> Option<Nox30OperatingPoint> {
         match self {
             Self::Nox30(model) => Some(model.operating_point()),
-            Self::BoxerSevenLead(_) | Self::NoneStar(_) => None,
+            Self::BoxerSevenLead(_) | Self::Nam(_) | Self::NoneStar(_) => None,
         }
     }
 
     pub(super) fn nox30_boundary_states(&self) -> Option<[StageBoundaryState; 11]> {
         match self {
             Self::Nox30(model) => Some(model.boundary_states()),
-            Self::BoxerSevenLead(_) | Self::NoneStar(_) => None,
+            Self::BoxerSevenLead(_) | Self::Nam(_) | Self::NoneStar(_) => None,
         }
     }
 
@@ -82,6 +87,7 @@ impl AmpCore {
     pub(super) fn process(&mut self, input: f32, controls: AmpControls) -> f32 {
         match self {
             Self::BoxerSevenLead(model) => model.process(input, controls),
+            Self::Nam(model) => model.process(input, controls),
             Self::NoneStar(model) => model.process(input, controls),
             Self::Nox30(model) => model.process(input, controls),
         }

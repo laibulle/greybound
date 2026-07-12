@@ -4,6 +4,7 @@ pub mod chain;
 pub mod circuit;
 pub mod circuit_descriptor;
 pub mod ir;
+pub mod nam;
 pub mod neural_cell;
 pub mod pedal;
 pub mod rig;
@@ -34,6 +35,7 @@ pub use circuit_descriptor::{
     CircuitLayout, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
     CIRCUIT_DESCRIPTOR_SCHEMA, LUMEN_CIRCUIT, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
 };
+pub use nam::{NamArchitectureFamily, NamMetadata, NamModel, DEFAULT_NAM_SAMPLE_RATE_HZ};
 pub use pedal::{
     configure_minotaur_clip_neural, configure_minotaur_tone_neural, Auralith, AuralithControls,
     Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,

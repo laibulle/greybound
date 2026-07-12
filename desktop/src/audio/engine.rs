@@ -122,9 +122,14 @@ impl LiveAudioEngine {
         let output_meters = meters.clone();
         let output_recorder = recording_worker.clone();
         let output_name = output_device_name.clone();
-        let amp_model = ui.amp_model_id();
+        let amp_model = ui.runtime_amp_model_id();
         let app_profile = ui.app_profile;
-        let mut runtime = AudioRuntime::new(sample_rate as f32, consumer, amp_model, app_profile)?;
+        let mut runtime = AudioRuntime::new(
+            sample_rate as f32,
+            consumer,
+            amp_model.as_str(),
+            app_profile,
+        )?;
         let output_stream = output_device.build_output_stream(
             &output_config,
             move |data: &mut [f32], _| {
@@ -165,7 +170,7 @@ impl LiveAudioEngine {
             output_device: output_device_name,
             minotaur_device: pre_amp_device_summary(app_profile),
             fx_devices: post_amp_device_summary(app_profile),
-            amp_model: amp_model.to_string(),
+            amp_model,
             sample_rate,
             period_size,
         })
