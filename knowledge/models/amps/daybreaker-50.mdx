@@ -1,0 +1,125 @@
+---
+title: Daybreaker 50
+description: Greybound V1 modern clean and edge-of-breakup 6L6 amp model calibrated against a Dumble Steel String Singer NAM amp-head reference.
+---
+
+`daybreaker-50` is Greybound's modern high-headroom clean target: broad but
+controlled low end, open upper mids, soft high-frequency presence, and a
+touch-sensitive transition into edge breakup. The public model name is
+original. The Dumble Steel String Singer NAM pack is a calibration reference,
+not product identity or a claim of component-exact emulation.
+
+V1 intentionally scopes the model to clean and edge-of-breakup behavior. It
+does not model a specific original amplifier revision, its reverb circuit, or
+the two drive captures in the reference pack.
+
+## Reference and Policy
+
+The primary integration reference is the local TONE3000 Dumble Steel String
+Singer A2 amp-head pack installed outside git:
+
+- Tone URL: `https://www.tone3000.com/tones/dumble-steel-string-singer-29285`
+- Local directory: `lab/references/nam/DumbleSteelStringSinger/`
+- Source-safe manifest:
+  `lab/references/nam/manifests/dumble-steel-string-singer-29285.json`
+- Priority capture: `Dumble Steel SS Clean`
+- Policy: `amp-head-no-ir`
+
+The capture is an external whole-amp oracle at fixed settings. It is useful for
+end-to-end calibration but does not determine the internal topology. Render it
+without an IR and compare it to a Daybreaker rig with the cab bypassed.
+
+The local files report NAM A2 `SlimmableContainer`, `48 kHz`, and a recommended
+latency of five samples. `Drive 1` and `Drive 2` are retained for later
+edge-of-breakup checks; they are not V1 calibration targets.
+
+## V1 Stage Boundaries
+
+The V1 descriptor and Rust model expose a stage-level graybox map:
+
+1. 1 MOhm input coupling.
+2. Clean input triode with limited cathode-bypass lift.
+3. Three-band low/mid/high tone network before recovery; `cut` temporarily
+   maps to mid.
+4. Recovery and bright bypass whose gain rises with `volume` but stays clean at
+   the reference setting.
+5. Master/feedback presence shaping before a differential phase-inverter
+   approximation.
+6. Pair-of-6L6-style push-pull response with deliberately restrained sag and
+   bias shift.
+7. Transformer high-pass/low-pass filtering before the cab boundary.
+
+The model reuses the shared structured `PushPull6L6Stage`. It is a tuned
+graybox implementation, not a Dumble schematic, SPICE netlist, or PCB map.
+
+## Control Contract
+
+- `volume`: clean-channel recovery gain and edge threshold.
+- `bass`: tone-network low band.
+- `cut`: temporary mid control until `AmpControls` exposes `mid`.
+- `treble`: tone-network high band.
+- `drive`: extra edge/compression range, kept low for the clean anchor.
+- `presence`: feedback-style high-frequency openness.
+- `sag`: dynamic supply/bias softness; the clean anchor starts low.
+- `output`: final safety/output trim.
+
+Reverb belongs to the FX loop, not this amp model.
+
+## Validation Gates
+
+Focused Rust tests must show:
+
+- finite output under hot input;
+- more nonlinear residual energy at edge than at clean settings;
+- usable upper-mid/presence energy at the clean anchor;
+- a distinct clean spectral balance from None Star and Nox30.
+
+The first Lab render uses `rigs/daybreaker-50-clean.json5` and the Mayer DI.
+It must record monitor health and compare against the NAM clean render with no
+IR. Before changing a stage, use the appropriate controlled stimulus: sine for
+the tone network, bursts for sag, and stable tones/two-tone input for
+nonlinearity and intermodulation.
+
+```sh
+make lab-render-daybreaker-nam NAM_INPUT_WAV="lab/references/tone3000-inputs/Mayer - Guitar.wav"
+uv --project lab run greybound-lab render-rig \
+  --rig rigs/daybreaker-50-clean.json5 \
+  --input-wav "lab/references/tone3000-inputs/Mayer - Guitar.wav" \
+  --output-wav lab/renders/daybreaker-50-clean.wav \
+  --metadata lab/renders/daybreaker-50-clean.run.json \
+  --binary target/release/greybound-cli \
+  --render-seconds 10 --sample-rate 48000 --period-size 32 \
+  --input-db 0 --output-db -12
+```
+
+The first release is accepted only as a bounded clean/edge baseline. NAM metric
+movement, monitor health, and documented limitations decide subsequent changes;
+one plausible listening impression does not establish fidelity.
+
+## Implementation Status
+
+The V1 Rust core, circuit descriptor, dry rig, and Free profile entry are
+implemented. The focused checks passed on 2026-07-12:
+
+- `cargo test -p greybound`: 191 tests passed;
+- `cargo test -p greybound-cli`: 29 tests passed, including Auralith shared
+  control loading/adjustment after the CLI coverage fix;
+- `cargo check -p greybound-ui -p greybound-free`: passed;
+- Daybreaker tests cover hot-input finiteness, clean-to-edge nonlinear energy,
+  descriptor scope, and descriptor edge validity.
+
+The initial release render and NAM comparison now exist:
+
+- candidate: `lab/renders/daybreaker-50-clean-3s.wav`;
+- reference: `lab/references/nam/renders/daybreaker-50-dumble-sss-clean-3s.wav`;
+- report: `lab/reports/daybreaker-50-vs-dumble-sss-clean-3s.md`;
+- monitor: zero input/output xruns, near clips, and hard clips;
+- weighted guitar-band log-spectral distance: `18.18 dB`;
+- null residual relative to NAM: `-9.53 dB`;
+- envelope error: `-11.25 dB`.
+
+This is a safe and reproducible V1 baseline, not a fidelity claim. The report
+shows deficits in the mid (`-4.12 dB`) and presence (`-6.58 dB`) bands, plus
+excess air (`+7.76 dB`) after alignment. The next useful model change is a
+small tone-network/presence/output-filter hypothesis, evaluated against the
+same clean NAM render rather than broad retuning.

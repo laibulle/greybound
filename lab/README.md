@@ -279,7 +279,19 @@ uv --project lab run greybound-lab download-tone3000-irs \
   --output-dir lab/references/tone3000-irs
 ```
 
-NAM references are imported manually for now. See:
+NAM references can be downloaded through TONE3000's authenticated API. Export
+an OAuth access token as `TONE3000_ACCESS_TOKEN`; the token stays local and the
+downloaded `.nam` files remain ignored by git. The Daybreaker 50 reference is
+reproducible with:
+
+```sh
+export TONE3000_ACCESS_TOKEN='…'
+make lab-download-daybreaker-nam
+```
+
+Use `inspect-nam-pack` for an already-downloaded pack, or
+`download-tone3000-nam-pack` when adding another authenticated TONE3000 A2
+reference. See:
 
 - [004 NAM Reference Comparison](experiments/004-nam-reference-comparison.md)
 - [005 AC30HWH NAM A2 First Render](experiments/005-ac30hwh-nam-a2-first-render.md)
@@ -406,7 +418,9 @@ for the current disclaimer, architecture contract, and milestone sequence.
   explicit. Public TONE3000 input WAV files can be downloaded into
   `references/tone3000-inputs/`; the WAVs, generated manifest, and generated
   README remain ignored by git. Public TONE3000 IR WAV files can be downloaded
-  into `references/tone3000-irs/` with the same local-only rule.
+  into `references/tone3000-irs/` with the same local-only rule. Authenticated
+  TONE3000 NAM A2 packs are downloaded into `references/nam/`; their binaries
+  remain ignored, while the source-safe pack manifests are versioned.
 
 `renders/`
 

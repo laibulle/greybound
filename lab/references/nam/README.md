@@ -47,6 +47,34 @@ The NAM side is therefore an end-to-end amp+cab/mic reference. Compare it
 against a Greybound None Star full chain with an explicit cab/IR candidate, not
 against the raw amp core alone.
 
+## Daybreaker 50 amp-head reference
+
+The Daybreaker 50 clean/edge calibration anchor is the local TONE3000 Dumble
+Steel String Singer amp-head pack:
+
+- Tone URL: `https://www.tone3000.com/tones/dumble-steel-string-singer-29285`
+- Local model directory: `DumbleSteelStringSinger/`
+- Source-safe manifest: `manifests/dumble-steel-string-singer-29285.json`
+- Policy: `amp-head-no-ir`
+- Priority capture: `Dumble Steel SS Clean`
+
+The pack also contains `Drive 1` and `Drive 2` captures. Use the clean capture
+as the initial Daybreaker clean/edge target. Render the NAM without an IR and
+compare it to a Daybreaker Greybound rig with the cab disabled; cabinet
+selection is a separate validation axis.
+
+```sh
+export TONE3000_ACCESS_TOKEN='…'
+make lab-download-daybreaker-nam
+make lab-inspect-daybreaker-nam
+make lab-render-daybreaker-nam NAM_INPUT_WAV="lab/references/tone3000-inputs/Mayer - Guitar.wav"
+```
+
+The `.nam` files are local-only and ignored by git. The manifest is the
+versioned record of their provenance, metadata, policy, and priority capture.
+The download command uses TONE3000's authenticated API; never commit an OAuth
+token or pass it through a rig file.
+
 Suggested first search target:
 
 - Provider: TONE3000

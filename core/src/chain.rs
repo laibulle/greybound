@@ -538,6 +538,14 @@ pub fn amp_model_descriptor(model: &str) -> AmpModelDescriptor {
                 ..STANDARD_AMP_VISUAL
             },
         },
+        "daybreaker-50" | "daybreaker" => AmpModelDescriptor {
+            id: "daybreaker-50",
+            label: "Daybreaker 50",
+            visual: DeviceVisualDescriptor {
+                color: "midnight-blue",
+                ..STANDARD_AMP_VISUAL
+            },
+        },
         "none-star" | "lonestar-special" | "lone-star-special" | "lonestar" => AmpModelDescriptor {
             id: "none-star",
             label: "None Star",

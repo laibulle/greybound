@@ -556,6 +556,27 @@ mod tests {
     }
 
     #[test]
+    fn daybreaker_50_output_is_finite_under_hot_input() {
+        let mut amp = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut controls = controls();
+        controls.volume = 0.92;
+        controls.bass = 0.48;
+        controls.cut = 0.64;
+        controls.treble = 0.70;
+        controls.drive = 0.52;
+        controls.presence = 0.66;
+        controls.sag = 0.32;
+
+        for sample in [0.0, 0.5, -0.5, 1.0, -1.0, 4.0, -4.0]
+            .into_iter()
+            .cycle()
+            .take(4096)
+        {
+            assert!(amp.process(sample, controls).is_finite());
+        }
+    }
+
+    #[test]
     fn boxer_seven_lead_output_is_finite_under_hot_input() {
         let mut amp = VoxAmp::with_model(48_000.0, "boxer-seven-lead");
         let mut controls = controls();
@@ -644,6 +665,44 @@ mod tests {
 
         assert!(
             edge_residual > clean_residual * 1.20,
+            "clean_residual={clean_residual}, edge_residual={edge_residual}"
+        );
+    }
+
+    #[test]
+    fn daybreaker_50_edge_has_more_harmonic_energy_than_clean() {
+        let mut clean = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut edge = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut clean_controls = controls();
+        clean_controls.volume = 0.38;
+        clean_controls.bass = 0.46;
+        clean_controls.cut = 0.64;
+        clean_controls.treble = 0.70;
+        clean_controls.drive = 0.04;
+        clean_controls.presence = 0.66;
+        clean_controls.sag = 0.18;
+
+        let mut edge_controls = clean_controls;
+        edge_controls.volume = 0.92;
+        edge_controls.drive = 0.70;
+        edge_controls.sag = 0.48;
+
+        let mut clean_samples = Vec::new();
+        let mut edge_samples = Vec::new();
+        for sample_idx in 0..9_600 {
+            let input = (std::f32::consts::TAU * 220.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+            let clean_output = clean.process(input, clean_controls);
+            let edge_output = edge.process(input, edge_controls);
+            if sample_idx >= 4_800 {
+                clean_samples.push(clean_output);
+                edge_samples.push(edge_output);
+            }
+        }
+        let clean_residual = sine_residual_energy(&clean_samples, 220.0, 48_000.0);
+        let edge_residual = sine_residual_energy(&edge_samples, 220.0, 48_000.0);
+
+        assert!(
+            edge_residual > clean_residual * 1.15,
             "clean_residual={clean_residual}, edge_residual={edge_residual}"
         );
     }

@@ -137,6 +137,7 @@ pub fn amp_circuit_descriptor(model: &str) -> Option<&'static CircuitDescriptor>
         "none-star" | "lonestar-special" | "lone-star-special" | "lonestar" => {
             Some(&NONE_STAR_CIRCUIT)
         }
+        "daybreaker-50" | "daybreaker" => Some(&DAYBREAKER_50_CIRCUIT),
         "boxer-seven-lead" | "boxer-seven" | "shiva-20th-lead" | "shiva20-lead" => {
             Some(&BOXER_SEVEN_LEAD_CIRCUIT)
         }
@@ -710,6 +711,255 @@ pub static NONE_STAR_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
     groups: NONE_STAR_GROUPS,
     controls: NONE_STAR_CONTROLS,
     notes: NONE_STAR_NOTES,
+};
+
+const DAYBREAKER_50_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_coupling", "clean_preamp"];
+const DAYBREAKER_50_TONE_GROUP_NODES: &[&str] = &["tone_stack", "recovery", "presence"];
+const DAYBREAKER_50_POWER_GROUP_NODES: &[&str] = &[
+    "phase_inverter",
+    "power_6l6",
+    "sag_bias",
+    "output_transformer",
+    "speaker_out",
+];
+
+const DAYBREAKER_50_GROUPS: &[CircuitGroupDescriptor] = &[
+    CircuitGroupDescriptor {
+        id: "input",
+        label: "Input and clean gain",
+        nodes: DAYBREAKER_50_INPUT_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "tone",
+        label: "Tone, recovery, and presence",
+        nodes: DAYBREAKER_50_TONE_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "power",
+        label: "Phase inverter, 6L6 output, and supply",
+        nodes: DAYBREAKER_50_POWER_GROUP_NODES,
+    },
+];
+
+const DAYBREAKER_50_NODES: &[CircuitNodeDescriptor] = &[
+    CircuitNodeDescriptor {
+        id: "input_jack",
+        label: "Input jack",
+        kind: CircuitNodeKind::Port,
+        role: "Guitar or pedalboard voltage enters the Daybreaker 50 boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/amp/models/daybreaker_50.rs::Daybreaker50",
+        algorithm: "SignalChain hands audio voltage to the amp model.",
+        layout: CircuitLayout { x: 0.04, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_coupling",
+        label: "Input coupling",
+        kind: CircuitNodeKind::CouplingFilter,
+        role: "1 MOhm-style AC coupling before the clean preamp.",
+        control_id: None,
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::WdfHighpass",
+        algorithm: "RC high-pass boundary with a high-impedance input assumption.",
+        layout: CircuitLayout { x: 0.15, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "clean_preamp",
+        label: "Clean preamp",
+        kind: CircuitNodeKind::GainStage,
+        role: "High-headroom clean gain with a constrained transition into edge breakup.",
+        control_id: Some("volume"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::Daybreaker50",
+        algorithm: "Triode-style gain and cathode-bypass approximation before the tone network.",
+        layout: CircuitLayout { x: 0.28, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "tone_stack",
+        label: "Bass / mid / treble",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Three-band clean tone network with controlled low end and open upper mids.",
+        control_id: Some("bass"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::tone_stack",
+        algorithm: "Low/mid/high filter split; mid temporarily maps to AmpControls::cut.",
+        layout: CircuitLayout { x: 0.43, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "recovery",
+        label: "Recovery / master",
+        kind: CircuitNodeKind::GainStage,
+        role: "Post-tone recovery and master drive into the phase inverter.",
+        control_id: Some("drive"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::Daybreaker50",
+        algorithm: "Coupled triode-style recovery with a volume-dependent bright bypass.",
+        layout: CircuitLayout { x: 0.57, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "presence",
+        label: "Presence",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Feedback-style high-frequency openness before the output section.",
+        control_id: Some("presence"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::OnePoleLowpass",
+        algorithm: "Variable high-frequency lift around a low-pass reference.",
+        layout: CircuitLayout { x: 0.66, y: 0.30 },
+    },
+    CircuitNodeDescriptor {
+        id: "phase_inverter",
+        label: "Phase inverter",
+        kind: CircuitNodeKind::PhaseInverter,
+        role: "Opposed triode-style phase split into the 6L6 response.",
+        control_id: None,
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::Daybreaker50",
+        algorithm: "Differential pair approximation after AC coupling.",
+        layout: CircuitLayout { x: 0.70, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "power_6l6",
+        label: "6L6 power",
+        kind: CircuitNodeKind::PowerStage,
+        role: "High-headroom pair-of-6L6-style push-pull output response.",
+        control_id: Some("sag"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/circuit/power.rs::PushPull6L6Stage",
+        algorithm: "Structured 6L6 stage with supply, screen, fixed-bias, load-current, and attack-current state.",
+        layout: CircuitLayout { x: 0.81, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "sag_bias",
+        label: "Sag / bias",
+        kind: CircuitNodeKind::SupplyNetwork,
+        role: "Restrained dynamic supply and bias softness from output current demand.",
+        control_id: Some("sag"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::EnvelopeFollower",
+        algorithm: "Slow envelope followers reduce power drive when current demand rises.",
+        layout: CircuitLayout { x: 0.75, y: 0.82 },
+    },
+    CircuitNodeDescriptor {
+        id: "output_transformer",
+        label: "Output transformer",
+        kind: CircuitNodeKind::Transformer,
+        role: "Output filtering before the optional cab/IR boundary.",
+        control_id: Some("output"),
+        confidence: CircuitConfidence::TunedGreybox,
+        implementation: "core/src/amp/models/daybreaker_50.rs::WdfHighpass + OnePoleLowpass",
+        algorithm: "Low-frequency coupling and high-frequency transformer rolloff.",
+        layout: CircuitLayout { x: 0.93, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "speaker_out",
+        label: "Speaker out",
+        kind: CircuitNodeKind::Port,
+        role: "Amp output leaves the model before optional cab convolution.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/amp.rs::VoxAmp",
+        algorithm: "The output sample is handed to the chain or speaker IR boundary.",
+        layout: CircuitLayout { x: 0.99, y: 0.50 },
+    },
+];
+
+const DAYBREAKER_50_EDGES: &[CircuitEdgeDescriptor] = &[
+    edge(
+        "input_jack",
+        "input_coupling",
+        CircuitSignalKind::AudioVoltage,
+    ),
+    edge(
+        "input_coupling",
+        "clean_preamp",
+        CircuitSignalKind::LoadedAudioVoltage,
+    ),
+    edge("clean_preamp", "tone_stack", CircuitSignalKind::DriveAudio),
+    edge("tone_stack", "recovery", CircuitSignalKind::VoicedAudio),
+    edge("recovery", "presence", CircuitSignalKind::DriveAudio),
+    edge("presence", "phase_inverter", CircuitSignalKind::VoicedAudio),
+    edge(
+        "phase_inverter",
+        "power_6l6",
+        CircuitSignalKind::PhaseSplitAudio,
+    ),
+    edge(
+        "power_6l6",
+        "output_transformer",
+        CircuitSignalKind::PowerAudio,
+    ),
+    edge(
+        "output_transformer",
+        "speaker_out",
+        CircuitSignalKind::SpeakerVoltage,
+    ),
+    edge("sag_bias", "power_6l6", CircuitSignalKind::RailVoltage),
+];
+
+const DAYBREAKER_50_CONTROLS: &[CircuitControlBinding] = &[
+    CircuitControlBinding {
+        control_id: "volume",
+        node_id: "clean_preamp",
+        role: "Sets clean-channel recovery gain and edge threshold.",
+    },
+    CircuitControlBinding {
+        control_id: "bass",
+        node_id: "tone_stack",
+        role: "Sets low-band shaping.",
+    },
+    CircuitControlBinding {
+        control_id: "cut",
+        node_id: "tone_stack",
+        role: "Temporarily sets the mid band.",
+    },
+    CircuitControlBinding {
+        control_id: "treble",
+        node_id: "tone_stack",
+        role: "Sets high-band shaping.",
+    },
+    CircuitControlBinding {
+        control_id: "drive",
+        node_id: "recovery",
+        role: "Adds constrained edge/compression range.",
+    },
+    CircuitControlBinding {
+        control_id: "presence",
+        node_id: "presence",
+        role: "Sets high-frequency feedback-style lift.",
+    },
+    CircuitControlBinding {
+        control_id: "sag",
+        node_id: "sag_bias",
+        role: "Scales supply and bias softness.",
+    },
+    CircuitControlBinding {
+        control_id: "output",
+        node_id: "output_transformer",
+        role: "Sets final amp output scaling.",
+    },
+];
+
+const DAYBREAKER_50_NOTES: &[&str] = &[
+    "Daybreaker 50 V1 is a modern clean/edge stage-level graybox, calibrated against an amp-head NAM reference.",
+    "The descriptor explains Rust stage boundaries; it is not a Dumble schematic, PCB layout, or component-exact netlist.",
+    "AmpControls::cut temporarily maps to mid until the shared control surface exposes a dedicated mid parameter.",
+];
+
+pub static DAYBREAKER_50_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
+    schema: CIRCUIT_DESCRIPTOR_SCHEMA,
+    model_id: "daybreaker-50",
+    label: "Daybreaker 50 Clean/Edge",
+    kind: CircuitDescriptorKind::Greybox,
+    source_of_truth: "rust-model-stage-boundaries",
+    implementation: "core/src/amp/models/daybreaker_50.rs::Daybreaker50",
+    summary: "High-headroom clean preamp, three-band tone network, recovery/presence, differential phase split, restrained-sag 6L6 output response, and transformer filtering.",
+    nodes: DAYBREAKER_50_NODES,
+    edges: DAYBREAKER_50_EDGES,
+    groups: DAYBREAKER_50_GROUPS,
+    controls: DAYBREAKER_50_CONTROLS,
+    notes: DAYBREAKER_50_NOTES,
 };
 
 const BOXER_SEVEN_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_coupling", "bright_gain"];
@@ -1825,6 +2075,10 @@ mod tests {
             Some("none-star")
         );
         assert_eq!(
+            amp_circuit_descriptor("daybreaker-50").map(|d| d.model_id),
+            Some("daybreaker-50")
+        );
+        assert_eq!(
             amp_circuit_descriptor("lonestar-special").map(|d| d.model_id),
             Some("none-star")
         );
@@ -1922,6 +2176,19 @@ mod tests {
     }
 
     #[test]
+    fn daybreaker_50_descriptor_marks_clean_edge_scope() {
+        assert_eq!(DAYBREAKER_50_CIRCUIT.kind, CircuitDescriptorKind::Greybox);
+        assert!(DAYBREAKER_50_CIRCUIT
+            .nodes
+            .iter()
+            .any(|node| node.id == "power_6l6" && node.kind == CircuitNodeKind::PowerStage));
+        assert!(DAYBREAKER_50_CIRCUIT
+            .notes
+            .iter()
+            .any(|note| note.contains("clean/edge")));
+    }
+
+    #[test]
     fn boxer_seven_descriptor_marks_lead_scope() {
         assert_eq!(
             BOXER_SEVEN_LEAD_CIRCUIT.kind,
@@ -1945,6 +2212,7 @@ mod tests {
             &SPRINGFIELD_CIRCUIT,
             &NOX30_CIRCUIT,
             &NONE_STAR_CIRCUIT,
+            &DAYBREAKER_50_CIRCUIT,
             &BOXER_SEVEN_LEAD_CIRCUIT,
         ] {
             for edge in descriptor.edges {

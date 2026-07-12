@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from greybound_lab.audio import read_wav_mono
 from greybound_lab.evaluation import evaluate_metrics, write_evaluation_json, write_evaluation_report
-from greybound_lab.external_inputs import download_tone3000_inputs, download_tone3000_irs
+from greybound_lab.external_inputs import (
+    download_tone3000_inputs,
+    download_tone3000_irs,
+    download_tone3000_nam_pack,
+)
 from greybound_lab.graybox_cell import fit_common_cathode_graybox
 from greybound_lab.integrated_neural import evaluate_integrated_neural_cell
 from greybound_lab.metrics import compare_signals
@@ -180,6 +185,25 @@ def main() -> None:
     irs.add_argument("--output-dir", type=Path, default=Path("lab/references/tone3000-irs"))
     irs.add_argument("--overwrite", action="store_true")
 
+    nam_download = subparsers.add_parser(
+        "download-tone3000-nam-pack",
+        help="Download an authenticated TONE3000 A2 NAM pack and regenerate its source-safe manifest.",
+    )
+    nam_download.add_argument("--tone-id", required=True)
+    nam_download.add_argument("--tone-url", required=True)
+    nam_download.add_argument("--pack-dir", required=True, type=Path)
+    nam_download.add_argument("--manifest", required=True, type=Path)
+    nam_download.add_argument("--reference-id", required=True)
+    nam_download.add_argument("--gear-type", default="amp-head")
+    nam_download.add_argument("--ir-policy", default="amp-head-no-ir")
+    nam_download.add_argument("--gear-notes")
+    nam_download.add_argument("--priority-model", action="append")
+    nam_download.add_argument(
+        "--access-token",
+        help="TONE3000 OAuth access token; defaults to TONE3000_ACCESS_TOKEN.",
+    )
+    nam_download.add_argument("--overwrite", action="store_true")
+
     nam = subparsers.add_parser(
         "inspect-nam-pack",
         help="Inspect local NAM files and write a source-safe pack manifest.",
@@ -306,6 +330,8 @@ def main() -> None:
         run_download_tone3000_inputs(args)
     elif args.command == "download-tone3000-irs":
         run_download_tone3000_irs(args)
+    elif args.command == "download-tone3000-nam-pack":
+        run_download_tone3000_nam_pack(args)
     elif args.command == "inspect-nam-pack":
         run_inspect_nam_pack(args)
     elif args.command == "render-nam":
@@ -550,6 +576,35 @@ def run_download_tone3000_irs(args: argparse.Namespace) -> None:
         print(f"{action} {item.local_path}")
     print(f"wrote {args.output_dir / 'manifest.json'}")
     print(f"wrote {args.output_dir / 'README.md'}")
+
+
+def run_download_tone3000_nam_pack(args: argparse.Namespace) -> None:
+    access_token = args.access_token or os.environ.get("TONE3000_ACCESS_TOKEN")
+    if not access_token:
+        raise SystemExit("TONE3000_ACCESS_TOKEN or --access-token is required for TONE3000 NAM downloads")
+
+    downloaded = download_tone3000_nam_pack(
+        args.pack_dir,
+        tone_id=args.tone_id,
+        access_token=access_token,
+        overwrite=args.overwrite,
+    )
+    manifest = write_nam_pack_manifest(
+        args.pack_dir,
+        args.manifest,
+        tone_url=args.tone_url,
+        reference_id=args.reference_id,
+        tone_id=args.tone_id,
+        gear_type=args.gear_type,
+        ir_policy=args.ir_policy,
+        gear_notes=args.gear_notes,
+        priority_models=set(args.priority_model) if args.priority_model else None,
+    )
+    for item in downloaded:
+        action = "downloaded" if item.downloaded else "kept"
+        print(f"{action} {item.local_path}")
+    print(f"wrote {args.manifest}")
+    print(f"models {len(manifest['models'])}")
 
 
 def run_inspect_nam_pack(args: argparse.Namespace) -> None:

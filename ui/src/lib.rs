@@ -721,6 +721,7 @@ fn view_mode_label(view_mode: ViewMode) -> &'static str {
 pub enum AmpModel {
     Nox30,
     NamLoader,
+    Daybreaker50,
     WideCombo,
     LeadHead,
 }
@@ -730,6 +731,7 @@ impl AmpModel {
         match self {
             Self::Nox30 => "nox30",
             Self::NamLoader => "nam2",
+            Self::Daybreaker50 => "daybreaker-50",
             Self::WideCombo => "wide-combo",
             Self::LeadHead => "lead-head",
         }
@@ -1761,6 +1763,10 @@ fn boxer_seven_lead_circuit_descriptor() -> Option<&'static greybound::CircuitDe
     greybound::amp_circuit_descriptor("boxer-seven-lead")
 }
 
+fn daybreaker_50_circuit_descriptor() -> Option<&'static greybound::CircuitDescriptor> {
+    greybound::amp_circuit_descriptor("daybreaker-50")
+}
+
 const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[
     AppAmpModelDescriptor {
         id: "nox30",
@@ -1768,6 +1774,13 @@ const FREE_AMP_MODELS: &[AppAmpModelDescriptor] = &[
         visual: AmpModel::Nox30,
         render: &NOX30_AMP_RENDER_SPEC,
         circuit: nox30_circuit_descriptor,
+    },
+    AppAmpModelDescriptor {
+        id: "daybreaker-50",
+        label: "Daybreaker 50",
+        visual: AmpModel::Daybreaker50,
+        render: &WIDE_COMBO_AMP_RENDER_SPEC,
+        circuit: daybreaker_50_circuit_descriptor,
     },
     AppAmpModelDescriptor {
         id: "nam2",
@@ -2466,6 +2479,7 @@ fn device_state_for_amp_model(model: AmpModel) -> DeviceState {
     match model {
         AmpModel::Nox30 => DeviceState::nox30(),
         AmpModel::NamLoader => DeviceState::nam_loader(),
+        AmpModel::Daybreaker50 => DeviceState::wide_combo(),
         AmpModel::WideCombo => DeviceState::wide_combo(),
         AmpModel::LeadHead => DeviceState::lead_head(),
     }
@@ -2993,6 +3007,7 @@ impl GreyboundUi {
     fn runtime_amp_controls(&self) -> CoreAmpControls {
         let output = match self.amp_model_id() {
             "none-star" => 0.40 + self.amp.master * 1.20,
+            "daybreaker-50" => 0.38 + self.amp.master * 1.10,
             "boxer-seven-lead" => 0.20 + self.amp.master * 1.15,
             _ => 0.58,
         };
@@ -6251,6 +6266,7 @@ fn fallback_amp_render_spec(model: AmpModel) -> &'static ModelRenderSpec {
     match model {
         AmpModel::Nox30 => &NOX30_AMP_RENDER_SPEC,
         AmpModel::NamLoader => &NAM_LOADER_AMP_RENDER_SPEC,
+        AmpModel::Daybreaker50 => &WIDE_COMBO_AMP_RENDER_SPEC,
         AmpModel::WideCombo => &WIDE_COMBO_AMP_RENDER_SPEC,
         AmpModel::LeadHead => &LEAD_HEAD_AMP_RENDER_SPEC,
     }
@@ -6621,7 +6637,7 @@ fn amp_knob_layout(size: Size, model: AmpModel) -> Vec<(ControlKind, Point)> {
                 ),
             ]
         }
-        AmpModel::WideCombo => {
+        AmpModel::Daybreaker50 | AmpModel::WideCombo => {
             let amp_w = size.width.min(1210.0);
             let origin = Point::new((size.width - amp_w) * 0.5, 70.0);
             let panel_x = origin.x + 210.0;
@@ -6864,6 +6880,7 @@ fn draw_amp_spine(frame: &mut Frame, size: Size, app_profile: AppProfile, select
 fn amp_spine_copy(model: AmpModel) -> (&'static str, &'static str) {
     match model {
         AmpModel::Nox30 => ("NOX 30", "BRITISH"),
+        AmpModel::Daybreaker50 => ("DAYBREAKER", "CLEAN 50"),
         AmpModel::WideCombo => ("STAR", "CLEAN"),
         AmpModel::LeadHead => ("SEVEN", "LEAD"),
         AmpModel::NamLoader => ("NAM", "CAPTURE"),

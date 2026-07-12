@@ -42,6 +42,15 @@ NONE_STAR_NAM_OUTPUT_WAV ?= lab/references/nam/renders/none-star-mateus-asato.wa
 NONE_STAR_NAM_METADATA ?= lab/references/nam/renders/none-star-mateus-asato.run.json
 NONE_STAR_NAM_INPUT_DB ?= 0
 NONE_STAR_NAM_OUTPUT_DB ?= -12
+DAYBREAKER_NAM_PACK_DIR ?= lab/references/nam/DumbleSteelStringSinger
+DAYBREAKER_NAM_PACK_MANIFEST ?= lab/references/nam/manifests/dumble-steel-string-singer-29285.json
+DAYBREAKER_NAM_TONE_URL ?= https://www.tone3000.com/tones/dumble-steel-string-singer-29285
+DAYBREAKER_NAM_TONE_ID ?= 29285
+DAYBREAKER_NAM_MODEL ?= lab/references/nam/DumbleSteelStringSinger/Dumble Steel SS Clean.nam
+DAYBREAKER_NAM_OUTPUT_WAV ?= lab/references/nam/renders/daybreaker-50-dumble-sss-clean.wav
+DAYBREAKER_NAM_METADATA ?= lab/references/nam/renders/daybreaker-50-dumble-sss-clean.run.json
+DAYBREAKER_NAM_INPUT_DB ?= 0
+DAYBREAKER_NAM_OUTPUT_DB ?= -12
 KLON_NAM_MODEL ?= lab/references/nam/J. Rockett _The Jeff_ Archer/Klon Gain 5.nam
 KLON_INPUT_DB ?= -36
 KLON_OUTPUT_DB ?= -12
@@ -322,6 +331,31 @@ lab-inspect-none-star-nam:
 		--ir-policy "full-rig-embedded-cab" \
 		--gear-notes "TONE3000 NAM reference for None Star calibration. The page describes a Full Rig / Combo Capture, Mesa Boogie Lone Star - 4x12, so cab/mic behavior is embedded in the model and no extra IR should be added on the NAM side."
 
+lab-inspect-daybreaker-nam:
+	uv --project lab run greybound-lab inspect-nam-pack \
+		--pack-dir "$(DAYBREAKER_NAM_PACK_DIR)" \
+		--manifest "$(DAYBREAKER_NAM_PACK_MANIFEST)" \
+		--tone-url "$(DAYBREAKER_NAM_TONE_URL)" \
+		--reference-id "dumble-steel-string-singer-29285" \
+		--tone-id "29285" \
+		--gear-type "amp-head" \
+		--ir-policy "amp-head-no-ir" \
+		--gear-notes "TONE3000 amp-head NAM reference for Daybreaker 50 calibration. The pack contains Clean, Drive 1, and Drive 2 captures with no cab/IR. Use the Clean capture as the initial clean/edge anchor; render the NAM and Greybound without an IR." \
+		--priority-model "Dumble Steel SS Clean"
+
+lab-download-daybreaker-nam:
+	@test -n "$$TONE3000_ACCESS_TOKEN" || (echo "Export TONE3000_ACCESS_TOKEN from an authenticated TONE3000 OAuth session." >&2; exit 2)
+	uv --project lab run greybound-lab download-tone3000-nam-pack \
+		--tone-id "$(DAYBREAKER_NAM_TONE_ID)" \
+		--tone-url "$(DAYBREAKER_NAM_TONE_URL)" \
+		--pack-dir "$(DAYBREAKER_NAM_PACK_DIR)" \
+		--manifest "$(DAYBREAKER_NAM_PACK_MANIFEST)" \
+		--reference-id "dumble-steel-string-singer-29285" \
+		--gear-type "amp-head" \
+		--ir-policy "amp-head-no-ir" \
+		--gear-notes "TONE3000 amp-head NAM reference for Daybreaker 50 calibration. The pack contains Clean, Drive 1, and Drive 2 captures with no cab/IR. Use the Clean capture as the initial clean/edge anchor; render the NAM and Greybound without an IR." \
+		--priority-model "Dumble Steel SS Clean"
+
 lab-render-nam:
 	@test -n "$(NAM_RENDERER)" || (echo "NAM_RENDERER is required. It must accept placeholders: {model}, {input_wav}, {output_wav}, {sample_rate}, {render_seconds}, {ir_wav}." >&2; exit 2)
 	uv --project lab run greybound-lab render-nam \
@@ -347,6 +381,19 @@ lab-render-none-star-nam:
 		--render-seconds "$(NAM_RENDER_SECONDS)" \
 		--input-db "$(NONE_STAR_NAM_INPUT_DB)" \
 		--output-db "$(NONE_STAR_NAM_OUTPUT_DB)"
+
+lab-render-daybreaker-nam:
+	@test -n "$(NAM_RENDERER)" || (echo "NAM_RENDERER is required. It must accept placeholders: {model}, {input_wav}, {output_wav}, {sample_rate}, {render_seconds}, {ir_wav}." >&2; exit 2)
+	uv --project lab run greybound-lab render-nam \
+		--model "$(DAYBREAKER_NAM_MODEL)" \
+		--input-wav "$(NAM_INPUT_WAV)" \
+		--output-wav "$(DAYBREAKER_NAM_OUTPUT_WAV)" \
+		--metadata "$(DAYBREAKER_NAM_METADATA)" \
+		--renderer-command "$(NAM_RENDERER)" \
+		--sample-rate "$(NAM_SAMPLE_RATE)" \
+		--render-seconds "$(NAM_RENDER_SECONDS)" \
+		--input-db "$(DAYBREAKER_NAM_INPUT_DB)" \
+		--output-db "$(DAYBREAKER_NAM_OUTPUT_DB)"
 
 lab-render-klon-nam:
 	@test -n "$(NAM_RENDERER)" || (echo "NAM_RENDERER is required. It must accept placeholders: {model}, {input_wav}, {output_wav}, {sample_rate}, {render_seconds}, {ir_wav}." >&2; exit 2)
@@ -615,4 +662,4 @@ site-deploy: landing-deploy docs-deploy
 
 vercel-deploy: landing-deploy
 
-.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-render-nam lab-render-none-star-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
+.PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-inspect-daybreaker-nam lab-download-daybreaker-nam lab-render-nam lab-render-none-star-nam lab-render-daybreaker-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy
