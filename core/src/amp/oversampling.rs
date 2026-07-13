@@ -1,14 +1,14 @@
-pub(super) const OVERSAMPLING_FACTOR: f32 = 2.0;
+pub(crate) const OVERSAMPLING_FACTOR: f32 = 2.0;
 const HALF_BAND_TAPS: usize = 33;
 
-pub(super) struct FirFilter {
+pub(crate) struct FirFilter {
     coefficients: [f32; HALF_BAND_TAPS],
     history: [f32; HALF_BAND_TAPS],
     position: usize,
 }
 
 impl FirFilter {
-    pub(super) fn new(coefficients: [f32; HALF_BAND_TAPS]) -> Self {
+    pub(crate) fn new(coefficients: [f32; HALF_BAND_TAPS]) -> Self {
         Self {
             coefficients,
             history: [0.0; HALF_BAND_TAPS],
@@ -17,7 +17,7 @@ impl FirFilter {
     }
 
     #[inline]
-    pub(super) fn process(&mut self, input: f32) -> f32 {
+    pub(crate) fn process(&mut self, input: f32) -> f32 {
         self.history[self.position] = input;
         let mut output = 0.0;
         let mut history_position = self.position;
@@ -33,13 +33,13 @@ impl FirFilter {
         output
     }
 
-    pub(super) fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.history.fill(0.0);
         self.position = 0;
     }
 }
 
-pub(super) fn half_band_coefficients() -> [f32; HALF_BAND_TAPS] {
+pub(crate) fn half_band_coefficients() -> [f32; HALF_BAND_TAPS] {
     let center = (HALF_BAND_TAPS - 1) as f32 * 0.5;
     let mut coefficients = [0.0; HALF_BAND_TAPS];
     let mut sum = 0.0;

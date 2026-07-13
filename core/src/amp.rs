@@ -1,6 +1,6 @@
 mod components;
 mod models;
-mod oversampling;
+pub(crate) mod oversampling;
 
 use models::AmpCore;
 use oversampling::{half_band_coefficients, FirFilter, OVERSAMPLING_FACTOR};

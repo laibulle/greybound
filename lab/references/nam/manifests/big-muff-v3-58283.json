@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/nam-pack-manifest.schema.json",
+  "schema_version": 1,
+  "reference_id": "big-muff-v3-58283",
+  "source": {
+    "provider": "TONE3000",
+    "url": "https://www.tone3000.com/tones/big-muff-made-in-usa-58283",
+    "tone_id": "58283",
+    "creator": "daniel8381",
+    "license": "T3K",
+    "license_notes": "TONE3000 T3K: local use and published outputs are allowed; do not republish or redistribute the data files without author permission."
+  },
+  "model_policy": {
+    "format": "nam-a2",
+    "architecture_version": "2",
+    "gear_type": "pedal",
+    "includes_cab": false,
+    "ir_policy": "pedal-direct-no-ir"
+  },
+  "gear": {
+    "make": "Electro-Harmonix",
+    "model": "Big Muff Pi V3",
+    "notes": "Public TONE3000 pedal-only capture. The selected A2-Full model is BIG MUFF V3 T12 Sfull -18db, captured with tone at 12 o'clock, sustain full, and -18 dB input policy. This is a same-family NAM anchor, not a claim that it is the exact Ram's Head/Violet unit modeled by Muffin."
+  },
+  "priority_models": [
+    "BIG MUFF V3 T12 Sfull -18db"
+  ],
+  "models": [
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.7367627783844863,
+      "loudness": -13.707056045532227,
+      "metadata_name": "BIG MUFF V3 T12 Sfull -18db",
+      "name": "BIG MUFF V3 T12 Sfull -18db",
+      "path": "BigMuffV3/BIG MUFF V3 T12 Sfull -18db.nam",
+      "priority": true,
+      "recommended_latency_samples": -67,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_type": "pedal",
+        "raw_name": "BIG MUFF V3 T12 Sfull -18db",
+        "tone_position": "12 o'clock",
+        "sustain_position": "full",
+        "input_level_db": -18
+      },
+      "size_bytes": 295805,
+      "validation_esr": 0.003657421325241672,
+      "version": "0.7.0"
+    }
+  ]
+}

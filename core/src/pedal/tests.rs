@@ -58,6 +58,25 @@ fn muffin_sustain_changes_transfer_curve() {
 }
 
 #[test]
+fn muffin_component_circuit_stays_bounded_under_hot_drive() {
+    let mut pedal = Muffin::new(48_000.0);
+
+    for sample_idx in 0..48_000 {
+        let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.8;
+        let output = pedal.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                sustain: 1.0,
+                tone: 1.0,
+                level: 1.0,
+            },
+        );
+        assert!(output.voltage.is_finite());
+        assert!(output.voltage.abs() <= 4.5);
+    }
+}
+
+#[test]
 fn minotaur_exposes_buffered_output_impedance() {
     let mut pedal = Minotaur::new(48_000.0);
     let output = pedal.process(

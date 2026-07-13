@@ -11,7 +11,7 @@ Do not treat "Muffin" as one canonical schematic. Triangle, Ram's Head, op-amp, 
 
 Diagram data lives in `knowledge/models/pedals/fuzz/diagrams/muffin.diagram.json5`.
 
-This JSON5 graph is a documentation and renderer artifact. It maps the physical fuzz stages to the current Rust emulation and includes partial SPICE export fields only where the diagram has enough concrete electrical detail.
+This JSON5 graph and the runtime descriptor at `core/src/circuit_descriptor.rs::MUFFIN_CIRCUIT` are documentation/rendering artifacts. They map the Ram's Head working topology to the component cells in Rust; they are not a claim that every historic Muffin has these exact values.
 
 <CircuitDiagram model="muffin" />
 
@@ -35,7 +35,7 @@ For the modern Ram's Head reissue/manual:
 - tone clockwise increases treble and decreases bass,
 - sustain controls sustain/distortion amount.
 
-The current Greybound DSP approximation uses about 130 kOhm input impedance and about 10 kOhm output impedance. The modeling priority is to match electrical boundaries first, then stage transfer curves, then variant voicing.
+The current Rust model uses the 117 kOhm / 25 kOhm published boundary targets. The modeling priority is to match electrical boundaries first, then stage transfer curves, then variant voicing.
 
 ## Controls
 
@@ -74,9 +74,10 @@ The pedal surface uses a project-owned 1970s fuzz-inspired enclosure asset at
 knobs, LED, and footswitch are separate photorealistic runtime assets; the LED
 switches between dark ruby and lit ruby states with the same bypass state.
 
-This promotion does not claim a new circuit-accuracy result. The model remains
-the first-pass scalar approximation documented in the stage notes below and
-still needs the component-level BJT/diode/tone-stack validation in the plan.
+This promotion did not claim a circuit-accuracy result. The scalar baseline was
+replaced on 2026-07-14 by the component-circuit candidate documented below;
+the candidate still needs a matching hardware capture or full SPICE fixture
+before it can claim component-exact accuracy.
 
 Validation was regression-oriented against the existing model and used the
 focused `rigs/muffin-nox.json5` integration rig:
@@ -101,6 +102,51 @@ The pedal should receive and emit voltage plus impedance:
 
 `ConnectionState` owns cable capacitance and source/load division. The pedal should not mutate arbitrary amp internals.
 
+## 2026-07-14 Component-Circuit Candidate
+
+`core/src/pedal/muffin.rs` now instantiates four reusable
+`BjtCommonEmitterStage` cells from `core/src/circuit/muffin.rs`. Each stage
+uses an incremental Shockley BJT current around a fixed quiescent current, a
+bounded four-step Newton solve for the emitter, and explicit trapezoidal
+emitter-bypass and collector-capacitor state. The two clipping pairs use a
+bounded Shockley solve against the collector source resistance; they are no
+longer a `tanh` applied after arbitrary gain.
+
+The audio path runs the nonlinear circuit at 2x with the shared 33-tap
+half-band FIR up/downsamplers. This preserves the one-sample pedal boundary
+while suppressing folding from the diode and collector-saturation solves. The
+collector node is limited by the explicit 9 V rail and its fixed DC operating
+point before capacitor state is updated; rail-infeasible current assumptions
+cannot become a long DC transient at the output.
+
+The tone control is a four-node trapezoidal MNA network. It retains both
+capacitor histories and includes Q3 source resistance plus Q4 base loading:
+
+```text
+Q3 collector -- Rs --+-- 39k --+-- 10n -- ground
+                      |         |
+                      +-- 3.9n -+-- 22k -- ground
+                                \ 100k tone pot / --> Q4 base load
+```
+
+The candidate working values are a Ram's Head/Violet-era hypothesis, not a
+universal Big Muff bill of materials:
+
+- Q1/Q4: 39 kOhm collectors, 390 Ohm emitter resistors, 10 uF/1 uF bypass
+  capacitors respectively, `0.12 mA` quiescent collector current, and 470 pF /
+  2.2 nF collector smoothing capacitors.
+- Q2/Q3: 100 kOhm collectors, 390 Ohm emitter resistors, 1 uF bypass
+  capacitors, `45 uA` quiescent collector current, 2.2 nF collector smoothing
+  capacitors, and antiparallel 1N4148-like pairs to ground.
+- Tone stack: 39 kOhm/10 nF low path, 3.9 nF/22 kOhm high path, 100 kOhm pot.
+- Input and output: 117 kOhm input load, 25 kOhm output boundary, both
+  AC-coupled.
+
+The `sustain` control currently moves the base drive made available by the two
+clipping-stage shunt-feedback networks. This preserves a bounded component
+solve while the exact taper and feedback resistors remain a variant-specific
+measurement task.
+
 ## Stage Notes
 
 Input booster:
@@ -112,9 +158,11 @@ Input booster:
 Clipping stages:
 
 - Two common-emitter stages with antiparallel silicon diode clipping.
-- First pass diode target is 1N914/1N4148-equivalent behavior.
+- Diode target is a 1N914/1N4148-equivalent Shockley pair loaded by the stage
+  collector resistance.
 - Forward voltage target for vintage silicon parts is roughly 0.5 to 0.6 V, but measured curves are better than fixed constants.
-- The implementation target is a coupled BJT plus diode solve, not a post-gain `tanh`.
+- Current implementation is an incremental BJT plus diode solve. A future full
+  DC MNA fixture can replace the fixed operating-point assumption.
 
 Tone stack:
 
@@ -123,7 +171,8 @@ Tone stack:
   - low-pass branch: 39 kOhm and 10 nF,
   - high-pass branch: 3.9 nF and 22 kOhm,
   - blend potentiometer: 100 kOhm.
-- Implementation target is a trapezoidal MNA passive network including source impedance and recovery-stage load.
+- Implemented as a trapezoidal MNA passive network including source impedance
+  and recovery-stage load.
 
 Output recovery:
 
@@ -131,25 +180,20 @@ Output recovery:
 - Should model output coupling and volume-pot loading.
 - Published output impedance note for the modern Ram's Head is nominally 25 kOhm.
 
-## Implementation Plan
+## Remaining Implementation Plan
 
-Keep `ElectricalSignal`, `Load`, and `ConnectionState` as the rig-level interface. Then replace simplified stages with reusable circuit cells:
+Keep `ElectricalSignal`, `Load`, and `ConnectionState` as the rig-level interface. The first reusable cells are now `BjtCommonEmitterStage`, `SiliconDiodePair`, and `MuffinToneStack`; they are scalar, deterministic, bounded, and non-allocating in the audio path.
 
-- `CommonEmitterStage`,
-- `FeedbackCommonEmitterStage`,
-- `DiodePair`,
-- `CouplingCapacitor`,
-- `GroundedCapacitor`,
-- `Potentiometer`.
-
-Use bounded Newton solves or table-assisted diode/transistor models. Keep the implementation scalar, deterministic, non-allocating in the audio path, and suitable for plugin use.
+Next, add the matching full SPICE fixture and test Q1-Q4 operating points,
+Sustain taper, and pot taper against a selected public or project-owned
+reference unit.
 
 ## Validation Gates
 
 The model is not component-exact until:
 
 - published/manual impedance targets match within useful tolerance,
-- SPICE and Rust agree for individual stages,
+- SPICE and Rust agree for individual stages (not yet available for Muffin),
 - tone-stack response agrees at several tone positions,
 - sustain changes harmonic density and compression correctly,
 - guitar-source versus buffered-source input changes are audible and measurable,
@@ -171,3 +215,23 @@ Hardware or SPICE captures should include:
 ## Source Notes
 
 Useful public sources include ElectroSmash analysis, Kit Rae / Muffin Page variant history, the EHX Ram's Head manual, and public Muffin tone-control writeups. Keep URLs in docs when useful, but do not copy current-production artwork or third-party schematic images into the repository.
+
+## NAM Validation Scope
+
+The local source-safe manifest
+`lab/references/nam/manifests/big-muff-v3-58283.json` records a public
+TONE3000 A2 pedal-only reference: `BIG MUFF V3 T12 Sfull -18db`. It has no IR;
+the matching Greybound rig is therefore `rigs/muffin-nam-reference.json5`,
+which bypasses both amp and cab, uses the same Mayer DI, and applies `-18 dB`
+input gain. The reference is a 1990s V3 Big Muff rather than the exact
+Ram's-Head/Violet hypothesis, so it validates the BJT Muff family and the
+capture setting, not component identity.
+
+The fixed 48 kHz / three-second comparison is recorded in
+`lab/experiments/008-muffin-component-circuit.md`. The current 2.2 nF
+collector-smoothing candidate is `warning` rather than `severe`: gain alignment
+is `-0.83 dB`, weighted guitar-band LSD is `19.37 dB`, maximum normalized
+spectral-balance drift is `12.30 dB`, and there are zero near/hard clips. The
+remaining mismatch is concentrated above 1 kHz, so it is a variant-voicing and
+tone-stack/collector-capacitor fitting task rather than a numerical-health
+failure.

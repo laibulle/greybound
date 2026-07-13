@@ -1,0 +1,37 @@
+{
+  // Direct pedal-to-pedal comparison rig. The amp and cab are explicitly
+  // bypassed because the NAM reference is a Big Muff pedal capture with no IR.
+  name: "muffin-nam-reference",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [
+    {
+      id: "muffin-fuzz",
+      device: "muffin",
+      bypassed: false,
+      controls: {
+        // T12 / Sfull NAM capture: noon tone and full sustain. The NAM model
+        // does not encode the capture's volume pot as a control.
+        sustain: 1.0,
+        tone: 0.50,
+        // The direct, amp-bypassed CLI path emits pedal volts directly rather
+        // than applying the amp output trim. This 100 kOhm volume-pot position
+        // matches the NAM capture's published output level before comparison.
+        level: 0.12,
+      },
+    },
+  ],
+
+  amp: {
+    model: "nox30",
+    bypassed: true,
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/celestion.wav",
+    bypassed: true,
+  },
+}

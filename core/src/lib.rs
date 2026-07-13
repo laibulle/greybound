@@ -33,7 +33,8 @@ pub use circuit_descriptor::{
     amp_circuit_descriptor, device_circuit_descriptor, CircuitConfidence, CircuitControlBinding,
     CircuitDescriptor, CircuitDescriptorKind, CircuitEdgeDescriptor, CircuitGroupDescriptor,
     CircuitLayout, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
-    CIRCUIT_DESCRIPTOR_SCHEMA, LUMEN_CIRCUIT, MINOTAUR_CIRCUIT, NOX30_CIRCUIT, SPRINGFIELD_CIRCUIT,
+    CIRCUIT_DESCRIPTOR_SCHEMA, LUMEN_CIRCUIT, MINOTAUR_CIRCUIT, MUFFIN_CIRCUIT, NOX30_CIRCUIT,
+    SPRINGFIELD_CIRCUIT,
 };
 pub use nam::{NamArchitectureFamily, NamMetadata, NamModel, DEFAULT_NAM_SAMPLE_RATE_HZ};
 pub use pedal::{

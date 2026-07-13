@@ -102,10 +102,6 @@ pub(super) fn pedal_boundary_state(
     }
 }
 
-pub(super) fn transistor_limit(input: f32) -> f32 {
-    1.8 * (input / 1.8).tanh()
-}
-
 pub(super) fn diode_pair_clip(input: f32, knee_voltage: f32) -> f32 {
     knee_voltage * (input / knee_voltage).tanh()
 }

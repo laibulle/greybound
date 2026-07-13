@@ -124,6 +124,7 @@ pub struct CircuitDescriptor {
 pub fn device_circuit_descriptor(device: DeviceConfig) -> Option<&'static CircuitDescriptor> {
     match device {
         DeviceConfig::Lumen => Some(&LUMEN_CIRCUIT),
+        DeviceConfig::Muffin => Some(&MUFFIN_CIRCUIT),
         DeviceConfig::Minotaur => Some(&MINOTAUR_CIRCUIT),
         DeviceConfig::Springfield => Some(&SPRINGFIELD_CIRCUIT),
         _ => None,
@@ -1798,6 +1799,230 @@ pub static MINOTAUR_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
     notes: MINOTAUR_NOTES,
 };
 
+const MUFFIN_INPUT_GROUP_NODES: &[&str] =
+    &["input_jack", "input_load", "input_coupling", "q1_booster"];
+const MUFFIN_CLIPPING_GROUP_NODES: &[&str] = &["q2_clip", "diodes_a", "q3_clip", "diodes_b"];
+const MUFFIN_TONE_GROUP_NODES: &[&str] = &["tone_stack", "q4_recovery", "level", "output_jack"];
+
+const MUFFIN_GROUPS: &[CircuitGroupDescriptor] = &[
+    CircuitGroupDescriptor {
+        id: "input",
+        label: "Input and booster",
+        nodes: MUFFIN_INPUT_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "clipping",
+        label: "Cascaded BJT clipping",
+        nodes: MUFFIN_CLIPPING_GROUP_NODES,
+    },
+    CircuitGroupDescriptor {
+        id: "tone-output",
+        label: "Passive tone and recovery",
+        nodes: MUFFIN_TONE_GROUP_NODES,
+    },
+];
+
+const MUFFIN_NODES: &[CircuitNodeDescriptor] = &[
+    CircuitNodeDescriptor {
+        id: "input_jack",
+        label: "Input jack",
+        kind: CircuitNodeKind::Port,
+        role: "Guitar or preceding pedal voltage enters the high-impedance fuzz input.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "Voltage plus source impedance enters the pedal boundary.",
+        layout: CircuitLayout { x: 0.03, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_load",
+        label: "117 kOhm input",
+        kind: CircuitNodeKind::InputLoad,
+        role: "Input resistor and cable capacitance establish the guitar-sensitive load.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::Muffin::input_connection",
+        algorithm: "Source/load division with 470 pF cable state against 117 kOhm.",
+        layout: CircuitLayout { x: 0.13, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "input_coupling",
+        label: "Input coupling",
+        kind: CircuitNodeKind::CouplingFilter,
+        role: "AC coupling keeps Q1 bias off the external guitar boundary.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/pedal/muffin.rs::Muffin",
+        algorithm: "7.2 Hz coupling high-pass derived from the target input network.",
+        layout: CircuitLayout { x: 0.23, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "q1_booster",
+        label: "Q1 booster",
+        kind: CircuitNodeKind::GainStage,
+        role: "First silicon NPN common-emitter booster, with 39 kOhm collector and bypassed emitter network.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
+        algorithm: "Bounded Newton BJT solve with explicit emitter and collector capacitor histories.",
+        layout: CircuitLayout { x: 0.34, y: 0.50 },
+    },
+    CircuitNodeDescriptor {
+        id: "q2_clip",
+        label: "Q2 clip gain",
+        kind: CircuitNodeKind::GainStage,
+        role: "First 100 kOhm collector common-emitter clipping gain stage.",
+        control_id: Some("sustain"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
+        algorithm: "Sustain-controlled shunt-feedback base drive into a BJT/emitter-capacitor solve.",
+        layout: CircuitLayout { x: 0.47, y: 0.34 },
+    },
+    CircuitNodeDescriptor {
+        id: "diodes_a",
+        label: "D1 / D2",
+        kind: CircuitNodeKind::ClippingCell,
+        role: "First antiparallel 1N4148-like silicon clipping pair loading Q2's collector.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::SiliconDiodePair",
+        algorithm: "Bounded Shockley diode-pair solve against Q2 collector resistance.",
+        layout: CircuitLayout { x: 0.56, y: 0.34 },
+    },
+    CircuitNodeDescriptor {
+        id: "q3_clip",
+        label: "Q3 clip gain",
+        kind: CircuitNodeKind::GainStage,
+        role: "Second 100 kOhm collector common-emitter clipping gain stage.",
+        control_id: Some("sustain"),
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
+        algorithm: "Sustain-controlled base drive into a BJT/emitter-capacitor solve.",
+        layout: CircuitLayout { x: 0.66, y: 0.34 },
+    },
+    CircuitNodeDescriptor {
+        id: "diodes_b",
+        label: "D3 / D4",
+        kind: CircuitNodeKind::ClippingCell,
+        role: "Second antiparallel 1N4148-like silicon clipping pair loading Q3's collector.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::SiliconDiodePair",
+        algorithm: "Bounded Shockley diode-pair solve against Q3 collector resistance.",
+        layout: CircuitLayout { x: 0.75, y: 0.34 },
+    },
+    CircuitNodeDescriptor {
+        id: "tone_stack",
+        label: "Muffin tone stack",
+        kind: CircuitNodeKind::ToneNetwork,
+        role: "Passive 39 kOhm / 10 nF low path and 3.9 nF / 22 kOhm high path mixed by a 100 kOhm pot.",
+        control_id: Some("tone"),
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/circuit/muffin.rs::MuffinToneStack",
+        algorithm: "Four-node trapezoidal MNA solve with source and Q4 base loading.",
+        layout: CircuitLayout { x: 0.77, y: 0.68 },
+    },
+    CircuitNodeDescriptor {
+        id: "q4_recovery",
+        label: "Q4 recovery",
+        kind: CircuitNodeKind::GainStage,
+        role: "Post-tone silicon NPN recovery stage with an explicit emitter bypass capacitor.",
+        control_id: None,
+        confidence: CircuitConfidence::SchematicInspired,
+        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
+        algorithm: "Bounded Newton BJT solve driving the output volume control.",
+        layout: CircuitLayout { x: 0.88, y: 0.56 },
+    },
+    CircuitNodeDescriptor {
+        id: "level",
+        label: "Volume",
+        kind: CircuitNodeKind::LevelControl,
+        role: "Post-recovery output potentiometer attenuates signal without moving clipping bias.",
+        control_id: Some("level"),
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal/muffin.rs::Muffin",
+        algorithm: "Audio-taper output attenuation followed by DC-blocking output coupling.",
+        layout: CircuitLayout { x: 0.94, y: 0.56 },
+    },
+    CircuitNodeDescriptor {
+        id: "output_jack",
+        label: "25 kOhm output",
+        kind: CircuitNodeKind::Port,
+        role: "AC-coupled output boundary to the next pedal or amp input.",
+        control_id: None,
+        confidence: CircuitConfidence::KnownBoundary,
+        implementation: "core/src/pedal.rs::ElectricalSignal",
+        algorithm: "Emit voltage with Muffin::OUTPUT_IMPEDANCE_OHMS.",
+        layout: CircuitLayout { x: 0.99, y: 0.56 },
+    },
+];
+
+const MUFFIN_EDGES: &[CircuitEdgeDescriptor] = &[
+    edge("input_jack", "input_load", CircuitSignalKind::AudioVoltage),
+    edge(
+        "input_load",
+        "input_coupling",
+        CircuitSignalKind::LoadedAudioVoltage,
+    ),
+    edge(
+        "input_coupling",
+        "q1_booster",
+        CircuitSignalKind::DriveAudio,
+    ),
+    edge("q1_booster", "q2_clip", CircuitSignalKind::DriveAudio),
+    edge("q2_clip", "diodes_a", CircuitSignalKind::DriveAudio),
+    edge("diodes_a", "q3_clip", CircuitSignalKind::ClippedAudio),
+    edge("q3_clip", "diodes_b", CircuitSignalKind::DriveAudio),
+    edge("diodes_b", "tone_stack", CircuitSignalKind::ClippedAudio),
+    edge("tone_stack", "q4_recovery", CircuitSignalKind::VoicedAudio),
+    edge("q4_recovery", "level", CircuitSignalKind::DriveAudio),
+    edge("level", "output_jack", CircuitSignalKind::AudioVoltage),
+];
+
+const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
+    CircuitControlBinding {
+        control_id: "sustain",
+        node_id: "q2_clip",
+        role: "Sets clipping-stage base drive through the feedback-network hypothesis.",
+    },
+    CircuitControlBinding {
+        control_id: "sustain",
+        node_id: "q3_clip",
+        role: "Sets the second clipping-stage base drive.",
+    },
+    CircuitControlBinding {
+        control_id: "tone",
+        node_id: "tone_stack",
+        role: "Moves the 100 kOhm passive tone-stack wiper from low to high branch.",
+    },
+    CircuitControlBinding {
+        control_id: "level",
+        node_id: "level",
+        role: "Sets post-recovery output attenuation.",
+    },
+];
+
+const MUFFIN_NOTES: &[&str] = &[
+    "This is a Ram's Head/Violet-era component-value hypothesis; Muffin variants are not interchangeable.",
+    "The runtime solves incremental BJT behavior around fixed DC operating points, so it is circuit-informed rather than a full 9 V DC MNA netlist.",
+    "The diode pairs and passive tone stack are explicit bounded component solves; validate values against a matching hardware capture or SPICE fixture before claiming component-exact accuracy.",
+];
+
+pub static MUFFIN_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
+    schema: CIRCUIT_DESCRIPTOR_SCHEMA,
+    model_id: "muffin",
+    label: "Muffin fuzz",
+    kind: CircuitDescriptorKind::CircuitInformed,
+    source_of_truth: "rust-model",
+    implementation: "core/src/pedal/muffin.rs::Muffin",
+    summary: "Ram's Head-era BJT fuzz hypothesis with loaded input, four common-emitter stages, two Shockley diode pairs, passive MNA tone stack, and AC-coupled output boundary.",
+    nodes: MUFFIN_NODES,
+    edges: MUFFIN_EDGES,
+    groups: MUFFIN_GROUPS,
+    controls: MUFFIN_CONTROLS,
+    notes: MUFFIN_NOTES,
+};
+
 const SPRINGFIELD_INPUT_GROUP_NODES: &[&str] = &["input_jack", "input_load", "input_coupling"];
 const SPRINGFIELD_TANK_GROUP_NODES: &[&str] = &[
     "dwell_driver",
@@ -2116,6 +2341,32 @@ mod tests {
     }
 
     #[test]
+    fn muffin_descriptor_exposes_component_cells_and_controls() {
+        assert_eq!(
+            device_circuit_descriptor(DeviceConfig::Muffin).map(|descriptor| descriptor.model_id),
+            Some("muffin")
+        );
+        for control_id in ["sustain", "tone", "level"] {
+            assert!(MUFFIN_CIRCUIT
+                .controls
+                .iter()
+                .any(|binding| binding.control_id == control_id));
+        }
+        assert!(MUFFIN_CIRCUIT
+            .nodes
+            .iter()
+            .any(|node| { node.id == "tone_stack" && node.kind == CircuitNodeKind::ToneNetwork }));
+        assert_eq!(
+            MUFFIN_CIRCUIT
+                .nodes
+                .iter()
+                .filter(|node| node.kind == CircuitNodeKind::ClippingCell)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
     fn lumen_descriptor_mirrors_executable_audio_circuit() {
         let descriptor = &LUMEN_CIRCUIT;
         assert_eq!(descriptor.source_of_truth, "executable-rust-audio-circuit");
@@ -2208,6 +2459,7 @@ mod tests {
     fn descriptor_edges_reference_existing_nodes() {
         for descriptor in [
             &LUMEN_CIRCUIT,
+            &MUFFIN_CIRCUIT,
             &MINOTAUR_CIRCUIT,
             &SPRINGFIELD_CIRCUIT,
             &NOX30_CIRCUIT,
