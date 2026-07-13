@@ -475,6 +475,23 @@ mod tests {
         (energy / samples.len().max(1) as f32 - fundamental_energy * 0.5).max(0.0)
     }
 
+    fn sine_thd_db(samples: &[f32], frequency: f32, sample_rate: f32) -> f32 {
+        let mut sin_projection = 0.0;
+        let mut cos_projection = 0.0;
+        let mut energy = 0.0;
+        for (index, sample) in samples.iter().copied().enumerate() {
+            let phase = std::f32::consts::TAU * frequency * index as f32 / sample_rate;
+            sin_projection += sample * phase.sin();
+            cos_projection += sample * phase.cos();
+            energy += sample * sample;
+        }
+        let scale = 2.0 / samples.len().max(1) as f32;
+        let fundamental_energy =
+            ((sin_projection * scale).powi(2) + (cos_projection * scale).powi(2)) * 0.5;
+        let residual_energy = (energy / samples.len().max(1) as f32 - fundamental_energy).max(0.0);
+        20.0 * (residual_energy.sqrt() / fundamental_energy.sqrt().max(1e-12)).log10()
+    }
+
     fn tone_stack_rms(frequency: f32, bass: f32, treble: f32) -> f32 {
         tone_stack_rms_with_boundary(frequency, bass, treble, 820.0, 220_000.0)
     }
@@ -681,6 +698,7 @@ mod tests {
         clean_controls.drive = 0.04;
         clean_controls.presence = 0.66;
         clean_controls.sag = 0.18;
+        clean_controls.output = 0.545;
 
         let mut edge_controls = clean_controls;
         edge_controls.volume = 0.92;
@@ -704,6 +722,40 @@ mod tests {
         assert!(
             edge_residual > clean_residual * 1.15,
             "clean_residual={clean_residual}, edge_residual={edge_residual}"
+        );
+    }
+
+    #[test]
+    fn daybreaker_50_clean_calibration_defers_low_frequency_clipping() {
+        let sample_rate = 48_000.0;
+        let frequency = 100.0;
+        let mut amp = VoxAmp::with_model(sample_rate, "daybreaker-50");
+        let mut clean_controls = controls();
+        clean_controls.volume = 0.38;
+        clean_controls.bass = 0.46;
+        clean_controls.cut = 0.64;
+        clean_controls.treble = 0.70;
+        clean_controls.drive = 0.04;
+        clean_controls.presence = 0.66;
+        clean_controls.sag = 0.18;
+
+        let mut samples = Vec::new();
+        for sample_idx in 0..9_600 {
+            let input = (std::f32::consts::TAU * frequency * sample_idx as f32 / sample_rate).sin()
+                * 0.125_892_54;
+            let output = amp.process(input, clean_controls);
+            if sample_idx >= 4_800 {
+                samples.push(output);
+            }
+        }
+
+        let thd_db = sine_thd_db(&samples, frequency, sample_rate);
+        // The NAM Clean reference is -49.84 dB FFT THD at this point. This
+        // time-domain residual gate is deliberately looser because it also
+        // captures non-harmonic state noise; the uncalibrated graybox fails it.
+        assert!(
+            thd_db <= -30.0,
+            "Daybreaker clean 100 Hz / -18 dBFS THD exceeded calibration ceiling: {thd_db:.2} dB"
         );
     }
 

@@ -61,6 +61,17 @@ impl Daybreaker50 {
     }
 }
 
+/// Applies a triode transfer at a controlled drive level while retaining its
+/// small-signal gain.  The clean NAM reference stays linear much further into
+/// the nominal guitar-input range than the unscaled stage approximation.  The
+/// drive factor therefore models available voltage headroom rather than a
+/// post-hoc output trim; at full edge drive it is exactly the original stage.
+#[inline]
+fn headroom_triode_stage(input: f32, bias: f32, drive: f32) -> f32 {
+    let drive = drive.clamp(0.25, 1.0);
+    triode_stage(input * drive, bias) / drive
+}
+
 impl AmpModel for Daybreaker50 {
     fn reset(&mut self) {
         *self = Self::new(self.sample_rate);
@@ -72,23 +83,30 @@ impl AmpModel for Daybreaker50 {
         let edge = (controls.drive.clamp(0.0, 1.0) * 0.68
             + ((volume - 0.78) / 0.22).clamp(0.0, 1.0) * 0.32)
             .clamp(0.0, 1.0);
+        // Calibrated from the Dumble Steel String Singer Clean NAM sweep:
+        // retain the original full-edge curve, but give the clean operating
+        // point 8.6 dB of stage headroom before cascading preamp saturation.
+        let clean_stage_drive = 0.37 + edge * 0.63;
         let master = controls.output.clamp(0.0, 2.0);
 
         let input = self.input_coupling.process(input);
         let first_bypass = self.first_cathode_bypass.process(input);
-        let first_stage = triode_stage(input * 1.18 + first_bypass * 0.12, 0.105);
+        let first_stage =
+            headroom_triode_stage(input * 1.18 + first_bypass * 0.12, 0.105, clean_stage_drive);
         let toned = self.tone_stack(first_stage, controls.bass, controls.cut, controls.treble);
 
         let channel_gain = 1.30 + volume * 3.55;
         let bright = toned - self.gain_bright_filter.process(toned);
         let bright_bypass = bright * ((1.0 - volume) * 0.72 + edge * 0.08);
-        let recovery = triode_stage(
+        let recovery = headroom_triode_stage(
             self.recovery_coupling
                 .process(toned * channel_gain + bright_bypass),
             0.090 - edge * 0.030,
+            clean_stage_drive,
         );
         let master_signal =
-            triode_stage(recovery * (1.04 + edge * 0.16), 0.050) * (0.34 + master * 0.72);
+            headroom_triode_stage(recovery * (1.04 + edge * 0.16), 0.050, clean_stage_drive)
+                * (0.34 + master * 0.72);
 
         let presence_amount = controls.presence.clamp(0.0, 1.0);
         let presence_band = self
@@ -104,8 +122,8 @@ impl AmpModel for Daybreaker50 {
         let pi_input = self
             .phase_inverter_coupling
             .process(presence_shaped * (1.24 + edge * 0.30));
-        let phase_a = triode_stage(pi_input, 0.050);
-        let phase_b = triode_stage(-pi_input * 0.98, -0.046);
+        let phase_a = headroom_triode_stage(pi_input, 0.050, clean_stage_drive);
+        let phase_b = headroom_triode_stage(-pi_input * 0.98, -0.046, clean_stage_drive);
         let differential = (phase_a - phase_b) * 0.5;
 
         let current_demand = (differential.abs() * (0.96 + edge * 0.42) - 0.60).max(0.0);
@@ -114,7 +132,17 @@ impl AmpModel for Daybreaker50 {
         let sag_control = controls.sag.clamp(0.0, 1.0);
         let power_drive = differential * (0.92 + edge * 1.55)
             / (1.0 + bias_shift * 0.16 + sag * (0.06 + sag_control * 0.16));
-        let power_output = self.power_stage.process(power_drive, sag_control);
+        // The clean capture has a substantially wider 6L6 operating region
+        // than the original graybox calibration.  Scale the grid excursion
+        // before the physical power-stage solve and compensate after it, so
+        // the linear transfer stays intact while the clipping knee moves.
+        // 0.25 is 12 dB of clean power-stage headroom, selected from the NAM
+        // sine-level sweep; the edge endpoint remains the unmodified curve.
+        let clean_power_drive = 0.25 + edge * 0.75;
+        let power_output = self
+            .power_stage
+            .process(power_drive * clean_power_drive, sag_control)
+            / clean_power_drive;
 
         let transformer = self
             .transformer_lowpass
