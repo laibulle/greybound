@@ -47,6 +47,7 @@ const MAIN_VIEW_HEIGHT: f32 = DESIGN_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT;
 const PEDAL_STANDARD_WIDTH: f32 = 300.0;
 const PEDAL_STANDARD_HEIGHT: f32 = 543.0;
 const PEDAL_KNOB_RADIUS: f32 = 33.0;
+const LUMEN_KNOB_RADIUS: f32 = 24.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -852,6 +853,18 @@ pub const MINOTAUR_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetS
     rotation: None,
 };
 
+pub const MINOTAUR_SILVER_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/minotaur-silver-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: None,
+};
+
 pub const MUFFIN_BLACK_BRASS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/knobs/muffin-black-brass@2x.png",
@@ -1327,9 +1340,9 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Gain),
         widget: RenderControlWidget::Pot,
         label: "Gain",
-        anchor_x: 0.246,
-        anchor_y: 0.204,
-        radius: PEDAL_KNOB_RADIUS,
+        anchor_x: 0.268,
+        anchor_y: 0.237,
+        radius: 24.0,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(MINOTAUR_IVORY_KNOB_ASSET),
@@ -1338,9 +1351,9 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Treble),
         widget: RenderControlWidget::Pot,
         label: "Treble",
-        anchor_x: 0.753,
-        anchor_y: 0.204,
-        radius: PEDAL_KNOB_RADIUS,
+        anchor_x: 0.731,
+        anchor_y: 0.237,
+        radius: 24.0,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(MINOTAUR_IVORY_KNOB_ASSET),
@@ -1350,8 +1363,8 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Pot,
         label: "Output",
         anchor_x: 0.500,
-        anchor_y: 0.278,
-        radius: PEDAL_KNOB_RADIUS,
+        anchor_y: 0.365,
+        radius: 24.0,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(MINOTAUR_IVORY_KNOB_ASSET),
@@ -1361,19 +1374,19 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Footswitch,
         label: "Bypass",
         anchor_x: 0.50,
-        anchor_y: 0.735,
+        anchor_y: 0.774,
         radius: 31.0,
         hit_radius: 50.0,
         skin: KnobSkin::Teal,
-        asset: None,
+        asset: Some(MINOTAUR_SILVER_FOOTSWITCH_ASSET),
     },
     RenderControlSpec {
         role: RenderControlRole::Bypass,
         widget: RenderControlWidget::Led,
         label: "Status",
         anchor_x: 0.500,
-        anchor_y: 0.446,
-        radius: 20.0,
+        anchor_y: 0.528,
+        radius: 22.0,
         hit_radius: 0.0,
         skin: KnobSkin::Teal,
         asset: Some(MINOTAUR_JEWEL_LED_ASSET),
@@ -1445,7 +1458,7 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         label: "Peak",
         anchor_x: 0.28,
         anchor_y: 0.15,
-        radius: PEDAL_KNOB_RADIUS,
+        radius: LUMEN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(LUMEN_PEARL_KNOB_ASSET),
@@ -1456,7 +1469,7 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         label: "Gain",
         anchor_x: 0.72,
         anchor_y: 0.15,
-        radius: PEDAL_KNOB_RADIUS,
+        radius: LUMEN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(LUMEN_PEARL_KNOB_ASSET),
@@ -1465,9 +1478,9 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Presence),
         widget: RenderControlWidget::Pot,
         label: "Emphasis",
-        anchor_x: 0.28,
-        anchor_y: 0.39,
-        radius: PEDAL_KNOB_RADIUS,
+        anchor_x: 0.292,
+        anchor_y: 0.663,
+        radius: LUMEN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(LUMEN_PEARL_KNOB_ASSET),
@@ -1476,9 +1489,9 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Master),
         widget: RenderControlWidget::Pot,
         label: "Mix",
-        anchor_x: 0.72,
-        anchor_y: 0.39,
-        radius: PEDAL_KNOB_RADIUS,
+        anchor_x: 0.725,
+        anchor_y: 0.663,
+        radius: LUMEN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
         asset: Some(LUMEN_PEARL_KNOB_ASSET),
@@ -1488,7 +1501,7 @@ pub const LUMEN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Led,
         label: "Status",
         anchor_x: 0.50,
-        anchor_y: 0.64,
+        anchor_y: 0.44,
         radius: 19.0,
         hit_radius: 0.0,
         skin: KnobSkin::Teal,
@@ -1722,8 +1735,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Gain),
         widget: RenderControlWidget::Pot,
         label: "Decay",
-        anchor_x: 0.25,
-        anchor_y: 0.17,
+        anchor_x: 0.246,
+        anchor_y: 0.217,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1733,8 +1746,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Bass),
         widget: RenderControlWidget::Pot,
         label: "Size",
-        anchor_x: 0.50,
-        anchor_y: 0.17,
+        anchor_x: 0.493,
+        anchor_y: 0.217,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1744,8 +1757,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Cut),
         widget: RenderControlWidget::Pot,
         label: "Texture",
-        anchor_x: 0.75,
-        anchor_y: 0.17,
+        anchor_x: 0.738,
+        anchor_y: 0.217,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1755,8 +1768,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Treble),
         widget: RenderControlWidget::Pot,
         label: "Tone",
-        anchor_x: 0.25,
-        anchor_y: 0.37,
+        anchor_x: 0.246,
+        anchor_y: 0.422,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1766,8 +1779,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Presence),
         widget: RenderControlWidget::Pot,
         label: "Low Cut",
-        anchor_x: 0.50,
-        anchor_y: 0.37,
+        anchor_x: 0.493,
+        anchor_y: 0.422,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1777,8 +1790,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Master),
         widget: RenderControlWidget::Pot,
         label: "Mix",
-        anchor_x: 0.75,
-        anchor_y: 0.37,
+        anchor_x: 0.738,
+        anchor_y: 0.422,
         radius: 29.0,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
@@ -1799,8 +1812,8 @@ pub const AURALITH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Bypass,
         widget: RenderControlWidget::Footswitch,
         label: "Bypass",
-        anchor_x: 0.50,
-        anchor_y: 0.78,
+        anchor_x: 0.493,
+        anchor_y: 0.804,
         radius: 40.0,
         hit_radius: 58.0,
         skin: KnobSkin::Teal,
@@ -1909,7 +1922,7 @@ pub const AURALITH_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
         pixel_width: 1200,
         pixel_height: 2172,
     }),
-    typography: RenderTypographyPolicy::DrawnByUi,
+    typography: RenderTypographyPolicy::BakedIntoAsset,
     controls: AURALITH_PEDAL_CONTROLS,
 };
 
@@ -3207,6 +3220,7 @@ impl GreyboundUi {
                     selected_index: self.selected_index,
                     amp_model: self.amp_model,
                     circuit_view: self.circuit_view,
+                    pedalboard_backdrop: true,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -3218,6 +3232,7 @@ impl GreyboundUi {
                     selected_index: self.selected_index,
                     amp_model: self.amp_model,
                     circuit_view: self.circuit_view,
+                    pedalboard_backdrop: true,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -4376,6 +4391,7 @@ struct BoardArt {
     selected_index: usize,
     amp_model: AmpModel,
     circuit_view: bool,
+    pedalboard_backdrop: bool,
     scale: f32,
 }
 
@@ -4494,6 +4510,9 @@ impl Widget<Message, iced::Renderer> for BoardCanvas {
         renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
             let background = draw_board_background(renderer, &self.art, bounds.size());
             renderer.draw(vec![background]);
+            if self.art.pedalboard_backdrop {
+                draw_pedalboard_backdrop(renderer, bounds.size());
+            }
             draw_board_assets(renderer, &self.art, bounds.size());
             draw_board_control_assets(renderer, &self.art, bounds.size());
             renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
@@ -4621,6 +4640,9 @@ impl Widget<Message, iced::Renderer> for AmpCanvas {
         renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
             let background = draw_amp_background(renderer, &self.art, bounds.size());
             renderer.draw(vec![background]);
+            if !self.art.circuit_view {
+                draw_amp_studio_backdrop(renderer, bounds.size());
+            }
             draw_amp_asset(renderer, &self.art, bounds.size());
             draw_amp_control_assets(renderer, &self.art, bounds.size());
             renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
@@ -4748,6 +4770,7 @@ impl Widget<Message, iced::Renderer> for EqCanvas {
         renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
             let background = draw_eq_background(renderer, &self.art, bounds.size());
             renderer.draw(vec![background]);
+            draw_amp_studio_backdrop(renderer, bounds.size());
             draw_eq_panel_asset(renderer, self.art.scale);
             draw_eq_slider_cap_assets(renderer, &self.art);
             draw_eq_filter_knob_assets(renderer, &self.art);
@@ -4851,11 +4874,55 @@ fn draw_board_background(renderer: &iced::Renderer, art: &BoardArt, bounds: Size
     frame.into_geometry()
 }
 
+fn draw_pedalboard_backdrop(renderer: &mut iced::Renderer, bounds: Size) {
+    let Some(handle) = render_asset_handle(RenderAssetSpec {
+        path: "assets/surfaces/pedalboard-studio@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1807,
+        pixel_height: 870,
+    }) else {
+        return;
+    };
+
+    advanced_image::Renderer::draw(
+        renderer,
+        handle,
+        Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: bounds.width,
+            height: bounds.height,
+        },
+    );
+}
+
 fn draw_amp_background(renderer: &iced::Renderer, art: &AmpArt, bounds: Size) -> Geometry {
     let mut frame = Frame::new(renderer, bounds);
     frame.scale(art.scale);
     draw_stage_background(&mut frame, unscale_size(bounds, art.scale));
     frame.into_geometry()
+}
+
+fn draw_amp_studio_backdrop(renderer: &mut iced::Renderer, bounds: Size) {
+    let Some(handle) = render_asset_handle(RenderAssetSpec {
+        path: "assets/surfaces/amp-studio@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1672,
+        pixel_height: 941,
+    }) else {
+        return;
+    };
+
+    advanced_image::Renderer::draw(
+        renderer,
+        handle,
+        Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: bounds.width,
+            height: bounds.height,
+        },
+    );
 }
 
 fn draw_cab_background(renderer: &iced::Renderer, art: &CabArt, bounds: Size) -> Geometry {
@@ -5250,6 +5317,12 @@ pub fn preload_render_assets() {
             pixel_height: 887,
         },
         RenderAssetSpec {
+            path: "assets/surfaces/amp-studio@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1672,
+            pixel_height: 941,
+        },
+        RenderAssetSpec {
             path: "assets/pedals/lumen@4x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1200,
@@ -5419,6 +5492,12 @@ pub fn preload_render_assets() {
             pixel_height: 512,
         },
         RenderAssetSpec {
+            path: "assets/controls/buttons/minotaur-silver-footswitch@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 512,
+            pixel_height: 512,
+        },
+        RenderAssetSpec {
             path: "assets/controls/knobs/nox30-black-dial@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 1024,
@@ -5549,6 +5628,12 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
             1774,
             887
         ),
+        "assets/surfaces/amp-studio@2x.png" => {
+            decoded_handle!("../assets/surfaces/amp-studio@2x.png", 1672, 941)
+        }
+        "assets/surfaces/pedalboard-studio@2x.png" => {
+            decoded_handle!("../assets/surfaces/pedalboard-studio@2x.png", 1807, 870)
+        }
         "assets/pedals/lumen@4x.png" => {
             decoded_handle!("../assets/pedals/lumen@4x.png", 1200, 2172)
         }
@@ -5657,6 +5742,11 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/controls/knobs/minotaur-ivory@2x.png" => {
             decoded_handle!("../assets/controls/knobs/minotaur-ivory@2x.png", 512, 512)
         }
+        "assets/controls/buttons/minotaur-silver-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/minotaur-silver-footswitch@2x.png",
+            512,
+            512
+        ),
         "assets/controls/knobs/muffin-black-brass@2x.png" => {
             decoded_handle!(
                 "../assets/controls/knobs/muffin-black-brass@2x.png",
@@ -6617,6 +6707,7 @@ impl Widget<Message, iced::Renderer> for CabCanvas {
         renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
             let background = draw_cab_background(renderer, &self.art, bounds.size());
             renderer.draw(vec![background]);
+            draw_amp_studio_backdrop(renderer, bounds.size());
             draw_cab_asset(renderer, &self.art, bounds.size());
             renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
         });
@@ -7824,6 +7915,7 @@ impl Widget<Message, iced::Renderer> for RecordCanvas {
         renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
             let background = draw_record_background(renderer, &self.art, bounds.size());
             renderer.draw(vec![background]);
+            draw_amp_studio_backdrop(renderer, bounds.size());
             draw_record_assets(renderer, &self.art, bounds.size());
             renderer.draw(self.art.draw(state, renderer, theme, bounds, cursor));
         });
@@ -11330,34 +11422,42 @@ fn draw_texture_plate(frame: &mut Frame, origin: Point, size: Size, name: &str) 
 }
 
 fn draw_footswitch(frame: &mut Frame, center: Point) {
+    draw_footswitch_scaled(frame, center, 1.0);
+}
+
+fn draw_footswitch_scaled(frame: &mut Frame, center: Point, scale: f32) {
+    let radius = |value: f32| value * scale;
     frame.fill(
-        &Path::circle(Point::new(center.x + 4.0, center.y + 8.0), 43.0),
+        &Path::circle(
+            Point::new(center.x + 4.0 * scale, center.y + 8.0 * scale),
+            radius(43.0),
+        ),
         Color::from_rgba(0.02, 0.015, 0.01, 0.30),
     );
     frame.fill(
-        &Path::circle(center, 43.0),
+        &Path::circle(center, radius(43.0)),
         Color::from_rgb(0.49, 0.34, 0.18),
     );
-    frame.fill(&Path::circle(center, 34.0), GOLD);
+    frame.fill(&Path::circle(center, radius(34.0)), GOLD);
     frame.stroke(
-        &Path::circle(center, 34.0),
+        &Path::circle(center, radius(34.0)),
         Stroke::default()
             .with_color(Color::from_rgb(0.94, 0.82, 0.57))
-            .with_width(3.0),
+            .with_width(3.0 * scale),
     );
     frame.fill(
-        &Path::circle(center, 23.0),
+        &Path::circle(center, radius(23.0)),
         Color::from_rgb(0.11, 0.07, 0.05),
     );
     frame.fill(
-        &Path::circle(Point::new(center.x, center.y - 4.0), 18.0),
+        &Path::circle(Point::new(center.x, center.y - 4.0 * scale), radius(18.0)),
         TEAL,
     );
     frame.stroke(
-        &Path::circle(Point::new(center.x, center.y - 4.0), 18.0),
+        &Path::circle(Point::new(center.x, center.y - 4.0 * scale), radius(18.0)),
         Stroke::default()
             .with_color(Color::from_rgb(0.92, 0.86, 0.70))
-            .with_width(2.0),
+            .with_width(2.0 * scale),
     );
 }
 
@@ -11583,6 +11683,35 @@ mod tests {
     }
 
     #[test]
+    fn auralith_controls_follow_its_baked_faceplate_layout() {
+        for (kind, anchor_x, anchor_y) in [
+            (ControlKind::Gain, 0.246, 0.217),
+            (ControlKind::Bass, 0.493, 0.217),
+            (ControlKind::Cut, 0.738, 0.217),
+            (ControlKind::Treble, 0.246, 0.422),
+            (ControlKind::Presence, 0.493, 0.422),
+            (ControlKind::Master, 0.738, 0.422),
+        ] {
+            let control = AURALITH_PEDAL_CONTROLS
+                .iter()
+                .find(|control| control.role == RenderControlRole::Parameter(kind))
+                .expect("Auralith must expose every baked control");
+
+            assert_eq!((control.anchor_x, control.anchor_y), (anchor_x, anchor_y));
+        }
+
+        let footswitch = AURALITH_PEDAL_CONTROLS
+            .iter()
+            .find(|control| control.widget == RenderControlWidget::Footswitch)
+            .expect("Auralith must expose a footswitch");
+        assert_eq!((footswitch.anchor_x, footswitch.anchor_y), (0.493, 0.804));
+        assert_eq!(
+            AURALITH_PEDAL_RENDER_SPEC.typography,
+            RenderTypographyPolicy::BakedIntoAsset
+        );
+    }
+
+    #[test]
     fn bypass_asset_value_lights_led_when_device_is_active() {
         assert_eq!(bypass_asset_value(true), 0.0);
         assert_eq!(bypass_asset_value(false), 1.0);
@@ -11608,6 +11737,17 @@ mod tests {
             CoreDeviceControls::Minotaur(_)
         ));
         assert!(!snapshot.devices[2].bypassed);
+    }
+
+    #[test]
+    fn minotaur_footswitch_asset_decodes() {
+        let footswitch = MINOTAUR_PEDAL_CONTROLS
+            .iter()
+            .find(|control| control.widget == RenderControlWidget::Footswitch)
+            .expect("Minotaur must expose a footswitch");
+
+        assert!(footswitch.asset.is_some());
+        assert!(render_control_asset_handle(MINOTAUR_SILVER_FOOTSWITCH_ASSET, 0.0).is_some());
     }
 
     #[test]
@@ -11646,6 +11786,28 @@ mod tests {
         assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 0.0).is_some());
         assert!(render_control_asset_handle(LUMEN_JEWEL_LED_ASSET, 1.0).is_some());
         assert!(render_control_asset_handle(LUMEN_FOOTSWITCH_ASSET, 0.0).is_some());
+    }
+
+    #[test]
+    fn pedalboard_studio_backdrop_decodes() {
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/surfaces/pedalboard-studio@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1807,
+            pixel_height: 870,
+        })
+        .is_some());
+    }
+
+    #[test]
+    fn amp_studio_backdrop_decodes() {
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/surfaces/amp-studio@2x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1672,
+            pixel_height: 941,
+        })
+        .is_some());
     }
 
     #[test]
