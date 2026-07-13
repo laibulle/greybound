@@ -492,6 +492,78 @@ mod tests {
         20.0 * (residual_energy.sqrt() / fundamental_energy.sqrt().max(1e-12)).log10()
     }
 
+    fn window_rms(samples: &[f32], start: usize, end: usize) -> f32 {
+        let window = &samples[start.min(samples.len())..end.min(samples.len())];
+        if window.is_empty() {
+            return 0.0;
+        }
+        (window.iter().map(|sample| sample * sample).sum::<f32>() / window.len() as f32).sqrt()
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct SagBurstProfile {
+        compression_db: f32,
+        recovery_db: f32,
+    }
+
+    /// Measures the audible compression and post-burst recovery with the same
+    /// input programme for every amp. It intentionally includes the complete
+    /// amp path: supply movement, bias memory, and coupling-capacitor recovery.
+    fn sag_burst_profile(
+        model: &str,
+        controls: AmpControls,
+        burst_amplitude: f32,
+    ) -> SagBurstProfile {
+        let sample_rate = 48_000.0;
+        let mut amp = VoxAmp::with_model(sample_rate, model);
+        let mut output = Vec::with_capacity((sample_rate * 1.10) as usize);
+
+        for sample_idx in 0..(sample_rate as usize * 1_100 / 1_000) {
+            let time_s = sample_idx as f32 / sample_rate;
+            let amplitude = if time_s < 0.30 || time_s >= 0.70 {
+                0.020
+            } else {
+                burst_amplitude
+            };
+            let input = (std::f32::consts::TAU * 110.0 * time_s).sin() * amplitude;
+            output.push(amp.process(input, controls));
+        }
+
+        let early_burst = window_rms(&output, 15_360, 20_160);
+        let late_burst = window_rms(&output, 28_800, 33_600);
+        let early_recovery = window_rms(&output, 35_520, 40_320);
+        let late_recovery = window_rms(&output, 47_040, 51_840);
+
+        SagBurstProfile {
+            compression_db: 20.0 * (late_burst / early_burst.max(1e-12)).log10(),
+            recovery_db: 20.0 * (late_recovery / early_recovery.max(1e-12)).log10(),
+        }
+    }
+
+    fn nox30_burst_power_rail(sag: f32, burst_amplitude: f32) -> f32 {
+        let sample_rate = 48_000.0;
+        let mut amp = VoxAmp::with_model(sample_rate, "nox30");
+        let mut controls = controls();
+        controls.volume = 0.58;
+        controls.bass = 0.54;
+        controls.treble = 0.59;
+        controls.cut = 0.43;
+        controls.output = 0.58;
+        controls.sag = sag;
+
+        for sample_idx in 0..(sample_rate as usize * 700 / 1_000) {
+            let time_s = sample_idx as f32 / sample_rate;
+            let amplitude = if time_s < 0.30 {
+                0.020
+            } else {
+                burst_amplitude
+            };
+            let input = (std::f32::consts::TAU * 110.0 * time_s).sin() * amplitude;
+            amp.process(input, controls);
+        }
+        amp.nox30_operating_point().unwrap().power_voltage
+    }
+
     fn tone_stack_rms(frequency: f32, bass: f32, treble: f32) -> f32 {
         tone_stack_rms_with_boundary(frequency, bass, treble, 820.0, 220_000.0)
     }
@@ -760,6 +832,47 @@ mod tests {
     }
 
     #[test]
+    fn daybreaker_50_clean_power_reserve_matches_nam_burst_compression() {
+        let sample_rate = 48_000.0;
+        let frequency = 110.0;
+        let mut amp = VoxAmp::with_model(sample_rate, "daybreaker-50");
+        let mut clean_controls = controls();
+        clean_controls.volume = 0.38;
+        clean_controls.bass = 0.46;
+        clean_controls.cut = 0.64;
+        clean_controls.treble = 0.70;
+        clean_controls.drive = 0.04;
+        clean_controls.presence = 0.66;
+        clean_controls.sag = 0.18;
+        clean_controls.output = 0.545;
+
+        let mut output = Vec::new();
+        for sample_idx in 0..(sample_rate as usize * 650 / 1_000) {
+            let time_s = sample_idx as f32 / sample_rate;
+            let input_level = if time_s < 0.20 { -9.0 } else { -12.0 };
+            let input = (std::f32::consts::TAU * frequency * time_s).sin()
+                * 10.0_f32.powf(input_level / 20.0);
+            output.push(amp.process(input, clean_controls));
+        }
+
+        let early = window_rms(&output, 0, (sample_rate * 0.050) as usize);
+        let middle_start = (sample_rate * 0.200) as usize;
+        let middle = window_rms(
+            &output,
+            middle_start,
+            middle_start + (sample_rate * 0.100) as usize,
+        );
+        let drop_db = 20.0 * (middle / early.max(1e-12)).log10();
+
+        // The NAM Clean burst measures -1.49 dB. Keep this independent
+        // time-domain regression within a conservative +/-0.5 dB band.
+        assert!(
+            (-2.0..=-1.0).contains(&drop_db),
+            "Daybreaker clean burst drop left NAM calibration band: {drop_db:.2} dB"
+        );
+    }
+
+    #[test]
     fn none_star_anchor_preserves_presence_band_energy() {
         let mut controls = controls();
         controls.volume = 0.35;
@@ -870,6 +983,66 @@ mod tests {
         assert!(
             saggy_late < stiff_late * 0.97,
             "stiff={stiff_late}, saggy={saggy_late}"
+        );
+    }
+
+    #[test]
+    fn nox30_and_daybreaker_sag_ranges_stay_calibrated() {
+        let mut nox_controls = controls();
+        nox_controls.volume = 0.58;
+        nox_controls.bass = 0.54;
+        nox_controls.treble = 0.59;
+        nox_controls.cut = 0.43;
+        nox_controls.output = 0.58;
+
+        let mut daybreaker_controls = controls();
+        daybreaker_controls.volume = 0.38;
+        daybreaker_controls.bass = 0.46;
+        daybreaker_controls.treble = 0.70;
+        daybreaker_controls.cut = 0.64;
+        daybreaker_controls.presence = 0.66;
+        daybreaker_controls.drive = 0.04;
+        daybreaker_controls.output = 0.545;
+
+        // Normal guitar level at the UI defaults.  The Nox is allowed a
+        // modestly longer dynamic return because it is cathode-biased, but it
+        // must not turn a clean note into multi-dB compression.
+        nox_controls.sag = 0.45;
+        daybreaker_controls.sag = 0.18;
+        let nox_default = sag_burst_profile("nox30", nox_controls, 0.55);
+        let daybreaker_default = sag_burst_profile("daybreaker-50", daybreaker_controls, 0.55);
+        assert!(
+            nox_default.compression_db.abs() < 0.20
+                && (0.20..0.75).contains(&nox_default.recovery_db),
+            "Nox default dynamic profile left calibration band: {nox_default:?}"
+        );
+        assert!(
+            (-0.15..-0.02).contains(&daybreaker_default.compression_db)
+                && (0.0..0.12).contains(&daybreaker_default.recovery_db),
+            "Daybreaker default dynamic profile left NAM-stiff calibration band: {daybreaker_default:?}"
+        );
+
+        // At a louder common burst, the Daybreaker Sag control must remain
+        // audible from its default to its maximum, while its clean default
+        // stays intentionally stiffer than the cathode-biased Nox.
+        let daybreaker_default_loud = sag_burst_profile("daybreaker-50", daybreaker_controls, 1.00);
+        daybreaker_controls.sag = 1.0;
+        let daybreaker_max_loud = sag_burst_profile("daybreaker-50", daybreaker_controls, 1.00);
+        assert!(
+            daybreaker_max_loud.compression_db < daybreaker_default_loud.compression_db - 0.07
+                && daybreaker_max_loud.recovery_db > daybreaker_default_loud.recovery_db + 0.02,
+            "Daybreaker Sag sweep lost its audible range: default={daybreaker_default_loud:?}, max={daybreaker_max_loud:?}"
+        );
+
+        // Nox exposes the same control through a shared B+ network. Its end
+        // points are verified at the rail itself, avoiding a false reading
+        // from the PI's independent blocking-recovery state.
+        let nox_stiff_rail = nox30_burst_power_rail(0.0, 1.00);
+        let nox_max_rail = nox30_burst_power_rail(1.0, 1.00);
+        let nox_rail_drop = nox_stiff_rail - nox_max_rail;
+        assert!(
+            (12.0..20.0).contains(&nox_rail_drop),
+            "Nox B+ Sag sweep left calibration band: stiff={nox_stiff_rail:.2}V, max={nox_max_rail:.2}V"
         );
     }
 

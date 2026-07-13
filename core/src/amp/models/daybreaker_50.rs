@@ -23,6 +23,7 @@ pub(in crate::amp) struct Daybreaker50 {
     transformer_lowpass: OnePoleLowpass,
     bias_envelope: EnvelopeFollower,
     supply_sag: EnvelopeFollower,
+    power_reserve_load: EnvelopeFollower,
     power_stage: PushPull6L6Stage,
 }
 
@@ -43,8 +44,18 @@ impl Daybreaker50 {
             transformer_lowpass: OnePoleLowpass::new(sample_rate, 4_823.0),
             bias_envelope: EnvelopeFollower::new(sample_rate, 0.016, 0.320),
             supply_sag: EnvelopeFollower::new(sample_rate, 0.042, 0.680),
+            power_reserve_load: EnvelopeFollower::new(sample_rate, 0.060, 0.280),
             power_stage: PushPull6L6Stage::new(power_stage_params(sample_rate)),
         }
+    }
+
+    #[inline]
+    fn calibrated_sag(control: f32) -> f32 {
+        // A stiff fixed-bias 6L6 supply needs more travel near the clean UI
+        // setting than a cathode-biased EL84 rail. Preserve the physical end
+        // points, but expand the useful lower half so Sag is perceptible
+        // without moving the NAM-calibrated operating point to a new default.
+        control.clamp(0.0, 1.0).powf(0.70)
     }
 
     #[inline]
@@ -129,7 +140,10 @@ impl AmpModel for Daybreaker50 {
         let current_demand = (differential.abs() * (0.96 + edge * 0.42) - 0.60).max(0.0);
         let bias_shift = self.bias_envelope.process(current_demand);
         let sag = self.supply_sag.process(current_demand * current_demand);
-        let sag_control = controls.sag.clamp(0.0, 1.0);
+        let power_reserve_load = self
+            .power_reserve_load
+            .process((differential.abs() / 0.16).clamp(0.0, 1.0));
+        let sag_control = Self::calibrated_sag(controls.sag);
         let power_drive = differential * (0.92 + edge * 1.55)
             / (1.0 + bias_shift * 0.16 + sag * (0.06 + sag_control * 0.16));
         // The clean capture has a substantially wider 6L6 operating region
@@ -138,7 +152,12 @@ impl AmpModel for Daybreaker50 {
         // the linear transfer stays intact while the clipping knee moves.
         // 0.25 is 12 dB of clean power-stage headroom, selected from the NAM
         // sine-level sweep; the edge endpoint remains the unmodified curve.
-        let clean_power_drive = 0.25 + edge * 0.75;
+        // A replenished supply starts with an additional 2.2 dB of reserve,
+        // which drains over 60 ms under load and refills over 280 ms. This
+        // matches the NAM's attack-then-sustain compression without altering
+        // the settled clean transfer.
+        let clean_power_drive =
+            0.25 + edge * 0.75 - (1.0 - edge) * (1.0 - power_reserve_load) * 0.055;
         let power_output = self
             .power_stage
             .process(power_drive * clean_power_drive, sag_control)

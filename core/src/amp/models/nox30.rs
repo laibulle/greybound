@@ -149,6 +149,16 @@ impl Nox30 {
         }
     }
 
+    #[inline]
+    fn calibrated_sag(control: f32) -> f32 {
+        // The shared B+ network and cathode-biased EL84 pair react more
+        // strongly around the middle of their raw control range than the
+        // Daybreaker's fixed-bias 6L6 supply. Shape the UI range instead of
+        // changing the circuit values: 0 and 1 stay physically stiff/full,
+        // while the normal playing range no longer overstates Nox sag.
+        control.clamp(0.0, 1.0).powf(1.25)
+    }
+
     pub(super) fn operating_point(&self) -> Nox30OperatingPoint {
         let rails = self.supply.operating_point();
         let first = self.first_stage.operating_point();
@@ -269,6 +279,7 @@ impl Nox30 {
         controls: AmpControls,
     ) -> f32 {
         let rails = self.supply.operating_point();
+        let sag = Self::calibrated_sag(controls.sag);
         let power_voltage = rails.power_voltage / 320.0;
         let pi_input = self.phase_inverter_coupling.process(return_voltage);
         self.phase_inverter_input_v = pi_input;
@@ -281,9 +292,7 @@ impl Nox30 {
             self.cut_presence
                 .process(differential, controls.cut, controls.presence);
 
-        let power_output = self
-            .power_stage
-            .process(voiced_output * power_voltage, controls.sag);
+        let power_output = self.power_stage.process(voiced_output * power_voltage, sag);
         self.power_stage_output_v = power_output;
         let power_current = {
             let operating_point = self.power_stage.operating_point();
@@ -297,12 +306,8 @@ impl Nox30 {
             + preamp.follower_current
             + preamp.drive_current
             + preamp.recovery_current;
-        self.supply.process(
-            preamp_current,
-            phase_inverter_current,
-            power_current,
-            controls.sag,
-        );
+        self.supply
+            .process(preamp_current, phase_inverter_current, power_current, sag);
 
         let transformer_output = self.output_transformer.process(power_output);
         self.output_transformer_output_v = transformer_output;
