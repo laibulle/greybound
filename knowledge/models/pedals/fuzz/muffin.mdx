@@ -44,6 +44,52 @@ The current Greybound DSP approximation uses about 130 kOhm input impedance and 
 - `volume`: output attenuation after the recovery stage.
 - `bypass`: routing state; active circuit state should remain private to the pedal instance.
 
+## 2026-07-13 Greybound Free Promotion
+
+Muffin is now a first-class pre-amp pedal in the Greybound Free profile. It
+sits before the buffered Minotaur, preserving the intended high-impedance fuzz
+input boundary when both pedals are enabled:
+
+```text
+Lumen (bypassed) -> Muffin (bypassed) -> Minotaur -> amp
+```
+
+The Free default leaves Muffin bypassed so existing Minotaur boost sessions do
+not change on update. Its three controls initialise at `0.50`, putting the
+photorealistic indicators at noon. The focused `rigs/muffin-nox.json5` preset
+retains the denser voice (`sustain: 0.78`, `tone: 0.42`, `level: 0.46`) for a
+dark-leaning Big Muff-style pad with long sustain. The UI maps these directly
+to the existing Muffin controls (`sustain`, `tone`, and `level`) and its
+footswitch changes the same slot bypass flag sent to the runtime.
+
+The desktop runtime preserves one `DeviceSlotControls` entry per configured
+device. This is required because the slot index is the control-routing key:
+without the Muffin entry, downstream Minotaur controls would be applied to the
+wrong processor and Muffin bypass would be ineffective. The Free runtime tests
+assert both the default slot order and independent active Muffin/Minotaur
+control values.
+
+The pedal surface uses a project-owned 1970s fuzz-inspired enclosure asset at
+`ui/assets/pedals/muffin@4x.png`, with static `IN`/`OUT` side jacks. Its
+knobs, LED, and footswitch are separate photorealistic runtime assets; the LED
+switches between dark ruby and lit ruby states with the same bypass state.
+
+This promotion does not claim a new circuit-accuracy result. The model remains
+the first-pass scalar approximation documented in the stage notes below and
+still needs the component-level BJT/diode/tone-stack validation in the plan.
+
+Validation was regression-oriented against the existing model and used the
+focused `rigs/muffin-nox.json5` integration rig:
+
+```bash
+target/release/greybound-cli --rig rigs/muffin-nox.json5 --input-wav "lab/references/tone3000-inputs/Brit - Guitar.wav" --output-wav target/muffin-nox-free-3s.wav --render-seconds 3 --sample-rate 48000 --period-size 16 --ir lab/references/tone3000-irs/celestion.wav --monitor --monitor-log target/muffin-nox-free-monitor.log
+```
+
+The render completed cleanly: zero input/output xruns, zero near clips, and
+zero hard clips. The loudest observed output peak was `-1.2 dBFS`; RMS stayed
+around `-11.2 dBFS` to `-11.5 dBFS`. Focused Rust coverage also passed the
+Muffin sustain/impedance tests and the Free-profile routing/asset tests.
+
 ## External Boundaries
 
 The pedal should receive and emit voltage plus impedance:

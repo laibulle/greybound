@@ -47,7 +47,7 @@ impl AudioRuntime {
             input,
             chain: SignalChain::new(sample_rate, config),
             speaker: reference_speaker_or_bypass(sample_rate as u32),
-            device_controls: Vec::with_capacity(3),
+            device_controls: Vec::with_capacity(app_profile.runtime_devices.len()),
             eq: GraphicEqProcessor::new(sample_rate),
             metronome: MetronomeGenerator::new(sample_rate),
             doubler: DoublerProcessor::new(sample_rate),

@@ -7,9 +7,9 @@ use greybound::{
     CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
     DeviceConfig as CoreDeviceConfig, DeviceControls as CoreDeviceControls,
     DeviceSlotControls as CoreDeviceSlotControls, LumenControls as CoreLumenControls,
-    MinotaurControls as CoreMinotaurControls, SpringfieldControls as CoreSpringfieldControls,
-    StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
-    StudioVerbControls as CoreStudioVerbControls,
+    MinotaurControls as CoreMinotaurControls, MuffinControls as CoreMuffinControls,
+    SpringfieldControls as CoreSpringfieldControls, StudioDelayControls as CoreStudioDelayControls,
+    StudioVerbAlgorithm as CoreStudioVerbAlgorithm, StudioVerbControls as CoreStudioVerbControls,
 };
 use iced::advanced::graphics::gradient as canvas_gradient;
 use iced::advanced::image as advanced_image;
@@ -741,6 +741,7 @@ impl AmpModel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceModel {
     Lumen,
+    Muffin,
     Minotaur,
     Nox30,
     WideCombo,
@@ -755,6 +756,7 @@ impl DeviceModel {
     fn title(self) -> &'static str {
         match self {
             Self::Lumen => "Lumen",
+            Self::Muffin => "Muffin",
             Self::Minotaur => "Minotaur",
             Self::Nox30 => "Nox30",
             Self::WideCombo => "Wide Combo",
@@ -846,6 +848,54 @@ pub const MINOTAUR_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetS
         pixel_width: 256,
         pixel_height: 256,
     }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const MUFFIN_BLACK_BRASS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/muffin-black-brass@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    // The source art's ivory indicator is at the physical minimum
+    // (lower-left). Half travel rotates it to noon.
+    rotation: Some(RenderRotationSpec {
+        min_degrees: 0.0,
+        max_degrees: 270.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const MUFFIN_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/muffin-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/muffin-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const MUFFIN_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/muffin-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
     pressed_image: None,
     rotation: None,
 };
@@ -1277,8 +1327,8 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Gain),
         widget: RenderControlWidget::Pot,
         label: "Gain",
-        anchor_x: 0.262,
-        anchor_y: 0.198,
+        anchor_x: 0.246,
+        anchor_y: 0.204,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
@@ -1288,8 +1338,8 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Treble),
         widget: RenderControlWidget::Pot,
         label: "Treble",
-        anchor_x: 0.740,
-        anchor_y: 0.198,
+        anchor_x: 0.753,
+        anchor_y: 0.204,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
@@ -1299,8 +1349,8 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         role: RenderControlRole::Parameter(ControlKind::Master),
         widget: RenderControlWidget::Pot,
         label: "Output",
-        anchor_x: 0.506,
-        anchor_y: 0.342,
+        anchor_x: 0.500,
+        anchor_y: 0.278,
         radius: PEDAL_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::Teal,
@@ -1311,7 +1361,7 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Footswitch,
         label: "Bypass",
         anchor_x: 0.50,
-        anchor_y: 0.808,
+        anchor_y: 0.735,
         radius: 31.0,
         hit_radius: 50.0,
         skin: KnobSkin::Teal,
@@ -1322,11 +1372,69 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         widget: RenderControlWidget::Led,
         label: "Status",
         anchor_x: 0.500,
-        anchor_y: 0.657,
-        radius: 24.0,
+        anchor_y: 0.446,
+        radius: 20.0,
         hit_radius: 0.0,
         skin: KnobSkin::Teal,
         asset: Some(MINOTAUR_JEWEL_LED_ASSET),
+    },
+];
+
+pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Sustain",
+        anchor_x: 0.278,
+        anchor_y: 0.459,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Treble),
+        widget: RenderControlWidget::Pot,
+        label: "Tone",
+        anchor_x: 0.713,
+        anchor_y: 0.458,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Level",
+        anchor_x: 0.492,
+        anchor_y: 0.617,
+        radius: PEDAL_KNOB_RADIUS,
+        hit_radius: 48.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "Status",
+        anchor_x: 0.50,
+        anchor_y: 0.073,
+        radius: 20.0,
+        hit_radius: 0.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MUFFIN_JEWEL_LED_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Footswitch,
+        label: "Bypass",
+        anchor_x: 0.50,
+        anchor_y: 0.841,
+        radius: 31.0,
+        hit_radius: 50.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MUFFIN_FOOTSWITCH_ASSET),
     },
 ];
 
@@ -1713,6 +1821,19 @@ pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     controls: MINOTAUR_PEDAL_CONTROLS,
 };
 
+pub const MUFFIN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "pedal.muffin",
+    surface: STANDARD_PEDAL_SURFACE,
+    asset: Some(RenderAssetSpec {
+        path: "assets/pedals/muffin@4x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1200,
+        pixel_height: 2172,
+    }),
+    typography: RenderTypographyPolicy::BakedIntoAsset,
+    controls: MUFFIN_PEDAL_CONTROLS,
+};
+
 pub const LUMEN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "pedal.lumen",
     surface: STANDARD_PEDAL_SURFACE,
@@ -1722,7 +1843,7 @@ pub const LUMEN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
         pixel_width: 1200,
         pixel_height: 2172,
     }),
-    typography: RenderTypographyPolicy::DrawnByUi,
+    typography: RenderTypographyPolicy::BakedIntoAsset,
     controls: LUMEN_PEDAL_CONTROLS,
 };
 
@@ -1999,6 +2120,15 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         circuit: lumen_circuit_descriptor,
     },
     AppDeviceModelDescriptor {
+        id: "muffin",
+        label: "Muffin",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::Muffin,
+        runtime_config: Some(CoreDeviceConfig::Muffin),
+        render: &MUFFIN_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
         id: "minotaur",
         label: "Minotaur",
         kind: DeviceKind::Pedal,
@@ -2031,6 +2161,12 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         model_id: "lumen",
         section: RuntimeDeviceSection::PreAmp,
         config: CoreDeviceConfig::Lumen,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "muffin",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::Muffin,
         bypassed: true,
     },
     RuntimeDeviceSlot {
@@ -2205,6 +2341,25 @@ impl DeviceState {
             presence: 0.0,
             sag: 0.0,
             master: 0.03,
+        }
+    }
+
+    pub fn muffin() -> Self {
+        Self {
+            name: "MUFFIN".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::Muffin,
+            // Free keeps the familiar Minotaur clean-boost preset as its
+            // default sound; Muffin is ready at the visual noon reference.
+            bypassed: true,
+            gain: 0.50,
+            drive: 0.0,
+            bass: 0.0,
+            treble: 0.50,
+            cut: 0.0,
+            presence: 0.0,
+            sag: 0.0,
+            master: 0.50,
         }
     }
 
@@ -2681,6 +2836,7 @@ fn device_state_for_descriptor(descriptor: &AppDeviceModelDescriptor) -> DeviceS
 fn device_state_for_model(model: DeviceModel) -> DeviceState {
     match model {
         DeviceModel::Lumen => DeviceState::lumen(),
+        DeviceModel::Muffin => DeviceState::muffin(),
         DeviceModel::Minotaur => DeviceState::minotaur(),
         DeviceModel::Nox30 => DeviceState::nox30(),
         DeviceModel::WideCombo => DeviceState::wide_combo(),
@@ -3262,6 +3418,7 @@ impl GreyboundUi {
     fn device_for_runtime_slot(&self, slot: &RuntimeDeviceSlot) -> Option<&DeviceState> {
         let model = match slot.config {
             CoreDeviceConfig::Lumen => DeviceModel::Lumen,
+            CoreDeviceConfig::Muffin => DeviceModel::Muffin,
             CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
             CoreDeviceConfig::StudioDelay => DeviceModel::DelayFx,
             CoreDeviceConfig::Springfield => DeviceModel::Springfield,
@@ -3285,6 +3442,14 @@ impl GreyboundUi {
                     gain: device.treble,
                     emphasis: device.presence,
                     mix: device.master,
+                })
+            }
+            CoreDeviceConfig::Muffin => {
+                let device = device.cloned().unwrap_or_else(DeviceState::muffin);
+                CoreDeviceControls::Muffin(CoreMuffinControls {
+                    sustain: device.gain,
+                    tone: device.treble,
+                    level: device.master,
                 })
             }
             CoreDeviceConfig::Minotaur => {
@@ -5390,6 +5555,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/pedals/minotaur-v2@4x.png" => {
             decoded_handle!("../assets/pedals/minotaur-v2@4x.png", 914, 1721)
         }
+        "assets/pedals/muffin@4x.png" => {
+            decoded_handle!("../assets/pedals/muffin@4x.png", 1200, 2172)
+        }
         "assets/pedals/springfield@4x.png" => {
             decoded_handle!("../assets/pedals/springfield@4x.png", 1200, 2260)
         }
@@ -5489,6 +5657,13 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/controls/knobs/minotaur-ivory@2x.png" => {
             decoded_handle!("../assets/controls/knobs/minotaur-ivory@2x.png", 512, 512)
         }
+        "assets/controls/knobs/muffin-black-brass@2x.png" => {
+            decoded_handle!(
+                "../assets/controls/knobs/muffin-black-brass@2x.png",
+                512,
+                512
+            )
+        }
         "assets/controls/knobs/nox30-black-dial@2x.png" => decoded_handle!(
             "../assets/controls/knobs/nox30-black-dial@2x.png",
             1024,
@@ -5510,6 +5685,11 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
             512,
             512
         ),
+        "assets/controls/buttons/muffin-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/muffin-footswitch@2x.png",
+            512,
+            512
+        ),
         "assets/controls/leds/lumen-jewel-off@2x.png" => {
             decoded_handle!("../assets/controls/leds/lumen-jewel-off@2x.png", 256, 256)
         }
@@ -5523,6 +5703,12 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         ),
         "assets/controls/leds/auralith-jewel-on@2x.png" => {
             decoded_handle!("../assets/controls/leds/auralith-jewel-on@2x.png", 256, 256)
+        }
+        "assets/controls/leds/muffin-jewel-off@2x.png" => {
+            decoded_handle!("../assets/controls/leds/muffin-jewel-off@2x.png", 256, 256)
+        }
+        "assets/controls/leds/muffin-jewel-on@2x.png" => {
+            decoded_handle!("../assets/controls/leds/muffin-jewel-on@2x.png", 256, 256)
         }
         "assets/controls/knobs/springfield-stainless@2x.png" => decoded_handle!(
             "../assets/controls/knobs/springfield-stainless@2x.png",
@@ -5566,6 +5752,13 @@ fn render_control_asset_handle(
         const FRAME_COUNT: usize = 121;
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return minotaur_ivory_knob_handles().get(index).cloned();
+    }
+    if asset.image.path == "assets/controls/knobs/muffin-black-brass@2x.png"
+        && asset.rotation.is_some()
+    {
+        const FRAME_COUNT: usize = 121;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return muffin_black_brass_knob_handles().get(index).cloned();
     }
     if asset.image.path == "assets/controls/knobs/nox30-black-dial@2x.png"
         && asset.rotation.is_some()
@@ -5636,6 +5829,34 @@ fn minotaur_ivory_knob_handles() -> &'static [advanced_image::Handle] {
                     .rotation
                     .expect("minotaur knob asset must define a rotation range");
                 let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
+                let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn muffin_black_brass_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/muffin-black-brass@2x.png"
+        ))
+        .expect("embedded Muffin knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+        let rotation = MUFFIN_BLACK_BRASS_KNOB_ASSET
+            .rotation
+            .expect("Muffin knob asset must define a rotation range");
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let value = index as f32 / (FRAME_COUNT - 1) as f32;
+                let angle = (rotation.min_degrees
+                    + (rotation.max_degrees - rotation.min_degrees) * value)
+                    .to_radians();
                 let pixels = rotate_rgba_pixels(&source, angle);
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
@@ -6023,6 +6244,7 @@ impl canvas::Program<Message> for BoardArt {
             let x = layout.start_x + index as f32 * (layout.pedal_w + layout.gap);
             let palette = match device.model {
                 DeviceModel::Lumen => Color::from_rgb(0.70, 0.73, 0.76),
+                DeviceModel::Muffin => Color::from_rgb(0.31, 0.19, 0.39),
                 DeviceModel::Minotaur => Color::from_rgb(0.73, 0.65, 0.47),
                 DeviceModel::Nox30 | DeviceModel::WideCombo | DeviceModel::LeadHead => PEDAL_CREAM,
                 DeviceModel::Springfield => PEDAL_PEACH,
@@ -6781,6 +7003,7 @@ fn record_button_radius(size: Size) -> f32 {
 fn fallback_device_render_spec(model: DeviceModel) -> &'static ModelRenderSpec {
     match model {
         DeviceModel::Lumen => &LUMEN_PEDAL_RENDER_SPEC,
+        DeviceModel::Muffin => &MUFFIN_PEDAL_RENDER_SPEC,
         DeviceModel::Minotaur => &MINOTAUR_PEDAL_RENDER_SPEC,
         DeviceModel::Nox30 => &NOX30_PEDAL_RENDER_SPEC,
         DeviceModel::WideCombo => &WIDE_COMBO_PEDAL_RENDER_SPEC,
@@ -9708,6 +9931,7 @@ fn draw_pedal(
     }
 
     if uses_asset {
+        draw_runtime_bypass_controls(frame, origin, size, app_profile, device);
         return;
     }
 
@@ -9763,6 +9987,7 @@ fn draw_pedal_controls(
                 let center = render_control_center(control, origin, size);
                 let label_color = match device.model {
                     DeviceModel::Lumen => Color::from_rgba(0.18, 0.16, 0.12, 0.86),
+                    DeviceModel::Minotaur => Color::from_rgba(0.20, 0.10, 0.02, 0.92),
                     _ => Color::from_rgba(0.86, 0.90, 0.94, 0.88),
                 };
                 draw_text(
@@ -9784,6 +10009,29 @@ fn draw_pedal_controls(
             device.control_value(kind),
             control.skin,
         );
+    }
+}
+
+fn draw_runtime_bypass_controls(
+    frame: &mut Frame,
+    origin: Point,
+    size: Size,
+    app_profile: AppProfile,
+    device: &DeviceState,
+) {
+    for control in device_render_spec(app_profile, device.model).controls {
+        if control.role != RenderControlRole::Bypass || control.asset.is_some() {
+            continue;
+        }
+
+        let center = render_control_center(control, origin, size);
+        match control.widget {
+            RenderControlWidget::Led => {
+                draw_status_led(frame, center, control.radius, !device.bypassed);
+            }
+            RenderControlWidget::Footswitch => draw_footswitch(frame, center),
+            _ => {}
+        }
     }
 }
 
@@ -10126,6 +10374,7 @@ fn ui_circuit_descriptor(
         .and_then(|descriptor| (descriptor.circuit)())
         .or_else(|| match model {
             DeviceModel::Lumen => device_circuit_descriptor(CoreDeviceConfig::Lumen),
+            DeviceModel::Muffin => device_circuit_descriptor(CoreDeviceConfig::Muffin),
             DeviceModel::Minotaur => device_circuit_descriptor(CoreDeviceConfig::Minotaur),
             DeviceModel::Nox30 => amp_circuit_descriptor("nox30"),
             DeviceModel::Springfield => device_circuit_descriptor(CoreDeviceConfig::Springfield),
@@ -11340,10 +11589,10 @@ mod tests {
     }
 
     #[test]
-    fn free_runtime_snapshot_places_bypassed_lumen_before_minotaur() {
+    fn free_runtime_snapshot_places_bypassed_muffin_before_minotaur() {
         let snapshot = GreyboundUi::default().runtime_audio_snapshot();
 
-        assert_eq!(snapshot.devices.len(), 4);
+        assert_eq!(snapshot.devices.len(), 5);
         assert!(matches!(
             snapshot.devices[0].controls,
             CoreDeviceControls::Lumen(_)
@@ -11351,9 +11600,37 @@ mod tests {
         assert!(snapshot.devices[0].bypassed);
         assert!(matches!(
             snapshot.devices[1].controls,
+            CoreDeviceControls::Muffin(_)
+        ));
+        assert!(snapshot.devices[1].bypassed);
+        assert!(matches!(
+            snapshot.devices[2].controls,
             CoreDeviceControls::Minotaur(_)
         ));
-        assert!(!snapshot.devices[1].bypassed);
+        assert!(!snapshot.devices[2].bypassed);
+    }
+
+    #[test]
+    fn muffin_visual_asset_decodes() {
+        let image = image::load_from_memory(include_bytes!("../assets/pedals/muffin@4x.png"))
+            .expect("Muffin faceplate asset must decode");
+        assert_eq!(image.width(), 1200);
+        assert_eq!(image.height(), 2172);
+        assert!(image.color().has_alpha());
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/pedals/muffin@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        })
+        .is_some());
+        assert!(MUFFIN_PEDAL_CONTROLS
+            .iter()
+            .all(|control| control.asset.is_some()));
+        assert!(render_control_asset_handle(MUFFIN_BLACK_BRASS_KNOB_ASSET, 0.5).is_some());
+        assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 1.0).is_some());
+        assert!(render_control_asset_handle(MUFFIN_FOOTSWITCH_ASSET, 0.0).is_some());
     }
 
     #[test]
@@ -11384,11 +11661,10 @@ mod tests {
 
     #[test]
     fn daybreaker_uses_a_transparent_base_with_separate_controls() {
-        let image =
-            image::load_from_memory(include_bytes!(
-                "../assets/amps/daybreaker-50-stack-badged-v4@2x.png"
-            ))
-                .expect("Daybreaker base asset must decode");
+        let image = image::load_from_memory(include_bytes!(
+            "../assets/amps/daybreaker-50-stack-badged-v4@2x.png"
+        ))
+        .expect("Daybreaker base asset must decode");
 
         assert_eq!(image.width(), 2480);
         assert_eq!(image.height(), 1000);

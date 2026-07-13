@@ -1,0 +1,53 @@
+{
+  // Focused Greybound Free fuzz voice: dense Muffin pad into the familiar
+  // buffered Minotaur/Nox path. Runtime and render settings stay in the CLI.
+  name: "muffin-nox",
+
+  chain: {
+    cable_capacitance_pf: 470,
+  },
+
+  pre_amp: [
+    {
+      id: "muffin-fuzz",
+      device: "muffin",
+      bypassed: false,
+      controls: {
+        sustain: 0.78,
+        tone: 0.42,
+        level: 0.46,
+      },
+    },
+    {
+      id: "klon-drive",
+      device: "minotaur",
+      bypassed: false,
+      controls: {
+        gain: 0.42,
+        treble: 0.70,
+        output: 0.03,
+      },
+    },
+  ],
+
+  fx_loop: [],
+
+  amp: {
+    model: "nox30",
+    bypassed: false,
+    controls: {
+      volume: 0.58,
+      bass: 0.54,
+      treble: 0.59,
+      cut: 0.43,
+      drive: 0.20,
+      presence: 0.35,
+      sag: 0.45,
+    },
+  },
+
+  cab: {
+    ir: "lab/references/tone3000-irs/celestion.wav",
+    bypassed: false,
+  },
+}

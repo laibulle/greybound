@@ -1,7 +1,7 @@
 use greybound::{
     AmpControls, AuralithControls, DeviceConfig, DeviceControls, DeviceSlotControls, LumenControls,
-    MinotaurControls, SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm,
-    StudioVerbControls,
+    MinotaurControls, MuffinControls, SpringfieldControls, StudioDelayControls,
+    StudioVerbAlgorithm, StudioVerbControls,
 };
 use greybound_ui::{GreyboundUi, RuntimeAudioSnapshot};
 use std::sync::{
@@ -30,6 +30,10 @@ pub(super) struct SharedRuntimeControls {
     lumen_gain: Arc<AtomicU32>,
     lumen_emphasis: Arc<AtomicU32>,
     lumen_mix: Arc<AtomicU32>,
+    muffin_bypassed: Arc<AtomicBool>,
+    muffin_sustain: Arc<AtomicU32>,
+    muffin_tone: Arc<AtomicU32>,
+    muffin_level: Arc<AtomicU32>,
     minotaur_bypassed: Arc<AtomicBool>,
     minotaur_gain: Arc<AtomicU32>,
     minotaur_treble: Arc<AtomicU32>,
@@ -98,6 +102,10 @@ impl SharedRuntimeControls {
             lumen_gain: atomic_f32(LumenControls::default().gain),
             lumen_emphasis: atomic_f32(LumenControls::default().emphasis),
             lumen_mix: atomic_f32(LumenControls::default().mix),
+            muffin_bypassed: Arc::new(AtomicBool::new(true)),
+            muffin_sustain: atomic_f32(MuffinControls::default().sustain),
+            muffin_tone: atomic_f32(MuffinControls::default().tone),
+            muffin_level: atomic_f32(MuffinControls::default().level),
             minotaur_bypassed: Arc::new(AtomicBool::new(false)),
             minotaur_gain: atomic_f32(0.0),
             minotaur_treble: atomic_f32(0.0),
@@ -208,6 +216,12 @@ impl SharedRuntimeControls {
                     store_f32(&self.lumen_emphasis, controls.emphasis);
                     store_f32(&self.lumen_mix, controls.mix);
                 }
+                DeviceControls::Muffin(controls) => {
+                    self.muffin_bypassed.store(slot.bypassed, Ordering::Relaxed);
+                    store_f32(&self.muffin_sustain, controls.sustain);
+                    store_f32(&self.muffin_tone, controls.tone);
+                    store_f32(&self.muffin_level, controls.level);
+                }
                 DeviceControls::Minotaur(controls) => {
                     self.minotaur_bypassed
                         .store(slot.bypassed, Ordering::Relaxed);
@@ -301,6 +315,14 @@ impl SharedRuntimeControls {
                         gain: load_f32(&self.lumen_gain),
                         emphasis: load_f32(&self.lumen_emphasis),
                         mix: load_f32(&self.lumen_mix),
+                    }),
+                }),
+                DeviceConfig::Muffin => target.push(DeviceSlotControls {
+                    bypassed: self.muffin_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::Muffin(MuffinControls {
+                        sustain: load_f32(&self.muffin_sustain),
+                        tone: load_f32(&self.muffin_tone),
+                        level: load_f32(&self.muffin_level),
                     }),
                 }),
                 DeviceConfig::Minotaur => target.push(DeviceSlotControls {
@@ -435,14 +457,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_free_controls_keep_lumen_and_springfield_bypassed() {
+    fn default_free_controls_keep_muffin_bypassed_and_slots_aligned() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 4);
+        assert_eq!(slots.len(), 5);
         match slots[0].controls {
             DeviceControls::Lumen(controls) => {
                 assert!(slots[0].bypassed);
@@ -457,14 +479,23 @@ mod tests {
             other => panic!("expected bypassed Lumen controls, got {other:?}"),
         }
         match slots[1].controls {
+            DeviceControls::Muffin(controls) => {
+                assert!(slots[1].bypassed);
+                assert!((controls.sustain - 0.50).abs() < 1.0e-6);
+                assert!((controls.tone - 0.50).abs() < 1.0e-6);
+                assert!((controls.level - 0.50).abs() < 1.0e-6);
+            }
+            other => panic!("expected bypassed Muffin controls, got {other:?}"),
+        }
+        match slots[2].controls {
             DeviceControls::Minotaur(_) => {
-                assert!(!slots[1].bypassed);
+                assert!(!slots[2].bypassed);
             }
             other => panic!("expected active Minotaur controls, got {other:?}"),
         }
-        match slots[2].controls {
+        match slots[3].controls {
             DeviceControls::Auralith(controls) => {
-                assert!(!slots[2].bypassed);
+                assert!(!slots[3].bypassed);
                 assert!((controls.decay - 0.52).abs() < 1.0e-6);
                 assert!((controls.size - 0.55).abs() < 1.0e-6);
                 assert!((controls.texture - 0.68).abs() < 1.0e-6);
@@ -474,14 +505,61 @@ mod tests {
             }
             other => panic!("expected active Auralith controls, got {other:?}"),
         }
-        match slots[3].controls {
+        match slots[4].controls {
             DeviceControls::Springfield(controls) => {
-                assert!(slots[3].bypassed);
+                assert!(slots[4].bypassed);
                 assert!((controls.dwell - 0.48).abs() < 1.0e-6);
                 assert!((controls.tone - 0.58).abs() < 1.0e-6);
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);
             }
             other => panic!("expected bypassed Springfield controls, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn muffin_and_minotaur_controls_keep_their_own_runtime_slots() {
+        let mut ui = GreyboundUi::default();
+        let muffin = ui
+            .devices
+            .iter_mut()
+            .find(|device| device.name == "Muffin")
+            .expect("Greybound Free must include Muffin");
+        muffin.bypassed = false;
+        muffin.gain = 0.91;
+        muffin.treble = 0.31;
+        muffin.master = 0.37;
+
+        let minotaur = ui
+            .devices
+            .iter_mut()
+            .find(|device| device.name == "Minotaur")
+            .expect("Greybound Free must include Minotaur");
+        minotaur.bypassed = false;
+        minotaur.gain = 0.19;
+        minotaur.treble = 0.82;
+        minotaur.master = 0.08;
+
+        let controls = SharedRuntimeControls::new(&ui);
+        let mut slots = Vec::new();
+        controls.load_device_controls_into(&mut slots);
+
+        match slots[1].controls {
+            DeviceControls::Muffin(controls) => {
+                assert!(!slots[1].bypassed);
+                assert!((controls.sustain - 0.91).abs() < 1.0e-6);
+                assert!((controls.tone - 0.31).abs() < 1.0e-6);
+                assert!((controls.level - 0.37).abs() < 1.0e-6);
+            }
+            other => panic!("expected active Muffin controls, got {other:?}"),
+        }
+        match slots[2].controls {
+            DeviceControls::Minotaur(controls) => {
+                assert!(!slots[2].bypassed);
+                assert!((controls.gain - 0.19).abs() < 1.0e-6);
+                assert!((controls.treble - 0.82).abs() < 1.0e-6);
+                assert!((controls.output - 0.08).abs() < 1.0e-6);
+            }
+            other => panic!("expected active Minotaur controls, got {other:?}"),
         }
     }
 }
