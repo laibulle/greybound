@@ -157,6 +157,15 @@ description: Decisions and open questions that should steer upcoming implementat
   A dedicated worker consumes a duplicated input-side ring buffer and publishes
   normalized-autocorrelation pitch readings through atomics; mute gates only the
   final desktop output bus.
+- NAM live playback now bypasses Greybound's generic 2x amp oversampling: a NAM
+  capture runs once per host sample, which preserves its capture-rate temporal
+  receptive field at the default 48 kHz session and removes half of its callback
+  workload. The Architecture 2 processor also reuses a preallocated activation
+  scratch buffer instead of allocating once per sample. Input-ring underflow and
+  overflow counters are now retained in runtime telemetry/status instead of being
+  silently converted to zero samples or discarded. Sessions whose host rate does
+  not match the loaded NAM's declared rate remain a separate resampling task;
+  use 48 kHz for current NAM playback.
 - Circuit visualization now has a runtime semantic source of truth in
   `core/src/circuit_descriptor.rs`. Minotaur and Springfield expose
   descriptor graphs with stages, edges, control bindings, implementation

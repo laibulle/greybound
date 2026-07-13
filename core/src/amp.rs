@@ -358,7 +358,14 @@ impl VoxAmp {
     pub fn with_model(sample_rate: f32, model: &str) -> Self {
         let coefficients = half_band_coefficients();
         let model_base = model.split_once('?').map_or(model, |(base, _)| base);
-        let oversampled = !matches!(model_base, "nox30" | "nox30-experimental");
+        // A NAM capture is already a discrete-time model trained at its capture
+        // rate. Feeding it an upsampled stream changes the time represented by
+        // every receptive-field tap and doubles its real-time cost. Unlike the
+        // hand-written nonlinear amp models, it must run at the host rate.
+        let oversampled = !matches!(
+            model_base,
+            "nox30" | "nox30-experimental" | "nam2" | "nam-loader"
+        );
         let core_sample_rate = if oversampled {
             sample_rate * OVERSAMPLING_FACTOR
         } else {
@@ -457,6 +464,13 @@ mod tests {
 
     fn sine_rms(amp: &mut VoxAmp, frequency: f32, controls: AmpControls) -> f32 {
         sine_rms_at(amp, frequency, 0.02, controls)
+    }
+
+    #[test]
+    fn nam_loader_is_not_oversampled() {
+        let amp = VoxAmp::with_model(48_000.0, "nam2");
+
+        assert!(!amp.oversampled);
     }
 
     fn sine_residual_energy(samples: &[f32], frequency: f32, sample_rate: f32) -> f32 {

@@ -10,6 +10,8 @@ pub(super) struct MeterStats {
     output_right_sum_squares: AtomicU64,
     output_left_count: AtomicU64,
     output_right_count: AtomicU64,
+    input_underruns: AtomicU64,
+    input_overruns: AtomicU64,
 }
 
 impl MeterStats {
@@ -26,6 +28,21 @@ impl MeterStats {
             .fetch_add(square(right), Ordering::Relaxed);
         self.output_left_count.fetch_add(1, Ordering::Relaxed);
         self.output_right_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(super) fn record_input_underrun(&self) {
+        self.input_underruns.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(super) fn record_input_overrun(&self) {
+        self.input_overruns.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(super) fn input_queue_xruns(&self) -> (u64, u64) {
+        (
+            self.input_underruns.load(Ordering::Relaxed),
+            self.input_overruns.load(Ordering::Relaxed),
+        )
     }
 
     pub(super) fn snapshot_levels(&self) -> (f32, f32, f32) {

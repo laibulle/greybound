@@ -58,6 +58,7 @@ impl LiveAudioEngine {
         let (mut tuner_producer, tuner_consumer) =
             RingBuffer::<f32>::new((sample_rate as usize / 2).max(period_size as usize * 16));
         let meters = Arc::new(MeterStats::default());
+        let input_meters = meters.clone();
         let tuner = Arc::new(TunerStats::default());
         let recording_worker = Arc::new(std::sync::Mutex::new(None::<RecordingWorker>));
         let controls = SharedRuntimeControls::new(ui);
@@ -90,7 +91,9 @@ impl LiveAudioEngine {
                     move |data: &[f32], _| {
                         for frame in data.chunks_exact(input_channels) {
                             let sample = frame[0];
-                            let _ = producer.push(sample);
+                            if producer.push(sample).is_err() {
+                                input_meters.record_input_overrun();
+                            }
                             let _ = tuner_producer.push(sample);
                         }
                     },
@@ -180,20 +183,27 @@ impl LiveAudioEngine {
         self.meters.snapshot_levels()
     }
 
+    pub(crate) fn input_queue_xruns(&self) -> (u64, u64) {
+        self.meters.input_queue_xruns()
+    }
+
     pub(crate) fn tuner_reading(&self) -> TunerReading {
         self.tuner.snapshot()
     }
 
     pub(crate) fn status(&self) -> String {
+        let (input_underruns, input_overruns) = self.meters.input_queue_xruns();
         format!(
-            "Running: {} -> {}, {} Hz / {} samples, pedal {}, fx {}, amp {}",
+            "Running: {} -> {}, {} Hz / {} samples, pedal {}, fx {}, amp {}; input xruns {} under / {} over",
             self.input_device,
             self.output_device,
             self.sample_rate,
             self.period_size,
             self.minotaur_device,
             self.fx_devices,
-            self.amp_model
+            self.amp_model,
+            input_underruns,
+            input_overruns,
         )
     }
 

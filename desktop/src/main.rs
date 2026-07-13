@@ -76,6 +76,7 @@ struct Desktop {
     shutting_down: bool,
     last_audio_restart_attempt: Option<Instant>,
     last_meter_levels: (f32, f32, f32),
+    last_input_queue_xruns: (u64, u64),
 }
 
 impl Desktop {
@@ -136,6 +137,7 @@ impl Application for Desktop {
                 shutting_down: false,
                 last_audio_restart_attempt: None,
                 last_meter_levels: (0.0, 0.0, 0.0),
+                last_input_queue_xruns: (0, 0),
             },
             Command::none(),
         )
@@ -229,6 +231,7 @@ impl Application for Desktop {
                     Ok(engine) => {
                         self.ui.update(Message::AudioStatusChanged(engine.status()));
                         self.audio = Some(engine);
+                        self.last_input_queue_xruns = (0, 0);
                         self.audio_error = None;
                     }
                     Err(error) => {
@@ -240,6 +243,11 @@ impl Application for Desktop {
             }
 
             if let Some(audio) = &self.audio {
+                let input_queue_xruns = audio.input_queue_xruns();
+                if input_queue_xruns != self.last_input_queue_xruns {
+                    self.last_input_queue_xruns = input_queue_xruns;
+                    self.ui.update(Message::AudioStatusChanged(audio.status()));
+                }
                 let levels = audio.meter_levels();
                 if self.should_publish_meter_levels(levels) {
                     self.last_meter_levels = levels;
@@ -294,6 +302,7 @@ impl Application for Desktop {
                 Ok(engine) => {
                     self.ui.update(Message::AudioStatusChanged(engine.status()));
                     self.audio = Some(engine);
+                    self.last_input_queue_xruns = (0, 0);
                     self.audio_error = None;
                 }
                 Err(error) => {

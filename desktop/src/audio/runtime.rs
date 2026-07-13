@@ -73,7 +73,13 @@ impl AudioRuntime {
         controls: &SharedRuntimeControls,
         meters: &MeterStats,
     ) -> f32 {
-        let input = self.input.pop().unwrap_or(0.0) * controls.input_gain();
+        let input = match self.input.pop() {
+            Ok(sample) => sample,
+            Err(_) => {
+                meters.record_input_underrun();
+                0.0
+            }
+        } * controls.input_gain();
         meters.record_input(input);
         controls.load_device_controls_into(&mut self.device_controls);
         let chain_output = self.chain.process_with_amp_enabled(

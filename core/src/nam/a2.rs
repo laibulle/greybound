@@ -21,6 +21,7 @@ pub struct NamA2Processor {
     head_b: f32,
     head_scale: f32,
     layer_in: Vec<f32>,
+    activation: Vec<f32>,
     head_sum: Vec<f32>,
     head_history: RingHistory,
     prewarm_samples: usize,
@@ -113,6 +114,7 @@ impl NamA2Processor {
             head_b,
             head_scale,
             layer_in: vec![0.0; channels],
+            activation: vec![0.0; channels],
             head_sum: vec![0.0; channels],
             head_history: RingHistory::new(channels, HEAD_KERNEL_SIZE),
             prewarm_samples,
@@ -127,6 +129,7 @@ impl NamA2Processor {
 
     pub fn reset(&mut self) {
         self.layer_in.fill(0.0);
+        self.activation.fill(0.0);
         self.head_sum.fill(0.0);
         self.head_history.clear();
         for layer in &mut self.layers {
@@ -141,9 +144,11 @@ impl NamA2Processor {
             self.head_sum[channel] = 0.0;
         }
 
-        let mut activation = vec![0.0; self.channels];
+        let layer_in = &mut self.layer_in;
+        let activation = &mut self.activation;
+        let head_sum = &mut self.head_sum;
         for layer in &mut self.layers {
-            layer.history.push(&self.layer_in);
+            layer.history.push(layer_in);
 
             activation.fill(0.0);
             for out_channel in 0..self.channels {
@@ -164,7 +169,7 @@ impl NamA2Processor {
             }
 
             for channel in 0..self.channels {
-                self.head_sum[channel] += activation[channel];
+                head_sum[channel] += activation[channel];
             }
 
             for out_channel in 0..self.channels {
@@ -173,7 +178,7 @@ impl NamA2Processor {
                     residual += layer.layer_1x1_w[in_channel * self.channels + out_channel]
                         * activation[in_channel];
                 }
-                self.layer_in[out_channel] += residual;
+                layer_in[out_channel] += residual;
             }
         }
 
