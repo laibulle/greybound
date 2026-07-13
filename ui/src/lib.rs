@@ -1825,7 +1825,7 @@ pub const DAYBREAKER_AMP_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "amp.daybreaker-50",
     surface: STANDARD_AMP_HEAD_SURFACE,
     asset: Some(RenderAssetSpec {
-        path: "assets/amps/daybreaker-50-stack@2x.png",
+        path: "assets/amps/daybreaker-50-stack-badged-v4@2x.png",
         format: RenderAssetFormat::PngRgba,
         pixel_width: 2480,
         pixel_height: 1000,
@@ -5115,7 +5115,7 @@ pub fn preload_render_assets() {
             pixel_height: 856,
         },
         RenderAssetSpec {
-            path: "assets/amps/daybreaker-50-stack@2x.png",
+            path: "assets/amps/daybreaker-50-stack-badged-v4@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 2480,
             pixel_height: 1000,
@@ -5399,8 +5399,12 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/amps/nox30-cropped@2x.png" => {
             decoded_handle!("../assets/amps/nox30-cropped@2x.png", 1620, 856)
         }
-        "assets/amps/daybreaker-50-stack@2x.png" => {
-            decoded_handle!("../assets/amps/daybreaker-50-stack@2x.png", 2480, 1000)
+        "assets/amps/daybreaker-50-stack-badged-v4@2x.png" => {
+            decoded_handle!(
+                "../assets/amps/daybreaker-50-stack-badged-v4@2x.png",
+                2480,
+                1000
+            )
         }
         "assets/amps/nam-loader-rack@2x.png" => {
             decoded_handle!("../assets/amps/nam-loader-rack@2x.png", 2480, 1000)
@@ -9208,32 +9212,6 @@ fn draw_daybreaker_amp_overlay(frame: &mut Frame, size: Size) {
         label_color,
         Horizontal::Center,
     );
-    let badge = rounded_rect(
-        Point::new(
-            origin.x + render_size.width * 0.445,
-            origin.y + render_size.height * 0.525,
-        ),
-        Size::new(render_size.width * 0.11, 24.0),
-        4.0,
-    );
-    frame.fill(&badge, Color::from_rgba(0.055, 0.060, 0.066, 0.90));
-    frame.stroke(
-        &badge,
-        Stroke::default()
-            .with_color(Color::from_rgba(0.82, 0.70, 0.44, 0.84))
-            .with_width(1.0),
-    );
-    draw_text(
-        frame,
-        "DAYBREAKER 50",
-        Point::new(
-            origin.x + render_size.width * 0.500,
-            origin.y + render_size.height * 0.549,
-        ),
-        9.0,
-        Color::from_rgb(0.91, 0.83, 0.61),
-        Horizontal::Center,
-    );
 }
 
 fn draw_daybreaker_label(
@@ -11407,7 +11385,9 @@ mod tests {
     #[test]
     fn daybreaker_uses_a_transparent_base_with_separate_controls() {
         let image =
-            image::load_from_memory(include_bytes!("../assets/amps/daybreaker-50-stack@2x.png"))
+            image::load_from_memory(include_bytes!(
+                "../assets/amps/daybreaker-50-stack-badged-v4@2x.png"
+            ))
                 .expect("Daybreaker base asset must decode");
 
         assert_eq!(image.width(), 2480);
@@ -11424,7 +11404,7 @@ mod tests {
         assert!(render_control_asset_handle(DAYBREAKER_JEWEL_LED_ASSET, 1.0).is_some());
         assert!(render_asset_handle(DAYBREAKER_INPUT_JACK_ASSET).is_some());
         assert!(render_asset_handle(RenderAssetSpec {
-            path: "assets/amps/daybreaker-50-stack@2x.png",
+            path: "assets/amps/daybreaker-50-stack-badged-v4@2x.png",
             format: RenderAssetFormat::PngRgba,
             pixel_width: 2480,
             pixel_height: 1000,
