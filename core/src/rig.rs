@@ -145,6 +145,10 @@ impl RigAmpControls {
             bass: self.bass.clamp(0.0, 1.0),
             treble: self.treble.clamp(0.0, 1.0),
             cut: self.cut.clamp(0.0, 1.0),
+            // Rig files intentionally do not carry desktop session controls.
+            // This is the Daybreaker's calibrated front-panel default; current
+            // models that do not expose a master ignore it.
+            master: 0.75,
             output: output_gain,
             drive: self.drive.clamp(0.0, 1.0),
             presence: self.presence.clamp(0.0, 1.0),

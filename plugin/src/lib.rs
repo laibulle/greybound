@@ -415,12 +415,14 @@ impl Plugin for GreyboundPlugin {
                 .get_mut(0)
                 .map(|sample| *sample)
                 .unwrap_or(0.0);
+            let amp_master = self.params.amp_master.smoothed.next();
             let controls = AmpControls {
                 volume: self.params.gain.smoothed.next(),
                 bass: self.params.bass.smoothed.next(),
                 cut: self.params.cut.smoothed.next(),
                 treble: self.params.tone.smoothed.next(),
-                output: amp_output_gain(amp_model, self.params.amp_master.smoothed.next()),
+                master: amp_master,
+                output: amp_output_gain(amp_model),
                 drive: self.params.amp_drive.smoothed.next(),
                 presence: self.params.amp_presence.smoothed.next(),
                 sag: self.params.sag.smoothed.next(),
@@ -556,12 +558,12 @@ fn plugin_signal_chain_config(app_profile: AppProfile, amp_model: &str) -> Signa
     config
 }
 
-fn amp_output_gain(model: FreeAmpModel, master: f32) -> f32 {
+fn amp_output_gain(model: FreeAmpModel) -> f32 {
     match model {
         FreeAmpModel::Nox30 => NOX30_OUTPUT_GAIN,
-        // This follows the Free UI's Daybreaker output mapping. It is distinct
-        // from the global output trim, which remains after the speaker stage.
-        FreeAmpModel::Daybreaker50 => 0.38 + master.clamp(0.0, 1.0) * 1.10,
+        // Daybreaker's front-panel master is now routed separately through
+        // `AmpControls::master`; this remains its unity safety trim.
+        FreeAmpModel::Daybreaker50 => 1.0,
     }
 }
 
@@ -626,6 +628,12 @@ impl GreyboundPluginApp {
         let amp_model = self.params.amp_model.value().ui_model();
         if self.ui.amp_model != amp_model {
             self.ui.update(Message::SelectAmpModel(amp_model));
+            unsafe {
+                self.context.raw_set_parameter_normalized(
+                    self.params.amp_master.as_ptr(),
+                    self.ui.amp.master,
+                );
+            }
         }
     }
 
@@ -873,7 +881,7 @@ mod tests {
             FreeAmpModel::Daybreaker50.ui_model(),
             AmpModel::Daybreaker50
         );
-        assert_eq!(amp_output_gain(FreeAmpModel::Daybreaker50, 0.15), 0.545);
+        assert_eq!(amp_output_gain(FreeAmpModel::Daybreaker50), 1.0);
         assert_eq!(
             plugin_signal_chain_config(
                 AppProfile::greybound_free(),
@@ -893,6 +901,7 @@ mod tests {
             bass: 0.54,
             treble: 0.59,
             cut: 0.43,
+            master: 0.45,
             output: NOX30_OUTPUT_GAIN,
             drive: 0.0,
             presence: 0.0,

@@ -14,6 +14,9 @@ pub struct AmpControls {
     pub bass: f32,
     pub treble: f32,
     pub cut: f32,
+    /// Model-specific front-panel master control. The Daybreaker maps this to
+    /// its post-power audio taper; other current amp models do not consume it.
+    pub master: f32,
     pub output: f32,
     pub drive: f32,
     pub presence: f32,
@@ -441,6 +444,7 @@ mod tests {
             bass: 0.5,
             treble: 0.5,
             cut: 0.5,
+            master: 0.5,
             output: 1.0,
             drive: 0.0,
             presence: 0.0,
@@ -784,7 +788,8 @@ mod tests {
         clean_controls.drive = 0.04;
         clean_controls.presence = 0.66;
         clean_controls.sag = 0.18;
-        clean_controls.output = 0.545;
+        clean_controls.master = 0.75;
+        clean_controls.output = 1.0;
 
         let mut edge_controls = clean_controls;
         edge_controls.volume = 0.92;
@@ -812,6 +817,36 @@ mod tests {
     }
 
     #[test]
+    fn daybreaker_master_has_a_silent_stop_and_a_useful_audio_taper() {
+        let mut at_zero = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut at_quarter = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut at_full = VoxAmp::with_model(48_000.0, "daybreaker-50");
+        let mut controls = controls();
+        controls.volume = 0.38;
+        controls.bass = 0.46;
+        controls.cut = 0.64;
+        controls.treble = 0.70;
+        controls.drive = 0.04;
+        controls.presence = 0.66;
+        controls.sag = 0.18;
+        controls.output = 1.0;
+
+        controls.master = 0.0;
+        let silent_rms = sine_rms_at(&mut at_zero, 220.0, 0.08, controls);
+        controls.master = 0.25;
+        let quarter_rms = sine_rms_at(&mut at_quarter, 220.0, 0.08, controls);
+        controls.master = 1.0;
+        let full_rms = sine_rms_at(&mut at_full, 220.0, 0.08, controls);
+        let quarter_to_full_db = 20.0 * (full_rms / quarter_rms).log10();
+
+        assert!(silent_rms < 1.0e-7, "silent_rms={silent_rms}");
+        assert!(
+            quarter_to_full_db >= 20.0,
+            "Daybreaker master taper is too narrow: quarter={quarter_rms}, full={full_rms}, delta={quarter_to_full_db:.2} dB"
+        );
+    }
+
+    #[test]
     fn daybreaker_50_clean_calibration_defers_low_frequency_clipping() {
         let sample_rate = 48_000.0;
         let frequency = 100.0;
@@ -824,6 +859,7 @@ mod tests {
         clean_controls.drive = 0.04;
         clean_controls.presence = 0.66;
         clean_controls.sag = 0.18;
+        clean_controls.master = 0.882;
 
         let mut samples = Vec::new();
         for sample_idx in 0..9_600 {
@@ -858,7 +894,8 @@ mod tests {
         clean_controls.drive = 0.04;
         clean_controls.presence = 0.66;
         clean_controls.sag = 0.18;
-        clean_controls.output = 0.545;
+        clean_controls.master = 0.75;
+        clean_controls.output = 1.0;
 
         let mut output = Vec::new();
         for sample_idx in 0..(sample_rate as usize * 650 / 1_000) {
@@ -1016,7 +1053,8 @@ mod tests {
         daybreaker_controls.cut = 0.64;
         daybreaker_controls.presence = 0.66;
         daybreaker_controls.drive = 0.04;
-        daybreaker_controls.output = 0.545;
+        daybreaker_controls.master = 0.75;
+        daybreaker_controls.output = 1.0;
 
         // Normal guitar level at the UI defaults.  The Nox is allowed a
         // modestly longer dynamic return because it is cathode-biased, but it
@@ -1280,6 +1318,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1312,6 +1351,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1367,6 +1407,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1400,6 +1441,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1436,6 +1478,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1467,6 +1510,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,
@@ -1511,6 +1555,7 @@ mod tests {
             bass: 0.52,
             treble: 0.61,
             cut: 0.47,
+            master: 0.5,
             output: 10.0_f32.powf(-18.0 / 20.0),
             drive: 0.68,
             presence: 0.44,

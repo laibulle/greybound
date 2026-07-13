@@ -19,6 +19,7 @@ pub(super) struct SharedRuntimeControls {
     amp_bass: Arc<AtomicU32>,
     amp_treble: Arc<AtomicU32>,
     amp_cut: Arc<AtomicU32>,
+    amp_master: Arc<AtomicU32>,
     amp_output: Arc<AtomicU32>,
     amp_drive: Arc<AtomicU32>,
     amp_presence: Arc<AtomicU32>,
@@ -86,6 +87,7 @@ impl SharedRuntimeControls {
             amp_bass: atomic_f32(0.0),
             amp_treble: atomic_f32(0.0),
             amp_cut: atomic_f32(0.0),
+            amp_master: atomic_f32(0.5),
             amp_output: atomic_f32(0.58),
             amp_drive: atomic_f32(0.0),
             amp_presence: atomic_f32(0.0),
@@ -158,6 +160,7 @@ impl SharedRuntimeControls {
         store_f32(&self.amp_bass, snapshot.amp.bass);
         store_f32(&self.amp_treble, snapshot.amp.treble);
         store_f32(&self.amp_cut, snapshot.amp.cut);
+        store_f32(&self.amp_master, snapshot.amp.master);
         store_f32(&self.amp_output, snapshot.amp.output);
         store_f32(&self.amp_drive, snapshot.amp.drive);
         store_f32(&self.amp_presence, snapshot.amp.presence);
@@ -259,6 +262,7 @@ impl SharedRuntimeControls {
             bass: load_f32(&self.amp_bass),
             treble: load_f32(&self.amp_treble),
             cut: load_f32(&self.amp_cut),
+            master: load_f32(&self.amp_master),
             output: load_f32(&self.amp_output),
             drive: load_f32(&self.amp_drive),
             presence: load_f32(&self.amp_presence),

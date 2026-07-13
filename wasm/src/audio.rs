@@ -333,19 +333,11 @@ struct RuntimeControls {
 
 impl RuntimeControls {
     fn from_ui(ui: &GreyboundUi) -> Self {
+        let snapshot = ui.runtime_audio_snapshot();
         let mut controls = Self {
-            input_gain: greybound_ui::normalized_gain(ui.input_gain, -24.0, 24.0),
-            output_gain: greybound_ui::normalized_gain(ui.output_gain, -24.0, 6.0),
-            amp: AmpControls {
-                volume: ui.amp.gain,
-                bass: ui.amp.bass,
-                treble: ui.amp.treble,
-                cut: ui.amp.cut,
-                output: 0.58,
-                drive: ui.amp.drive,
-                presence: ui.amp.presence,
-                sag: ui.amp.sag,
-            },
+            input_gain: snapshot.input_gain,
+            output_gain: snapshot.output_gain,
+            amp: snapshot.amp,
             amp_enabled: !ui.amp.bypassed,
             minotaur_bypassed: false,
             minotaur_gain: 0.0,

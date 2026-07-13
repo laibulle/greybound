@@ -97,7 +97,11 @@ graybox implementation, not a Dumble schematic, SPICE netlist, or PCB map.
 - `drive`: extra edge/compression range, kept low for the clean anchor.
 - `presence`: feedback-style high-frequency openness.
 - `sag`: dynamic supply/bias softness; the clean anchor starts low.
-- `output`: final safety/output trim.
+- `master`: Daybreaker front-panel master-volume position. It uses a calibrated
+  audio taper in the post-power output stage: silence at zero, the retained
+  clean calibration level at the desktop default (`75%`), and the previous
+  full-stop level at `100%`.
+- `output`: final safety/output trim, distinct from the master-volume control.
 
 Reverb belongs to the FX loop, not this amp model.
 
@@ -217,6 +221,22 @@ It also worsened the null residual (`-9.53 dB` to `-8.41 dB`), envelope error
 (`-11.25 dB` to `-10.36 dB`), and air residual (`+7.76 dB` to `+8.56 dB`). It
 is retained only as the current component hypothesis, not accepted as a final
 tone stack.
+
+### Master-volume routing — corrected
+
+The first desktop Daybreaker surface routed its `Volume` knob through the
+generic `AmpControls::output` field. That mapping retained an audible gain
+floor at zero and yielded only about `+4.8 dB` RMS across the whole knob sweep
+with the Mayer DI. The control is now a dedicated `master` value, shaped with
+a power/audio taper in the post-power output stage. The visual default moved
+from `15%` to `75%` so its calibrated clean operating level is unchanged, while
+the counter-clockwise stop settles to silence. The separate `output` control
+now acts only as the final safety trim for offline/plugin paths.
+
+This routing also added the missing AC-coupling boundary between the phase
+inverter approximation and the 6L6 grid drive. It removes the PI model's idle
+DC residual before the power stage, so low master settings are not masked by a
+non-musical output floor.
 
 ### Passive classic TMB direct integration — rejected pending recovery stage
 

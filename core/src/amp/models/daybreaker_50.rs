@@ -3,6 +3,14 @@ use crate::amp::components::{triode_stage, EnvelopeFollower, OnePoleLowpass, Wdf
 use crate::amp::AmpControls;
 use crate::circuit::power::{PushPull6L6Params, PushPull6L6Stage};
 
+// The old desktop mapping put the visual default (0.15) at a gain of 0.7324
+// and the full stop at 1.4056.  The new audio-tapered master preserves those
+// two reference levels at a useful default position (0.75) while reaching
+// silence at the counter-clockwise stop.
+const MASTER_MAX_GAIN: f32 = 1.4056;
+const MASTER_TAPER_EXPONENT: f32 = 2.266_018;
+const CALIBRATED_MASTER_DRIVE: f32 = 0.7324;
+
 /// Modern high-headroom clean/edge 6L6 target.
 ///
 /// This is deliberately a stage-level graybox. The Daybreaker 50 references an
@@ -17,6 +25,7 @@ pub(in crate::amp) struct Daybreaker50 {
     gain_bright_filter: OnePoleLowpass,
     recovery_coupling: WdfHighpass,
     phase_inverter_coupling: WdfHighpass,
+    power_grid_coupling: WdfHighpass,
     presence_highpass: WdfHighpass,
     presence_filter: OnePoleLowpass,
     transformer_highpass: WdfHighpass,
@@ -38,6 +47,7 @@ impl Daybreaker50 {
             gain_bright_filter: OnePoleLowpass::new(sample_rate, 3_100.0),
             recovery_coupling: WdfHighpass::from_rc(sample_rate, 330_000.0, 22e-9),
             phase_inverter_coupling: WdfHighpass::from_rc(sample_rate, 1_000_000.0, 47e-9),
+            power_grid_coupling: WdfHighpass::from_rc(sample_rate, 220_000.0, 22e-9),
             presence_highpass: WdfHighpass::from_rc(sample_rate, 22_000.0, 4.7e-9),
             presence_filter: OnePoleLowpass::new(sample_rate, 4_823.0),
             transformer_highpass: WdfHighpass::from_rc(sample_rate, 100_000.0, 68e-9),
@@ -56,6 +66,11 @@ impl Daybreaker50 {
         // points, but expand the useful lower half so Sag is perceptible
         // without moving the NAM-calibrated operating point to a new default.
         control.clamp(0.0, 1.0).powf(0.70)
+    }
+
+    #[inline]
+    fn master_gain(position: f32) -> f32 {
+        MASTER_MAX_GAIN * position.clamp(0.0, 1.0).powf(MASTER_TAPER_EXPONENT)
     }
 
     #[inline]
@@ -98,7 +113,8 @@ impl AmpModel for Daybreaker50 {
         // retain the original full-edge curve, but give the clean operating
         // point 8.6 dB of stage headroom before cascading preamp saturation.
         let clean_stage_drive = 0.37 + edge * 0.63;
-        let master = controls.output.clamp(0.0, 2.0);
+        let master = Self::master_gain(controls.master) / CALIBRATED_MASTER_DRIVE;
+        let output_trim = controls.output.max(0.0);
 
         let input = self.input_coupling.process(input);
         let first_bypass = self.first_cathode_bypass.process(input);
@@ -117,7 +133,7 @@ impl AmpModel for Daybreaker50 {
         );
         let master_signal =
             headroom_triode_stage(recovery * (1.04 + edge * 0.16), 0.050, clean_stage_drive)
-                * (0.34 + master * 0.72);
+                * CALIBRATED_MASTER_DRIVE;
 
         let presence_amount = controls.presence.clamp(0.0, 1.0);
         let presence_band = self
@@ -136,15 +152,19 @@ impl AmpModel for Daybreaker50 {
         let phase_a = headroom_triode_stage(pi_input, 0.050, clean_stage_drive);
         let phase_b = headroom_triode_stage(-pi_input * 0.98, -0.046, clean_stage_drive);
         let differential = (phase_a - phase_b) * 0.5;
+        // The power grids are AC-coupled from the phase inverter. This blocks
+        // the greybox PI's idle differential offset before it can become an
+        // audible residual at a closed master volume.
+        let power_grid_drive = self.power_grid_coupling.process(differential);
 
-        let current_demand = (differential.abs() * (0.96 + edge * 0.42) - 0.60).max(0.0);
+        let current_demand = (power_grid_drive.abs() * (0.96 + edge * 0.42) - 0.60).max(0.0);
         let bias_shift = self.bias_envelope.process(current_demand);
         let sag = self.supply_sag.process(current_demand * current_demand);
         let power_reserve_load = self
             .power_reserve_load
             .process((differential.abs() / 0.16).clamp(0.0, 1.0));
         let sag_control = Self::calibrated_sag(controls.sag);
-        let power_drive = differential * (0.92 + edge * 1.55)
+        let power_drive = power_grid_drive * (0.92 + edge * 1.55)
             / (1.0 + bias_shift * 0.16 + sag * (0.06 + sag_control * 0.16));
         // The clean capture has a substantially wider 6L6 operating region
         // than the original graybox calibration.  Scale the grid excursion
@@ -166,7 +186,19 @@ impl AmpModel for Daybreaker50 {
         let transformer = self
             .transformer_lowpass
             .process(self.transformer_highpass.process(power_output));
-        transformer * 0.015 * (1.0 - sag_control * 0.04)
+        transformer * 0.015 * (1.0 - sag_control * 0.04) * master * output_trim
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn master_taper_is_silent_at_zero_and_preserves_the_calibrated_default() {
+        assert_eq!(Daybreaker50::master_gain(0.0), 0.0);
+        assert!((Daybreaker50::master_gain(0.75) - 0.7324).abs() < 1.0e-5);
+        assert!((Daybreaker50::master_gain(1.0) - MASTER_MAX_GAIN).abs() < 1.0e-6);
     }
 }
 

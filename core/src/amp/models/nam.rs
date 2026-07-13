@@ -112,6 +112,7 @@ mod tests {
             bass: 0.5,
             treble: 0.5,
             cut: 0.5,
+            master: 0.5,
             output: 0.5,
             drive: 0.0,
             presence: 0.5,

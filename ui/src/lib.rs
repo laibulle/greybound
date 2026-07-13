@@ -2272,7 +2272,9 @@ impl DeviceState {
             cut: 0.64,
             presence: 0.66,
             sag: 0.18,
-            master: 0.15,
+            // This position retains the previous calibrated Daybreaker level
+            // with its real audio-tapered master-volume curve.
+            master: 0.75,
         }
     }
 
@@ -3223,7 +3225,7 @@ impl GreyboundUi {
     fn runtime_amp_controls(&self) -> CoreAmpControls {
         let output = match self.amp_model_id() {
             "none-star" => 0.40 + self.amp.master * 1.20,
-            "daybreaker-50" => 0.38 + self.amp.master * 1.10,
+            "daybreaker-50" => 1.0,
             "boxer-seven-lead" => 0.20 + self.amp.master * 1.15,
             "nam2" => nam_loader_output_gain(self.amp.master),
             _ => 0.58,
@@ -3233,6 +3235,7 @@ impl GreyboundUi {
             bass: self.amp.bass,
             treble: self.amp.treble,
             cut: self.amp.cut,
+            master: self.amp.master,
             output,
             drive: self.amp.drive,
             presence: self.amp.presence,
@@ -11467,6 +11470,16 @@ mod tests {
         assert!((ui.runtime_audio_snapshot().amp.output - 1.0).abs() < 1e-6);
         assert!((nam_loader_output_gain(0.0) - 0.125_892_53).abs() < 1e-6);
         assert!((nam_loader_output_gain(1.0) - 7.943_282).abs() < 1e-5);
+    }
+
+    #[test]
+    fn daybreaker_volume_routes_to_master_not_safety_trim() {
+        let mut ui = GreyboundUi::default();
+        ui.update(Message::SelectAmpModel(AmpModel::Daybreaker50));
+
+        let controls = ui.runtime_audio_snapshot().amp;
+        assert!((controls.master - 0.75).abs() < 1e-6);
+        assert!((controls.output - 1.0).abs() < 1e-6);
     }
 
     #[test]

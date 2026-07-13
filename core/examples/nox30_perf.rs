@@ -13,6 +13,7 @@ fn main() {
         bass: 0.52,
         treble: 0.61,
         cut: 0.47,
+        master: 0.5,
         output: 10.0_f32.powf(-18.0 / 20.0),
         drive: 0.68,
         presence: 0.44,
