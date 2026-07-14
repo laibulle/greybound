@@ -7,9 +7,10 @@ use greybound::{
     CircuitDescriptorKind, CircuitNodeDescriptor, CircuitNodeKind, CircuitSignalKind,
     DeviceConfig as CoreDeviceConfig, DeviceControls as CoreDeviceControls,
     DeviceSlotControls as CoreDeviceSlotControls, LumenControls as CoreLumenControls,
-    MinotaurControls as CoreMinotaurControls, MuffinControls as CoreMuffinControls,
-    SpringfieldControls as CoreSpringfieldControls, StudioDelayControls as CoreStudioDelayControls,
-    StudioVerbAlgorithm as CoreStudioVerbAlgorithm, StudioVerbControls as CoreStudioVerbControls,
+    MinotaurControls as CoreMinotaurControls, MonarchControls as CoreMonarchControls,
+    MuffinControls as CoreMuffinControls, SpringfieldControls as CoreSpringfieldControls,
+    StudioDelayControls as CoreStudioDelayControls, StudioVerbAlgorithm as CoreStudioVerbAlgorithm,
+    StudioVerbControls as CoreStudioVerbControls,
 };
 use iced::advanced::graphics::gradient as canvas_gradient;
 use iced::advanced::image as advanced_image;
@@ -514,6 +515,7 @@ pub enum Message {
     MetronomeBpmStep(f32),
     MetronomeVolumeChanged(f32),
     MetronomePanChanged(f32),
+    MetronomeMuteProbabilityChanged(f32),
     ToggleDoubler,
     ToggleEq,
     SetEqHpf(f32),
@@ -689,6 +691,7 @@ pub enum GlobalControl {
 pub enum MetronomeControl {
     Volume,
     Pan,
+    MuteProbability,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -744,6 +747,7 @@ pub enum DeviceModel {
     Lumen,
     Muffin,
     Minotaur,
+    Monarch,
     Nox30,
     WideCombo,
     LeadHead,
@@ -759,6 +763,7 @@ impl DeviceModel {
             Self::Lumen => "Lumen",
             Self::Muffin => "Muffin",
             Self::Minotaur => "Minotaur",
+            Self::Monarch => "Monarch",
             Self::Nox30 => "Nox30",
             Self::WideCombo => "Wide Combo",
             Self::LeadHead => "Lead Head",
@@ -856,6 +861,52 @@ pub const MINOTAUR_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetS
 pub const MINOTAUR_SILVER_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/buttons/minotaur-silver-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const MONARCH_BRASS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/monarch-brass@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: Some(RenderRotationSpec {
+        min_degrees: -135.0,
+        max_degrees: 135.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const MONARCH_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/monarch-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/monarch-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const MONARCH_BRASS_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/monarch-brass-footswitch@2x.png",
         format: RenderAssetFormat::PngRgba,
         pixel_width: 512,
         pixel_height: 512,
@@ -1393,6 +1444,64 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     },
 ];
 
+pub const MONARCH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "Gain",
+        anchor_x: 0.255,
+        anchor_y: 0.207,
+        radius: 30.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MONARCH_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Treble),
+        widget: RenderControlWidget::Pot,
+        label: "Tone",
+        anchor_x: 0.500,
+        anchor_y: 0.207,
+        radius: 30.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MONARCH_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "Output",
+        anchor_x: 0.745,
+        anchor_y: 0.207,
+        radius: 30.0,
+        hit_radius: 48.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MONARCH_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "Status",
+        anchor_x: 0.500,
+        anchor_y: 0.680,
+        radius: 15.0,
+        hit_radius: 0.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MONARCH_JEWEL_LED_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Footswitch,
+        label: "Bypass",
+        anchor_x: 0.500,
+        anchor_y: 0.820,
+        radius: 40.0,
+        hit_radius: 50.0,
+        skin: KnobSkin::Teal,
+        asset: Some(MONARCH_BRASS_FOOTSWITCH_ASSET),
+    },
+];
+
 pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Gain),
@@ -1834,6 +1943,19 @@ pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     controls: MINOTAUR_PEDAL_CONTROLS,
 };
 
+pub const MONARCH_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "pedal.monarch",
+    surface: STANDARD_PEDAL_SURFACE,
+    asset: Some(RenderAssetSpec {
+        path: "assets/pedals/monarch@4x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1200,
+        pixel_height: 2172,
+    }),
+    typography: RenderTypographyPolicy::BakedIntoAsset,
+    controls: MONARCH_PEDAL_CONTROLS,
+};
+
 pub const MUFFIN_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "pedal.muffin",
     surface: STANDARD_PEDAL_SURFACE,
@@ -2035,6 +2157,7 @@ pub struct RuntimeAudioSnapshot {
     pub metronome_bpm: f32,
     pub metronome_volume: f32,
     pub metronome_pan: f32,
+    pub metronome_mute_probability: f32,
     pub metronome_beats_per_bar: u32,
     pub metronome_rhythm_division: u32,
     pub eq_enabled: bool,
@@ -2151,6 +2274,15 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         circuit: minotaur_circuit_descriptor,
     },
     AppDeviceModelDescriptor {
+        id: "monarch",
+        label: "Monarch",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::Monarch,
+        runtime_config: Some(CoreDeviceConfig::Monarch),
+        render: &MONARCH_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
         id: "auralith",
         label: "Auralith",
         kind: DeviceKind::FxLoop,
@@ -2180,6 +2312,12 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         model_id: "muffin",
         section: RuntimeDeviceSection::PreAmp,
         config: CoreDeviceConfig::Muffin,
+        bypassed: true,
+    },
+    RuntimeDeviceSlot {
+        model_id: "monarch",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::Monarch,
         bypassed: true,
     },
     RuntimeDeviceSlot {
@@ -2354,6 +2492,26 @@ impl DeviceState {
             presence: 0.0,
             sag: 0.0,
             master: 0.03,
+        }
+    }
+
+    pub fn monarch() -> Self {
+        let controls = CoreMonarchControls::default();
+        Self {
+            name: "MONARCH".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::Monarch,
+            // Keep the established Free Minotaur preset unchanged while making
+            // Monarch immediately available as the heavier overdrive option.
+            bypassed: true,
+            gain: controls.gain,
+            drive: 0.0,
+            bass: 0.0,
+            treble: controls.tone,
+            cut: 0.0,
+            presence: 0.0,
+            sag: 0.0,
+            master: controls.output,
         }
     }
 
@@ -2650,6 +2808,7 @@ pub struct MetronomeState {
     pub bpm: f32,
     pub volume: f32,
     pub pan: f32,
+    pub mute_probability: f32,
 }
 
 impl Default for MetronomeState {
@@ -2660,6 +2819,7 @@ impl Default for MetronomeState {
             bpm: 120.0,
             volume: 0.70,
             pan: 0.50,
+            mute_probability: 0.0,
         }
     }
 }
@@ -2851,6 +3011,7 @@ fn device_state_for_model(model: DeviceModel) -> DeviceState {
         DeviceModel::Lumen => DeviceState::lumen(),
         DeviceModel::Muffin => DeviceState::muffin(),
         DeviceModel::Minotaur => DeviceState::minotaur(),
+        DeviceModel::Monarch => DeviceState::monarch(),
         DeviceModel::Nox30 => DeviceState::nox30(),
         DeviceModel::WideCombo => DeviceState::wide_combo(),
         DeviceModel::LeadHead => DeviceState::lead_head(),
@@ -2959,6 +3120,9 @@ impl GreyboundUi {
             }
             Message::MetronomePanChanged(value) => {
                 self.metronome.pan = value.clamp(0.0, 1.0);
+            }
+            Message::MetronomeMuteProbabilityChanged(value) => {
+                self.metronome.mute_probability = value.clamp(0.0, 1.0);
             }
             Message::ToggleDoubler => {
                 self.doubler.enabled = !self.doubler.enabled;
@@ -3379,6 +3543,7 @@ impl GreyboundUi {
             metronome_bpm: self.metronome.bpm.clamp(30.0, 260.0),
             metronome_volume: self.metronome.volume.clamp(0.0, 1.0),
             metronome_pan: self.metronome.pan.clamp(0.0, 1.0),
+            metronome_mute_probability: self.metronome.mute_probability.clamp(0.0, 1.0),
             metronome_beats_per_bar: 4,
             metronome_rhythm_division: 1,
             eq_enabled: self.eq.enabled,
@@ -3435,6 +3600,7 @@ impl GreyboundUi {
             CoreDeviceConfig::Lumen => DeviceModel::Lumen,
             CoreDeviceConfig::Muffin => DeviceModel::Muffin,
             CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
+            CoreDeviceConfig::Monarch => DeviceModel::Monarch,
             CoreDeviceConfig::StudioDelay => DeviceModel::DelayFx,
             CoreDeviceConfig::Springfield => DeviceModel::Springfield,
             CoreDeviceConfig::Auralith => DeviceModel::ReverbFx,
@@ -3472,6 +3638,14 @@ impl GreyboundUi {
                 CoreDeviceControls::Minotaur(CoreMinotaurControls {
                     gain: device.gain,
                     treble: device.treble,
+                    output: device.master,
+                })
+            }
+            CoreDeviceConfig::Monarch => {
+                let device = device.cloned().unwrap_or_else(DeviceState::monarch);
+                CoreDeviceControls::Monarch(CoreMonarchControls {
+                    gain: device.gain,
+                    tone: device.treble,
                     output: device.master,
                 })
             }
@@ -3717,21 +3891,27 @@ impl GreyboundUi {
                     "TIME SIGNATURE",
                     container(text("4/4").size(self.font(18.0)).style(Color::WHITE))
                         .padding([self.s(14.0), self.s(16.0)])
-                        .width(Length::Fixed(self.s(250.0)))
+                        .width(Length::Fixed(self.s(180.0)))
                         .height(Length::Fixed(self.s(58.0)))
                         .style(dark_field_container())
                         .into(),
-                    250.0
+                    180.0
                 ),
                 self.settings_select_field(
                     "SOUND",
                     container(text("Blip").size(self.font(18.0)).style(Color::WHITE))
                         .padding([self.s(14.0), self.s(16.0)])
-                        .width(Length::Fixed(self.s(250.0)))
+                        .width(Length::Fixed(self.s(180.0)))
                         .height(Length::Fixed(self.s(58.0)))
                         .style(dark_field_container())
                         .into(),
-                    250.0
+                    180.0
+                ),
+                self.metronome_knob(
+                    "MUTE CHANCE",
+                    MetronomeControl::MuteProbability,
+                    metro.mute_probability,
+                    metronome_mute_probability_readout(metro.mute_probability)
                 ),
                 self.metronome_knob(
                     "PAN",
@@ -3740,7 +3920,7 @@ impl GreyboundUi {
                     metronome_pan_readout(metro.pan)
                 ),
             ]
-            .spacing(self.s(54.0))
+            .spacing(self.s(28.0))
             .align_items(Alignment::Center),
             self.settings_separator(),
             row![
@@ -4357,6 +4537,10 @@ fn metronome_pan_readout(value: f32) -> String {
     } else {
         format!("R {:.0}", (value - 0.5) * 200.0)
     }
+}
+
+fn metronome_mute_probability_readout(value: f32) -> String {
+    format!("{:.0}%", value.clamp(0.0, 1.0) * 100.0)
 }
 
 fn note_name(frequency_hz: f32, reference_hz: f32) -> String {
@@ -5640,6 +5824,9 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/pedals/minotaur-v2@4x.png" => {
             decoded_handle!("../assets/pedals/minotaur-v2@4x.png", 914, 1721)
         }
+        "assets/pedals/monarch@4x.png" => {
+            decoded_handle!("../assets/pedals/monarch@4x.png", 1200, 2172)
+        }
         "assets/pedals/muffin@4x.png" => {
             decoded_handle!("../assets/pedals/muffin@4x.png", 1200, 2172)
         }
@@ -5742,8 +5929,16 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/controls/knobs/minotaur-ivory@2x.png" => {
             decoded_handle!("../assets/controls/knobs/minotaur-ivory@2x.png", 512, 512)
         }
+        "assets/controls/knobs/monarch-brass@2x.png" => {
+            decoded_handle!("../assets/controls/knobs/monarch-brass@2x.png", 512, 512)
+        }
         "assets/controls/buttons/minotaur-silver-footswitch@2x.png" => decoded_handle!(
             "../assets/controls/buttons/minotaur-silver-footswitch@2x.png",
+            512,
+            512
+        ),
+        "assets/controls/buttons/monarch-brass-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/monarch-brass-footswitch@2x.png",
             512,
             512
         ),
@@ -5813,6 +6008,12 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/controls/leds/minotaur-jewel-on@2x.png" => {
             decoded_handle!("../assets/controls/leds/minotaur-jewel-on@2x.png", 256, 256)
         }
+        "assets/controls/leds/monarch-jewel-off@2x.png" => {
+            decoded_handle!("../assets/controls/leds/monarch-jewel-off@2x.png", 256, 256)
+        }
+        "assets/controls/leds/monarch-jewel-on@2x.png" => {
+            decoded_handle!("../assets/controls/leds/monarch-jewel-on@2x.png", 256, 256)
+        }
         "assets/controls/leds/springfield-jewel-off@2x.png" => decoded_handle!(
             "../assets/controls/leds/springfield-jewel-off@2x.png",
             256,
@@ -5842,6 +6043,12 @@ fn render_control_asset_handle(
         const FRAME_COUNT: usize = 121;
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return minotaur_ivory_knob_handles().get(index).cloned();
+    }
+    if asset.image.path == "assets/controls/knobs/monarch-brass@2x.png" && asset.rotation.is_some()
+    {
+        const FRAME_COUNT: usize = 121;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return monarch_brass_knob_handles().get(index).cloned();
     }
     if asset.image.path == "assets/controls/knobs/muffin-black-brass@2x.png"
         && asset.rotation.is_some()
@@ -5920,6 +6127,32 @@ fn minotaur_ivory_knob_handles() -> &'static [advanced_image::Handle] {
                     .expect("minotaur knob asset must define a rotation range");
                 let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
                 let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn monarch_brass_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 121;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/monarch-brass@2x.png"
+        ))
+        .expect("embedded Monarch knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+        let rotation = MONARCH_BRASS_KNOB_ASSET
+            .rotation
+            .expect("Monarch knob asset must define a rotation range");
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let value = index as f32 / (FRAME_COUNT - 1) as f32;
+                let angle = (rotation.max_degrees - rotation.min_degrees) * value;
+                let pixels = rotate_rgba_pixels(&source, angle.to_radians());
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
             .collect()
@@ -6336,6 +6569,7 @@ impl canvas::Program<Message> for BoardArt {
                 DeviceModel::Lumen => Color::from_rgb(0.70, 0.73, 0.76),
                 DeviceModel::Muffin => Color::from_rgb(0.31, 0.19, 0.39),
                 DeviceModel::Minotaur => Color::from_rgb(0.73, 0.65, 0.47),
+                DeviceModel::Monarch => Color::from_rgb(0.24, 0.33, 0.44),
                 DeviceModel::Nox30 | DeviceModel::WideCombo | DeviceModel::LeadHead => PEDAL_CREAM,
                 DeviceModel::Springfield => PEDAL_PEACH,
                 DeviceModel::DelayFx => Color::from_rgb(0.47, 0.50, 0.68),
@@ -7096,6 +7330,7 @@ fn fallback_device_render_spec(model: DeviceModel) -> &'static ModelRenderSpec {
         DeviceModel::Lumen => &LUMEN_PEDAL_RENDER_SPEC,
         DeviceModel::Muffin => &MUFFIN_PEDAL_RENDER_SPEC,
         DeviceModel::Minotaur => &MINOTAUR_PEDAL_RENDER_SPEC,
+        DeviceModel::Monarch => &MONARCH_PEDAL_RENDER_SPEC,
         DeviceModel::Nox30 => &NOX30_PEDAL_RENDER_SPEC,
         DeviceModel::WideCombo => &WIDE_COMBO_PEDAL_RENDER_SPEC,
         DeviceModel::LeadHead => &LEAD_HEAD_PEDAL_RENDER_SPEC,
@@ -7481,6 +7716,7 @@ fn metronome_control_message(control: MetronomeControl, value: f32) -> Message {
     match control {
         MetronomeControl::Volume => Message::MetronomeVolumeChanged(value),
         MetronomeControl::Pan => Message::MetronomePanChanged(value),
+        MetronomeControl::MuteProbability => Message::MetronomeMuteProbabilityChanged(value),
     }
 }
 
@@ -10468,6 +10704,7 @@ fn ui_circuit_descriptor(
             DeviceModel::Lumen => device_circuit_descriptor(CoreDeviceConfig::Lumen),
             DeviceModel::Muffin => device_circuit_descriptor(CoreDeviceConfig::Muffin),
             DeviceModel::Minotaur => device_circuit_descriptor(CoreDeviceConfig::Minotaur),
+            DeviceModel::Monarch => device_circuit_descriptor(CoreDeviceConfig::Monarch),
             DeviceModel::Nox30 => amp_circuit_descriptor("nox30"),
             DeviceModel::Springfield => device_circuit_descriptor(CoreDeviceConfig::Springfield),
             _ => None,
@@ -11718,10 +11955,10 @@ mod tests {
     }
 
     #[test]
-    fn free_runtime_snapshot_places_bypassed_muffin_before_minotaur() {
+    fn free_runtime_snapshot_places_bypassed_monarch_before_minotaur() {
         let snapshot = GreyboundUi::default().runtime_audio_snapshot();
 
-        assert_eq!(snapshot.devices.len(), 5);
+        assert_eq!(snapshot.devices.len(), 6);
         assert!(matches!(
             snapshot.devices[0].controls,
             CoreDeviceControls::Lumen(_)
@@ -11734,9 +11971,14 @@ mod tests {
         assert!(snapshot.devices[1].bypassed);
         assert!(matches!(
             snapshot.devices[2].controls,
+            CoreDeviceControls::Monarch(_)
+        ));
+        assert!(snapshot.devices[2].bypassed);
+        assert!(matches!(
+            snapshot.devices[3].controls,
             CoreDeviceControls::Minotaur(_)
         ));
-        assert!(!snapshot.devices[2].bypassed);
+        assert!(!snapshot.devices[3].bypassed);
     }
 
     #[test]
@@ -11771,6 +12013,34 @@ mod tests {
         assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 0.0).is_some());
         assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 1.0).is_some());
         assert!(render_control_asset_handle(MUFFIN_FOOTSWITCH_ASSET, 0.0).is_some());
+    }
+
+    #[test]
+    fn monarch_visual_asset_decodes() {
+        let image = image::load_from_memory(include_bytes!("../assets/pedals/monarch@4x.png"))
+            .expect("Monarch faceplate asset must decode");
+        assert_eq!(image.width(), 1200);
+        assert_eq!(image.height(), 2172);
+        assert!(image.color().has_alpha());
+        assert!(render_asset_handle(RenderAssetSpec {
+            path: "assets/pedals/monarch@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        })
+        .is_some());
+        assert_eq!(
+            MONARCH_PEDAL_RENDER_SPEC.typography,
+            RenderTypographyPolicy::BakedIntoAsset
+        );
+        assert!(MONARCH_PEDAL_CONTROLS
+            .iter()
+            .all(|control| control.asset.is_some()));
+        assert!(render_control_asset_handle(MONARCH_BRASS_KNOB_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(MONARCH_BRASS_KNOB_ASSET, 0.5).is_some());
+        assert!(render_control_asset_handle(MONARCH_JEWEL_LED_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(MONARCH_JEWEL_LED_ASSET, 1.0).is_some());
+        assert!(render_control_asset_handle(MONARCH_BRASS_FOOTSWITCH_ASSET, 0.0).is_some());
     }
 
     #[test]

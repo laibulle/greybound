@@ -1,6 +1,6 @@
 use greybound::{
     AmpControls, AuralithControls, DeviceConfig, DeviceControls, DeviceSlotControls, LumenControls,
-    MinotaurControls, MuffinControls, SpringfieldControls, StudioDelayControls,
+    MinotaurControls, MonarchControls, MuffinControls, SpringfieldControls, StudioDelayControls,
     StudioVerbAlgorithm, StudioVerbControls,
 };
 use greybound_ui::{GreyboundUi, RuntimeAudioSnapshot};
@@ -38,6 +38,10 @@ pub(super) struct SharedRuntimeControls {
     minotaur_gain: Arc<AtomicU32>,
     minotaur_treble: Arc<AtomicU32>,
     minotaur_output: Arc<AtomicU32>,
+    monarch_bypassed: Arc<AtomicBool>,
+    monarch_gain: Arc<AtomicU32>,
+    monarch_tone: Arc<AtomicU32>,
+    monarch_output: Arc<AtomicU32>,
     studiodelay_bypassed: Arc<AtomicBool>,
     studiodelay_time_ms: Arc<AtomicU32>,
     studiodelay_feedback: Arc<AtomicU32>,
@@ -69,6 +73,7 @@ pub(super) struct SharedRuntimeControls {
     metronome_bpm: Arc<AtomicU32>,
     metronome_volume: Arc<AtomicU32>,
     metronome_pan: Arc<AtomicU32>,
+    metronome_mute_probability: Arc<AtomicU32>,
     metronome_beats_per_bar: Arc<AtomicU32>,
     metronome_rhythm_division: Arc<AtomicU32>,
     eq_enabled: Arc<AtomicBool>,
@@ -110,6 +115,10 @@ impl SharedRuntimeControls {
             minotaur_gain: atomic_f32(0.0),
             minotaur_treble: atomic_f32(0.0),
             minotaur_output: atomic_f32(0.0),
+            monarch_bypassed: Arc::new(AtomicBool::new(true)),
+            monarch_gain: atomic_f32(MonarchControls::default().gain),
+            monarch_tone: atomic_f32(MonarchControls::default().tone),
+            monarch_output: atomic_f32(MonarchControls::default().output),
             studiodelay_bypassed: Arc::new(AtomicBool::new(true)),
             studiodelay_time_ms: atomic_f32(360.0),
             studiodelay_feedback: atomic_f32(0.34),
@@ -141,6 +150,7 @@ impl SharedRuntimeControls {
             metronome_bpm: atomic_f32(120.0),
             metronome_volume: atomic_f32(0.70),
             metronome_pan: atomic_f32(0.50),
+            metronome_mute_probability: atomic_f32(0.0),
             metronome_beats_per_bar: Arc::new(AtomicU32::new(4)),
             metronome_rhythm_division: Arc::new(AtomicU32::new(1)),
             eq_enabled: Arc::new(AtomicBool::new(true)),
@@ -183,6 +193,10 @@ impl SharedRuntimeControls {
         store_f32(&self.metronome_bpm, snapshot.metronome_bpm);
         store_f32(&self.metronome_volume, snapshot.metronome_volume);
         store_f32(&self.metronome_pan, snapshot.metronome_pan);
+        store_f32(
+            &self.metronome_mute_probability,
+            snapshot.metronome_mute_probability,
+        );
         self.metronome_beats_per_bar
             .store(snapshot.metronome_beats_per_bar, Ordering::Relaxed);
         self.metronome_rhythm_division
@@ -228,6 +242,13 @@ impl SharedRuntimeControls {
                     store_f32(&self.minotaur_gain, controls.gain);
                     store_f32(&self.minotaur_treble, controls.treble);
                     store_f32(&self.minotaur_output, controls.output);
+                }
+                DeviceControls::Monarch(controls) => {
+                    self.monarch_bypassed
+                        .store(slot.bypassed, Ordering::Relaxed);
+                    store_f32(&self.monarch_gain, controls.gain);
+                    store_f32(&self.monarch_tone, controls.tone);
+                    store_f32(&self.monarch_output, controls.output);
                 }
                 DeviceControls::StudioDelay(controls) => {
                     self.studiodelay_bypassed
@@ -333,6 +354,14 @@ impl SharedRuntimeControls {
                         output: load_f32(&self.minotaur_output),
                     }),
                 }),
+                DeviceConfig::Monarch => target.push(DeviceSlotControls {
+                    bypassed: self.monarch_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::Monarch(MonarchControls {
+                        gain: load_f32(&self.monarch_gain),
+                        tone: load_f32(&self.monarch_tone),
+                        output: load_f32(&self.monarch_output),
+                    }),
+                }),
                 DeviceConfig::StudioDelay => target.push(DeviceSlotControls {
                     bypassed: self.studiodelay_bypassed.load(Ordering::Relaxed),
                     controls: DeviceControls::StudioDelay(StudioDelayControls {
@@ -397,6 +426,10 @@ impl SharedRuntimeControls {
         load_f32(&self.metronome_pan).clamp(0.0, 1.0)
     }
 
+    pub(super) fn metronome_mute_probability(&self) -> f32 {
+        load_f32(&self.metronome_mute_probability).clamp(0.0, 1.0)
+    }
+
     pub(super) fn metronome_beats_per_bar(&self) -> u32 {
         self.metronome_beats_per_bar
             .load(Ordering::Relaxed)
@@ -457,14 +490,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_free_controls_keep_muffin_bypassed_and_slots_aligned() {
+    fn default_free_controls_keep_monarch_bypassed_and_slots_aligned() {
         let ui = GreyboundUi::default();
         let controls = SharedRuntimeControls::new(&ui);
         let mut slots = Vec::new();
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 5);
+        assert_eq!(slots.len(), 6);
         match slots[0].controls {
             DeviceControls::Lumen(controls) => {
                 assert!(slots[0].bypassed);
@@ -488,14 +521,23 @@ mod tests {
             other => panic!("expected bypassed Muffin controls, got {other:?}"),
         }
         match slots[2].controls {
+            DeviceControls::Monarch(controls) => {
+                assert!(slots[2].bypassed);
+                assert!((controls.gain - MonarchControls::default().gain).abs() < 1.0e-6);
+                assert!((controls.tone - MonarchControls::default().tone).abs() < 1.0e-6);
+                assert!((controls.output - MonarchControls::default().output).abs() < 1.0e-6);
+            }
+            other => panic!("expected bypassed Monarch controls, got {other:?}"),
+        }
+        match slots[3].controls {
             DeviceControls::Minotaur(_) => {
-                assert!(!slots[2].bypassed);
+                assert!(!slots[3].bypassed);
             }
             other => panic!("expected active Minotaur controls, got {other:?}"),
         }
-        match slots[3].controls {
+        match slots[4].controls {
             DeviceControls::Auralith(controls) => {
-                assert!(!slots[3].bypassed);
+                assert!(!slots[4].bypassed);
                 assert!((controls.decay - 0.52).abs() < 1.0e-6);
                 assert!((controls.size - 0.55).abs() < 1.0e-6);
                 assert!((controls.texture - 0.68).abs() < 1.0e-6);
@@ -505,9 +547,9 @@ mod tests {
             }
             other => panic!("expected active Auralith controls, got {other:?}"),
         }
-        match slots[4].controls {
+        match slots[5].controls {
             DeviceControls::Springfield(controls) => {
-                assert!(slots[4].bypassed);
+                assert!(slots[5].bypassed);
                 assert!((controls.dwell - 0.48).abs() < 1.0e-6);
                 assert!((controls.tone - 0.58).abs() < 1.0e-6);
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);
@@ -552,9 +594,9 @@ mod tests {
             }
             other => panic!("expected active Muffin controls, got {other:?}"),
         }
-        match slots[2].controls {
+        match slots[3].controls {
             DeviceControls::Minotaur(controls) => {
-                assert!(!slots[2].bypassed);
+                assert!(!slots[3].bypassed);
                 assert!((controls.gain - 0.19).abs() < 1.0e-6);
                 assert!((controls.treble - 0.82).abs() < 1.0e-6);
                 assert!((controls.output - 0.08).abs() < 1.0e-6);

@@ -1,8 +1,7 @@
 use greybound::ir::SpeakerStage;
 use greybound::{
-    AmpControls, DeviceConfig, DeviceControls, DeviceSlotConfig, DeviceSlotControls,
-    MinotaurControls, SignalChain, SignalChainConfig, SignalChainControls, SpringfieldControls,
-    StudioVerbAlgorithm, StudioVerbControls,
+    AmpControls, DeviceSlotConfig, DeviceSlotControls, SignalChain, SignalChainConfig,
+    SignalChainControls,
 };
 use greybound_ui::{AppProfile, GreyboundUi, RuntimeDeviceSection};
 use js_sys::{Object, Reflect};
@@ -272,7 +271,7 @@ impl WebAudioRuntime {
             chain: SignalChain::new(sample_rate, config),
             speaker: SpeakerStage::from_embedded_ir(sample_rate as u32)
                 .unwrap_or_else(|_| SpeakerStage::bypassed()),
-            device_controls: Vec::with_capacity(3),
+            device_controls: Vec::with_capacity(app_profile.runtime_devices.len()),
         }
     }
 
@@ -312,132 +311,26 @@ struct RuntimeControls {
     output_gain: f32,
     amp: AmpControls,
     amp_enabled: bool,
-    minotaur_bypassed: bool,
-    minotaur_gain: f32,
-    minotaur_treble: f32,
-    minotaur_output: f32,
-    springfield_bypassed: bool,
-    springfield_dwell: f32,
-    springfield_tone: f32,
-    springfield_mix: f32,
-    reverb_bypassed: bool,
-    reverb_decay: f32,
-    reverb_size: f32,
-    reverb_diffusion: f32,
-    reverb_tone: f32,
-    reverb_low_cut: f32,
-    reverb_mix: f32,
-    runtime_devices: &'static [greybound_ui::RuntimeDeviceSlot],
+    device_controls: Vec<DeviceSlotControls>,
     cab_mix: f32,
 }
 
 impl RuntimeControls {
     fn from_ui(ui: &GreyboundUi) -> Self {
         let snapshot = ui.runtime_audio_snapshot();
-        let mut controls = Self {
+        Self {
             input_gain: snapshot.input_gain,
             output_gain: snapshot.output_gain,
             amp: snapshot.amp,
-            amp_enabled: !ui.amp.bypassed,
-            minotaur_bypassed: false,
-            minotaur_gain: 0.0,
-            minotaur_treble: 0.0,
-            minotaur_output: 0.0,
-            springfield_bypassed: true,
-            springfield_dwell: 0.48,
-            springfield_tone: 0.58,
-            springfield_mix: 0.26,
-            reverb_bypassed: false,
-            reverb_decay: 0.42,
-            reverb_size: 0.46,
-            reverb_diffusion: 0.64,
-            reverb_tone: 0.54,
-            reverb_low_cut: 0.36,
-            reverb_mix: 0.24,
-            runtime_devices: ui.app_profile.runtime_devices,
-            cab_mix: if !ui.cab.bypassed {
-                ui.cab.master.clamp(0.0, 1.0)
-            } else {
-                0.0
-            },
-        };
-
-        if let Some(device) = ui
-            .devices
-            .iter()
-            .find(|device| device.model == greybound_ui::DeviceModel::Minotaur)
-        {
-            controls.minotaur_bypassed = device.bypassed;
-            controls.minotaur_gain = device.gain;
-            controls.minotaur_treble = device.treble;
-            controls.minotaur_output = device.master;
+            amp_enabled: snapshot.amp_enabled,
+            device_controls: snapshot.devices,
+            cab_mix: snapshot.cab_mix,
         }
-
-        if let Some(device) = ui
-            .devices
-            .iter()
-            .find(|device| device.model == greybound_ui::DeviceModel::Springfield)
-        {
-            controls.springfield_bypassed = device.bypassed;
-            controls.springfield_dwell = device.gain;
-            controls.springfield_tone = device.treble;
-            controls.springfield_mix = device.master;
-        }
-
-        if let Some(device) = ui
-            .devices
-            .iter()
-            .find(|device| device.model == greybound_ui::DeviceModel::ReverbFx)
-        {
-            controls.reverb_bypassed = device.bypassed;
-            controls.reverb_decay = device.gain;
-            controls.reverb_size = device.bass;
-            controls.reverb_diffusion = device.cut;
-            controls.reverb_tone = device.treble;
-            controls.reverb_low_cut = device.presence;
-            controls.reverb_mix = device.master;
-        }
-
-        controls
     }
 
     fn load_device_controls_into(&self, target: &mut Vec<DeviceSlotControls>) {
         target.clear();
-        for slot in self.runtime_devices {
-            match slot.config {
-                DeviceConfig::Minotaur => target.push(DeviceSlotControls {
-                    bypassed: self.minotaur_bypassed,
-                    controls: DeviceControls::Minotaur(MinotaurControls {
-                        gain: self.minotaur_gain,
-                        treble: self.minotaur_treble,
-                        output: self.minotaur_output,
-                    }),
-                }),
-                DeviceConfig::Springfield => target.push(DeviceSlotControls {
-                    bypassed: self.springfield_bypassed,
-                    controls: DeviceControls::Springfield(SpringfieldControls {
-                        dwell: self.springfield_dwell,
-                        tone: self.springfield_tone,
-                        mix: self.springfield_mix,
-                    }),
-                }),
-                DeviceConfig::StudioVerb => target.push(DeviceSlotControls {
-                    bypassed: self.reverb_bypassed,
-                    controls: DeviceControls::StudioVerb(StudioVerbControls {
-                        algorithm: StudioVerbAlgorithm::Room,
-                        decay: self.reverb_decay,
-                        size: self.reverb_size,
-                        pre_delay_ms: 12.0,
-                        diffusion: self.reverb_diffusion,
-                        tone: self.reverb_tone,
-                        low_cut: self.reverb_low_cut,
-                        mod_depth: 0.18,
-                        mix: self.reverb_mix,
-                    }),
-                }),
-                _ => {}
-            }
-        }
+        target.extend_from_slice(&self.device_controls);
     }
 }
 

@@ -56,6 +56,8 @@ Suggested shared fields:
 - `bpm_bits: AtomicU32` storing `f32::to_bits`
 - `volume_bits: AtomicU32` storing normalized `0.0..1.0`
 - `pan_bits: AtomicU32` storing normalized `0.0..1.0`, where `0.5` is center
+- `mute_probability_bits: AtomicU32` storing the probability that an individual
+  scheduled tick is silent, normalized `0.0..1.0` and defaulting to `0.0`
 - `beats_per_bar: AtomicU32`, default `4`
 - `rhythm_division: AtomicU32`, default `1` for quarter notes
 - `sound_id: AtomicU32`, default `0` for synthetic blip
@@ -68,6 +70,7 @@ Audio-owned state remains private to the metronome generator:
 - `beat_index`
 - click envelope phase
 - click oscillator phase
+- pseudo-random generator state used only when a tick is scheduled
 
 When BPM or signature changes, recompute `samples_per_tick` inside the audio
 thread. Avoid allocating or locking in this path.
@@ -129,6 +132,9 @@ Modal behavior:
 - Controls:
   - `VOLUME` knob, display in dB.
   - `PAN` knob, display `L`, `C`, or `R` style values.
+  - `MUTE CHANCE` knob, display `0..100%`; each tick is independently muted
+    with the selected probability while the sample clock and beat/accent
+    sequence keep advancing.
   - `BPM` large numeric value.
   - BPM up/down step buttons.
   - `TAP` button.
@@ -144,6 +150,7 @@ V1 may implement only functional controls first:
 - BPM up/down,
 - volume,
 - pan.
+- mute chance.
 
 Time signature, rhythm, sound, and tap tempo can render as UI controls with
 limited functionality if that keeps the layout close to the target.
