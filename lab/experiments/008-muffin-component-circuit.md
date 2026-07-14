@@ -109,3 +109,42 @@ The final run is `warning`, not promotion-quality proof: it has zero near/hard
 clips, `-0.83 dB` gain correction, `-8.09 dB` null residual relative to NAM,
 and remaining presence/air excess. A matching Ram's Head/Violet SPICE fixture
 or hardware capture with Q1-Q4 probe points is the next component-exact gate.
+
+## Sustain Calibration — 2026-07-14
+
+The first reference only constrained full Sustain. The imported pack also
+contains `T12 S12` and `T12 S8`, which were rendered at the same 48 kHz,
+three-second, pedal-direct conditions. `S12` is interpreted as normalized
+Sustain `0.50` and `S8` as `0.10` on a 7-to-5 o'clock control sweep.
+
+The prior law started from a fixed `0.12` clipping drive. It produced nearly
+the same output at Sustain `0.0`, `0.1`, and full; the low setting could not
+be validated. The replacement has a `0.002` drive floor and a monotonic,
+calibrated audio taper:
+
+```text
+wiper(s) = clamp(s^4 + 0.17 * s * (1 - s)^2, 0, 1)
+drive(s) = 0.002 + 1.218 * wiper(s)
+```
+
+The lift is zero at both stops. It preserves the minimum-drive endpoint, keeps
+the 8 o'clock anchor out of the clipping plateau, and leaves the full setting
+unchanged. The taper is an empirical control fit, not a claim that it is the
+exact resistance curve of a particular V3 potentiometer.
+
+The same sweep showed excess presence/air at every reference setting. Moving
+the Q2–Q4 collector smoothing capacitors from `2.2 nF` to `4.7 nF` improved all
+three anchors. The final gain-aligned results are:
+
+| NAM setting | Weighted guitar-band LSD | Max spectral-balance drift | Verdict |
+| --- | ---: | ---: | --- |
+| full | 14.99 dB | 2.71 dB | warning |
+| 12 o'clock | 17.39 dB | 3.18 dB | warning |
+| 8 o'clock | 14.52 dB | 3.32 dB | warning |
+
+All renders had zero xruns, near clips, and hard clips. The NAM model metadata
+reports different loudness values for the three captures (`-13.71`, `-8.00`,
+and `-9.81 dB`), so raw output-level differences are not used as a Sustain
+taper target. A fixed-DI control sweep still establishes a monotonic useful
+range: `-60.25`, `-26.21`, `-20.30`, `-16.51`, `-16.02`, and `-15.97 dBFS` for
+normalized Sustain `0`, `0.1`, `0.25`, `0.5`, `0.75`, and `1.0` respectively.

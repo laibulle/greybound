@@ -53,6 +53,14 @@ impl Muffin {
     pub const OUTPUT_IMPEDANCE_OHMS: f32 = 25_000.0;
     const CLIPPING_STAGE_INPUT_LOAD_OHMS: f32 = 100_000.0;
     const RECOVERY_STAGE_INPUT_LOAD_OHMS: f32 = 100_000.0;
+    // The Sustain pot is an audio taper: its low-clockwise travel must keep
+    // both clipping stages below the diode knee rather than beginning from a
+    // nearly saturated fixed drive.  The previous 0.12 floor made `0.0` and
+    // `1.0` almost indistinguishable at the pedal output.
+    const SUSTAIN_DRIVE_MIN: f32 = 0.002;
+    const SUSTAIN_DRIVE_MAX: f32 = 1.22;
+    const SUSTAIN_TAPER_EXPONENT: f32 = 4.0;
+    const SUSTAIN_LOW_TRAVEL_LIFT: f32 = 0.17;
 
     pub fn new(sample_rate: f32) -> Self {
         let circuit_sample_rate = sample_rate * OVERSAMPLING_FACTOR;
@@ -85,9 +93,9 @@ impl Muffin {
                     emitter_bypass_capacitance_f: 1e-6,
                     // Collector smoothing capacitors are a high-confidence
                     // voicing family in Ram's Head/V3-style Muff circuits.
-                    // This 2.2 nF working value is evaluated against the V3 NAM
-                    // anchor at the documented noon-tone setting.
-                    collector_capacitance_f: 2.2e-9,
+                    // This 4.7 nF working value is calibrated against the V3
+                    // NAM sustain sweep at the documented noon-tone setting.
+                    collector_capacitance_f: 4.7e-9,
                     quiescent_collector_current_a: 45e-6,
                     collector_load_ohms: Self::CLIPPING_STAGE_INPUT_LOAD_OHMS,
                 },
@@ -99,7 +107,7 @@ impl Muffin {
                     collector_resistance_ohms: 100_000.0,
                     emitter_resistance_ohms: 390.0,
                     emitter_bypass_capacitance_f: 1e-6,
-                    collector_capacitance_f: 2.2e-9,
+                    collector_capacitance_f: 4.7e-9,
                     quiescent_collector_current_a: 45e-6,
                     collector_load_ohms: 39_000.0,
                 },
@@ -111,7 +119,7 @@ impl Muffin {
                     collector_resistance_ohms: 39_000.0,
                     emitter_resistance_ohms: 390.0,
                     emitter_bypass_capacitance_f: 1e-6,
-                    collector_capacitance_f: 2.2e-9,
+                    collector_capacitance_f: 4.7e-9,
                     quiescent_collector_current_a: 0.12e-3,
                     collector_load_ohms: 250_000.0,
                 },
@@ -184,7 +192,16 @@ impl Muffin {
         // clipping stages. It is represented as the physical base drive made
         // available through their 100 kOhm feedback networks, not an output
         // waveshaper gain.
-        let clipping_drive = 0.12 + sustain.powf(1.25) * 1.10;
+        // This monotonic taper is constrained by the TONE3000 captures at
+        // 8 o'clock, noon, and full: retain usable clean drive at the bottom,
+        // hold the middle below the clipping plateau, then open fully near
+        // the clockwise stop.  The lift is zero at both stops, so it does not
+        // fabricate residual drive at Sustain = 0 or change the full setting.
+        let sustain_wiper = (sustain.powf(Self::SUSTAIN_TAPER_EXPONENT)
+            + Self::SUSTAIN_LOW_TRAVEL_LIFT * sustain * (1.0 - sustain).powi(2))
+        .clamp(0.0, 1.0);
+        let clipping_drive = Self::SUSTAIN_DRIVE_MIN
+            + sustain_wiper * (Self::SUSTAIN_DRIVE_MAX - Self::SUSTAIN_DRIVE_MIN);
         let q2_open = self.q2.process(self.q1_to_q2.process(q1) * clipping_drive);
         let q2 = self
             .diodes_a

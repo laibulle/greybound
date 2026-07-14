@@ -48,6 +48,7 @@ const MAIN_VIEW_HEIGHT: f32 = DESIGN_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT;
 const PEDAL_STANDARD_WIDTH: f32 = 300.0;
 const PEDAL_STANDARD_HEIGHT: f32 = 543.0;
 const PEDAL_KNOB_RADIUS: f32 = 33.0;
+const MUFFIN_KNOB_RADIUS: f32 = 20.0;
 const LUMEN_KNOB_RADIUS: f32 = 24.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1509,7 +1510,7 @@ pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         label: "Sustain",
         anchor_x: 0.278,
         anchor_y: 0.459,
-        radius: PEDAL_KNOB_RADIUS,
+        radius: MUFFIN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
         asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
@@ -1520,7 +1521,7 @@ pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         label: "Tone",
         anchor_x: 0.713,
         anchor_y: 0.458,
-        radius: PEDAL_KNOB_RADIUS,
+        radius: MUFFIN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
         asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
@@ -1531,7 +1532,7 @@ pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         label: "Level",
         anchor_x: 0.492,
         anchor_y: 0.617,
-        radius: PEDAL_KNOB_RADIUS,
+        radius: MUFFIN_KNOB_RADIUS,
         hit_radius: 48.0,
         skin: KnobSkin::AsatoBlack,
         asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),

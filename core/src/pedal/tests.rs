@@ -28,8 +28,11 @@ fn muffin_exposes_low_output_impedance() {
 #[test]
 fn muffin_sustain_changes_transfer_curve() {
     let mut quiet = Muffin::new(48_000.0);
+    let mut middle = Muffin::new(48_000.0);
     let mut driven = Muffin::new(48_000.0);
-    let mut difference_sum = 0.0;
+    let mut quiet_energy = 0.0;
+    let mut middle_energy = 0.0;
+    let mut driven_energy = 0.0;
 
     for sample_idx in 0..9_600 {
         let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
@@ -37,6 +40,14 @@ fn muffin_sustain_changes_transfer_curve() {
             ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
             MuffinControls {
                 sustain: 0.1,
+                tone: 0.5,
+                level: 0.7,
+            },
+        );
+        let middle_output = middle.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                sustain: 0.5,
                 tone: 0.5,
                 level: 0.7,
             },
@@ -50,11 +61,17 @@ fn muffin_sustain_changes_transfer_curve() {
             },
         );
         if sample_idx >= 4_800 {
-            difference_sum += (driven_output.voltage - quiet_output.voltage).abs();
+            quiet_energy += quiet_output.voltage.powi(2);
+            middle_energy += middle_output.voltage.powi(2);
+            driven_energy += driven_output.voltage.powi(2);
         }
     }
 
-    assert!(difference_sum > 20.0);
+    // Sustain must have useful travel below the clipping plateau.  These
+    // energy gaps prevent a nonzero drive floor from making the low, middle,
+    // and full settings sound effectively identical again.
+    assert!(middle_energy > quiet_energy * 3.0);
+    assert!(driven_energy > middle_energy * 1.05);
 }
 
 #[test]

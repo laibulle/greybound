@@ -28,6 +28,48 @@
   "models": [
     {
       "architecture": "SlimmableContainer",
+      "gain": 0.6975349578442214,
+      "loudness": -8.000226974487305,
+      "metadata_name": "BIG MUFF V3 T12 S12 -18db",
+      "name": "BIG MUFF V3 T12 S12 -18db",
+      "path": "BigMuffV3/BIG MUFF V3 T12 S12 -18db.nam",
+      "priority": false,
+      "recommended_latency_samples": -71,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_type": "pedal",
+        "raw_name": "BIG MUFF V3 T12 S12 -18db",
+        "tone_position": "12 o'clock",
+        "sustain_position": "12 o'clock",
+        "input_level_db": -18
+      },
+      "size_bytes": 296257,
+      "validation_esr": 0.003529117565884536,
+      "version": "0.7.0"
+    },
+    {
+      "architecture": "SlimmableContainer",
+      "gain": 0.5622907585169559,
+      "loudness": -9.806108474731445,
+      "metadata_name": "BIG MUFF V3 T12 S8 -18db",
+      "name": "BIG MUFF V3 T12 S8 -18db",
+      "path": "BigMuffV3/BIG MUFF V3 T12 S8 -18db.nam",
+      "priority": false,
+      "recommended_latency_samples": -68,
+      "sample_rate_hz": 48000,
+      "semantics": {
+        "gear_type": "pedal",
+        "raw_name": "BIG MUFF V3 T12 S8 -18db",
+        "tone_position": "12 o'clock",
+        "sustain_position": "8 o'clock",
+        "input_level_db": -18
+      },
+      "size_bytes": 297191,
+      "validation_esr": 0.0012049044830417946,
+      "version": "0.7.0"
+    },
+    {
+      "architecture": "SlimmableContainer",
       "gain": 0.7367627783844863,
       "loudness": -13.707056045532227,
       "metadata_name": "BIG MUFF V3 T12 Sfull -18db",

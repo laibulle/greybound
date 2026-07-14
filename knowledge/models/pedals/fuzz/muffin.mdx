@@ -134,18 +134,21 @@ universal Big Muff bill of materials:
 
 - Q1/Q4: 39 kOhm collectors, 390 Ohm emitter resistors, 10 uF/1 uF bypass
   capacitors respectively, `0.12 mA` quiescent collector current, and 470 pF /
-  2.2 nF collector smoothing capacitors.
+  4.7 nF collector smoothing capacitors.
 - Q2/Q3: 100 kOhm collectors, 390 Ohm emitter resistors, 1 uF bypass
-  capacitors, `45 uA` quiescent collector current, 2.2 nF collector smoothing
+  capacitors, `45 uA` quiescent collector current, 4.7 nF collector smoothing
   capacitors, and antiparallel 1N4148-like pairs to ground.
 - Tone stack: 39 kOhm/10 nF low path, 3.9 nF/22 kOhm high path, 100 kOhm pot.
 - Input and output: 117 kOhm input load, 25 kOhm output boundary, both
   AC-coupled.
 
-The `sustain` control currently moves the base drive made available by the two
-clipping-stage shunt-feedback networks. This preserves a bounded component
-solve while the exact taper and feedback resistors remain a variant-specific
-measurement task.
+The `sustain` control moves the base drive made available by the two
+clipping-stage shunt-feedback networks. Its current monotonic audio taper is
+calibrated to the V3 NAM captures: it uses a fourth-power wiper plus a small
+low-travel lift that is zero at both stops. That gives usable drive at 8
+o'clock, keeps noon below the clipping plateau, and leaves full Sustain
+unchanged. It is a measured working taper, not yet a claim about the exact
+resistance law or feedback network of every Muffin revision.
 
 ## Stage Notes
 
@@ -219,19 +222,25 @@ Useful public sources include ElectroSmash analysis, Kit Rae / Muffin Page varia
 ## NAM Validation Scope
 
 The local source-safe manifest
-`lab/references/nam/manifests/big-muff-v3-58283.json` records a public
-TONE3000 A2 pedal-only reference: `BIG MUFF V3 T12 Sfull -18db`. It has no IR;
-the matching Greybound rig is therefore `rigs/muffin-nam-reference.json5`,
-which bypasses both amp and cab, uses the same Mayer DI, and applies `-18 dB`
-input gain. The reference is a 1990s V3 Big Muff rather than the exact
-Ram's-Head/Violet hypothesis, so it validates the BJT Muff family and the
-capture setting, not component identity.
+`lab/references/nam/manifests/big-muff-v3-58283.json` records three public
+TONE3000 A2 pedal-only references: `BIG MUFF V3 T12 Sfull -18db`,
+`BIG MUFF V3 T12 S12 -18db`, and `BIG MUFF V3 T12 S8 -18db`. They have no IR;
+the matching Greybound rig therefore bypasses both amp and cab, uses the same
+Mayer DI, and applies `-18 dB` input gain. `S12` is mapped to normalized
+Sustain `0.50`; `S8` is mapped to `0.10`, assuming the usual 7-to-5 o'clock
+knob travel. The reference is a 1990s V3 Big Muff rather than the exact
+Ram's-Head/Violet hypothesis, so it validates BJT Muff-family behavior and the
+capture settings, not component identity.
+
+Download/source page: [TONE3000 — Big Muff Made in USA](https://www.tone3000.com/tones/big-muff-made-in-usa-58283).
 
 The fixed 48 kHz / three-second comparison is recorded in
-`lab/experiments/008-muffin-component-circuit.md`. The current 2.2 nF
-collector-smoothing candidate is `warning` rather than `severe`: gain alignment
-is `-0.83 dB`, weighted guitar-band LSD is `19.37 dB`, maximum normalized
-spectral-balance drift is `12.30 dB`, and there are zero near/hard clips. The
-remaining mismatch is concentrated above 1 kHz, so it is a variant-voicing and
-tone-stack/collector-capacitor fitting task rather than a numerical-health
-failure.
+`lab/experiments/008-muffin-component-circuit.md`. With the 4.7 nF collector
+smoothing hypothesis and calibrated Sustain taper, all three captures are
+`warning`, not `severe`: weighted guitar-band LSD is `14.99 dB` (full),
+`17.39 dB` (noon), and `14.52 dB` (8 o'clock); their maximum normalized
+spectral-balance drifts are `2.71 dB`, `3.18 dB`, and `3.32 dB` respectively.
+All three renders report zero xruns, near clips, and hard clips. The NAM
+metadata loudness differs substantially between captures, so gain-aligned
+spectral and dynamic measurements—not raw output level—are used to calibrate
+the Sustain taper.
