@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pedal UI Intake"
+  short_description: "Questionnaire et layout pour pédales Greybound"
+  default_prompt: "Utilise $pedal-ui-intake pour concevoir l'UI d'une pédale Greybound."
+policy:
+  allow_implicit_invocation: false
