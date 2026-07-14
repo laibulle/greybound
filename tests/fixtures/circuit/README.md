@@ -36,10 +36,23 @@ the particular unit.
 
 `muffin_voices.cir` is the four-profile comparison fixture for V3, Violet
 Ram's Head, Tall Font Green Russian, and Triangle. It applies the same input,
-Sustain, Tone, and volume conditions to each circuit, writing transient and
-AC sweep data under `/tmp/greybound_muffin_voice_*`. See
+Sustain, Tone, and volume conditions to each circuit, writing 40 mV and 200 mV
+transient data plus an AC sweep under `/tmp/greybound_muffin_voice_*`; it also
+exports 3 kHz and 6 kHz node traces for all voices, plus V3 at Sustain 0/50%
+and Tone 0/100%. Its
+transient captures
+the eight AC signal boundaries (`input_rs`, Q1/Q2/Q3/Q4 collectors, Sustain,
+Tone, and output), for direct RMS/peak comparison with the Rust diagnostics.
+See
 `lab/experiments/010-muffin-four-voice-spice-comparison.md` for the selected
 schematic families, component deltas, and measured ngspice table.
+Run `lab/tools/muffin_node_compare.py` with the CLI's `--muffin-node-report`
+to compare their settled AC RMS/crête per boundary; the procedure and initial
+four-voice result are in `lab/experiments/011-muffin-rust-spice-node-comparison.md`.
+
+`muffin_v3_wicker.cir` separately validates the implemented one-control Tone
+Wicker macro at 1, 3, and 6 kHz. It opens C2/C6/C9 to the same 5% numerical
+residual used by Rust and routes Q3 around the passive Tone stack into Q4.
 
 Current ngspice DC operating point:
 

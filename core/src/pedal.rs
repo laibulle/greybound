@@ -44,7 +44,7 @@ pub use minotaur::{
     MinotaurNodeVoltages,
 };
 pub use monarch::{Monarch, MonarchControls};
-pub use muffin::{Muffin, MuffinControls};
+pub use muffin::{Muffin, MuffinControls, MuffinNodeVoltages};
 pub use muon::{Muon, MuonControls};
 pub use springfield::{Springfield, SpringfieldControls};
 pub use studio_delay::{StudioDelay, StudioDelayControls};

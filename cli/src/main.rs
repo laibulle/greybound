@@ -20,10 +20,10 @@ use greybound::{
     amp_model_descriptor, AuralithControls, BrigadeControls, CelesteControls, ControlDescriptor,
     ControlKind, DartfordControls, DartfordWave, DeviceConfig, DeviceControls, DeviceSlotConfig,
     DeviceSlotControls, ElectricalSignal, GodessOneControls, GodessOneMode, JetstreamControls,
-    LumenControls, Minotaur, MinotaurControls, MinotaurNodeVoltages, MonarchControls,
-    MuffinControls, MuonControls, RigConfig, SignalChain, SignalChainConfig, SignalChainControls,
-    SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm, StudioVerbControls,
-    TronControls,
+    LumenControls, Minotaur, MinotaurControls, MinotaurNodeVoltages, MonarchControls, Muffin,
+    MuffinControls, MuffinNodeVoltages, MuonControls, RigConfig, SignalChain, SignalChainConfig,
+    SignalChainControls, SpringfieldControls, StudioDelayControls, StudioVerbAlgorithm,
+    StudioVerbControls, TronControls,
 };
 use monitor_log::{unix_timestamp, RotatingMonitorLog};
 use neural_overrides::{
@@ -3131,12 +3131,18 @@ struct Args {
     neural_cell_mode: NeuralCellMode,
     disable_neural_cell: bool,
     minotaur_node_report: Option<PathBuf>,
+    muffin_node_report: Option<PathBuf>,
     diagnostic_frequency_hz: f32,
     diagnostic_input_v: f32,
     diagnostic_seconds: f32,
     diagnostic_gain: f32,
     diagnostic_treble: f32,
     diagnostic_output: f32,
+    diagnostic_sustain: f32,
+    diagnostic_tone: f32,
+    diagnostic_level: f32,
+    diagnostic_voice: f32,
+    diagnostic_wicker: f32,
 }
 
 fn main() -> Result<()> {
@@ -3151,6 +3157,11 @@ fn main() -> Result<()> {
         )?;
         write_minotaur_node_report(path, &args)?;
         eprintln!("Wrote Minotaur node report to '{}'", path.display());
+        return Ok(());
+    }
+    if let Some(path) = &args.muffin_node_report {
+        write_muffin_node_report(path, &args)?;
+        eprintln!("Wrote Muffin node report to '{}'", path.display());
         return Ok(());
     }
     let output_setup = if args.null_output || args.output_wav.is_some() {
@@ -3576,6 +3587,35 @@ struct NodeAccumulator {
     count: usize,
 }
 
+const MUFFIN_HARMONIC_COUNT: usize = 8;
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MuffinNodeAccumulator {
+    level: NodeAccumulator,
+    sine: [f64; MUFFIN_HARMONIC_COUNT],
+    cosine: [f64; MUFFIN_HARMONIC_COUNT],
+}
+
+impl MuffinNodeAccumulator {
+    fn record(&mut self, sample: f32, fundamental_phase: f64) {
+        self.level.record(sample);
+        for harmonic_index in 0..MUFFIN_HARMONIC_COUNT {
+            let phase = fundamental_phase * (harmonic_index + 1) as f64;
+            self.sine[harmonic_index] += sample as f64 * phase.sin();
+            self.cosine[harmonic_index] += sample as f64 * phase.cos();
+        }
+    }
+
+    fn harmonic_peak(self, harmonic_index: usize) -> f64 {
+        if self.level.count == 0 {
+            return 0.0;
+        }
+        let sine = self.sine[harmonic_index];
+        let cosine = self.cosine[harmonic_index];
+        2.0 * (sine * sine + cosine * cosine).sqrt() / self.level.count as f64
+    }
+}
+
 impl NodeAccumulator {
     fn record(&mut self, sample: f32) {
         self.sum_squared += (sample as f64) * (sample as f64);
@@ -3690,6 +3730,154 @@ fn write_minotaur_node_report(path: &Path, args: &Args) -> Result<()> {
     Ok(())
 }
 
+/// Write the eight AC-domain Muffin boundaries that have one-to-one names in
+/// `tests/fixtures/circuit/muffin_voices.cir`.  This deliberately measures
+/// RMS and peak after settling instead of comparing raw sample values: the
+/// Rust model is oversampled and has no SPICE-style DC bias state.
+fn write_muffin_node_report(path: &Path, args: &Args) -> Result<()> {
+    if args.diagnostic_frequency_hz <= 0.0 {
+        bail!("--diagnostic-frequency must be greater than zero");
+    }
+    if args.diagnostic_input_v <= 0.0 {
+        bail!("--diagnostic-input-v must be greater than zero");
+    }
+    if args.diagnostic_seconds <= 0.060 {
+        bail!("--diagnostic-seconds must be greater than 0.060 so the settled window is non-empty");
+    }
+
+    let sample_rate = args.sample_rate as f32;
+    let total_samples = (args.diagnostic_seconds * sample_rate).round() as usize;
+    let settle_samples = (0.050 * sample_rate).round() as usize;
+    let controls = MuffinControls {
+        sustain: args.diagnostic_sustain.clamp(0.0, 1.0),
+        tone: args.diagnostic_tone.clamp(0.0, 1.0),
+        level: args.diagnostic_level.clamp(0.0, 1.0),
+        wicker: args.diagnostic_wicker.clamp(0.0, 1.0),
+        voicing: args.diagnostic_voice.clamp(0.0, 3.0),
+    };
+    let mut muffin = Muffin::new(sample_rate);
+    let mut source = MuffinNodeAccumulator::default();
+    let mut input = MuffinNodeAccumulator::default();
+    let mut q1_collector = MuffinNodeAccumulator::default();
+    let mut sustain_wiper = MuffinNodeAccumulator::default();
+    let mut q2_collector = MuffinNodeAccumulator::default();
+    let mut q3_collector = MuffinNodeAccumulator::default();
+    let mut tone_wiper = MuffinNodeAccumulator::default();
+    let mut q4_collector = MuffinNodeAccumulator::default();
+    let mut output = MuffinNodeAccumulator::default();
+
+    for sample_index in 0..total_samples {
+        let time_s = sample_index as f32 / sample_rate;
+        let sample = args.diagnostic_input_v
+            * (std::f32::consts::TAU * args.diagnostic_frequency_hz * time_s).sin();
+        let signal = ElectricalSignal::new(sample, 10_000.0);
+        let (_signal, stages) = muffin.process_with_node_voltages(signal, controls);
+        if sample_index < settle_samples {
+            continue;
+        }
+        let fundamental_phase =
+            std::f64::consts::TAU * args.diagnostic_frequency_hz as f64 * time_s as f64;
+        source.record(sample, fundamental_phase);
+        record_muffin_nodes(
+            stages,
+            &mut input,
+            &mut q1_collector,
+            &mut sustain_wiper,
+            &mut q2_collector,
+            &mut q3_collector,
+            &mut tone_wiper,
+            &mut q4_collector,
+            &mut output,
+            fundamental_phase,
+        );
+    }
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("could not create '{}'", parent.display()))?;
+        }
+    }
+    let mut file = File::create(path)
+        .with_context(|| format!("could not create Muffin node report '{}'", path.display()))?;
+    writeln!(file, "{{")?;
+    writeln!(file, "  \"schema_version\": 1,")?;
+    writeln!(file, "  \"model\": \"muffin\",")?;
+    writeln!(file, "  \"domain\": \"ac_coupled_audio_boundaries\",")?;
+    writeln!(file, "  \"sample_rate_hz\": {},", args.sample_rate)?;
+    writeln!(
+        file,
+        "  \"stimulus\": {{\"kind\": \"sine\", \"frequency_hz\": {:.9}, \"amplitude_v\": {:.9}, \"source_resistance_ohms\": 10000, \"duration_s\": {:.9}, \"settle_s\": 0.050000000}},",
+        args.diagnostic_frequency_hz, args.diagnostic_input_v, args.diagnostic_seconds
+    )?;
+    writeln!(
+        file,
+        "  \"controls\": {{\"sustain\": {:.9}, \"tone\": {:.9}, \"level\": {:.9}, \"wicker\": {}, \"voice\": {:.9}}},",
+        controls.sustain, controls.tone, controls.level, controls.wicker >= 0.5, controls.voicing
+    )?;
+    writeln!(file, "  \"nodes\": {{")?;
+    write_muffin_node_json(&mut file, "source_input", source, true)?;
+    write_muffin_node_json(&mut file, "input_rs", input, true)?;
+    write_muffin_node_json(&mut file, "q1_c", q1_collector, true)?;
+    write_muffin_node_json(&mut file, "sustain_wiper", sustain_wiper, true)?;
+    write_muffin_node_json(&mut file, "q2_c", q2_collector, true)?;
+    write_muffin_node_json(&mut file, "q3_c", q3_collector, true)?;
+    write_muffin_node_json(&mut file, "tone_wiper", tone_wiper, true)?;
+    write_muffin_node_json(&mut file, "q4_c", q4_collector, true)?;
+    write_muffin_node_json(&mut file, "output", output, false)?;
+    writeln!(file, "  }}")?;
+    writeln!(file, "}}")?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_muffin_nodes(
+    stages: MuffinNodeVoltages,
+    input: &mut MuffinNodeAccumulator,
+    q1_collector: &mut MuffinNodeAccumulator,
+    sustain_wiper: &mut MuffinNodeAccumulator,
+    q2_collector: &mut MuffinNodeAccumulator,
+    q3_collector: &mut MuffinNodeAccumulator,
+    tone_wiper: &mut MuffinNodeAccumulator,
+    q4_collector: &mut MuffinNodeAccumulator,
+    output: &mut MuffinNodeAccumulator,
+    fundamental_phase: f64,
+) {
+    input.record(stages.loaded_input, fundamental_phase);
+    q1_collector.record(stages.q1_collector, fundamental_phase);
+    sustain_wiper.record(stages.sustain_wiper, fundamental_phase);
+    q2_collector.record(stages.q2_collector, fundamental_phase);
+    q3_collector.record(stages.q3_collector, fundamental_phase);
+    tone_wiper.record(stages.tone_wiper, fundamental_phase);
+    q4_collector.record(stages.q4_collector, fundamental_phase);
+    output.record(stages.output, fundamental_phase);
+}
+
+fn write_muffin_node_json(
+    file: &mut File,
+    name: &str,
+    stats: MuffinNodeAccumulator,
+    trailing_comma: bool,
+) -> Result<()> {
+    let comma = if trailing_comma { "," } else { "" };
+    write!(
+        file,
+        "    \"{}\": {{\"rms_v\": {:.12}, \"peak_v\": {:.12}, \"samples\": {}, \"harmonics_peak_v\": [",
+        name,
+        stats.level.rms(),
+        stats.level.peak,
+        stats.level.count,
+    )?;
+    for index in 0..MUFFIN_HARMONIC_COUNT {
+        if index > 0 {
+            write!(file, ", ")?;
+        }
+        write!(file, "{:.12}", stats.harmonic_peak(index))?;
+    }
+    writeln!(file, "]}}{}", comma)?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_minotaur_nodes(
     source_sample: f32,
@@ -3756,12 +3944,18 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
     let mut neural_cell_mode = NeuralCellMode::Shadow;
     let mut disable_neural_cell = false;
     let mut minotaur_node_report = None;
+    let mut muffin_node_report = None;
     let mut diagnostic_frequency_hz = 1_000.0;
     let mut diagnostic_input_v = 0.120;
     let mut diagnostic_seconds = 0.120;
     let mut diagnostic_gain = 0.55;
     let mut diagnostic_treble = 0.60;
     let mut diagnostic_output = 0.70;
+    let mut diagnostic_sustain = 1.0;
+    let mut diagnostic_tone = 0.50;
+    let mut diagnostic_level = 1.0;
+    let mut diagnostic_voice = 0.0;
+    let mut diagnostic_wicker = 0.0;
     let mut args = env::args().skip(1);
 
     while let Some(arg) = args.next() {
@@ -3812,6 +4006,12 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
                     "--minotaur-node-report",
                 )?))
             }
+            "--muffin-node-report" => {
+                muffin_node_report = Some(PathBuf::from(next_value(
+                    &mut args,
+                    "--muffin-node-report",
+                )?))
+            }
             "--diagnostic-frequency" => {
                 diagnostic_frequency_hz =
                     next_value(&mut args, "--diagnostic-frequency")?.parse()?
@@ -3830,6 +4030,21 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
             }
             "--diagnostic-output" => {
                 diagnostic_output = next_value(&mut args, "--diagnostic-output")?.parse()?
+            }
+            "--diagnostic-sustain" => {
+                diagnostic_sustain = next_value(&mut args, "--diagnostic-sustain")?.parse()?
+            }
+            "--diagnostic-tone" => {
+                diagnostic_tone = next_value(&mut args, "--diagnostic-tone")?.parse()?
+            }
+            "--diagnostic-level" => {
+                diagnostic_level = next_value(&mut args, "--diagnostic-level")?.parse()?
+            }
+            "--diagnostic-voice" => {
+                diagnostic_voice = next_value(&mut args, "--diagnostic-voice")?.parse()?
+            }
+            "--diagnostic-wicker" => {
+                diagnostic_wicker = next_value(&mut args, "--diagnostic-wicker")?.parse()?
             }
             "--list-devices" => {
                 print_devices(host)?;
@@ -3878,6 +4093,7 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
         && output_wav.is_none()
         && output_device.is_none()
         && minotaur_node_report.is_none()
+        && muffin_node_report.is_none()
     {
         bail!("missing --device or --output-device");
     }
@@ -3927,12 +4143,18 @@ fn parse_args(host: &cpal::Host) -> Result<Args> {
         neural_cell_mode,
         disable_neural_cell,
         minotaur_node_report,
+        muffin_node_report,
         diagnostic_frequency_hz,
         diagnostic_input_v,
         diagnostic_seconds,
         diagnostic_gain,
         diagnostic_treble,
         diagnostic_output,
+        diagnostic_sustain,
+        diagnostic_tone,
+        diagnostic_level,
+        diagnostic_voice,
+        diagnostic_wicker,
     })
 }
 
@@ -4058,12 +4280,18 @@ fn print_help() {
          \x20 --neural-cell-mode MODE    Neural mode: shadow or replace [default: shadow]\n\
          \x20 --disable-neural-cell      Disable default and configured neural-cell replacements\n\
          \x20 --minotaur-node-report PATH  Write Minotaur per-node sine diagnostics as JSON and exit\n\
+         \x20 --muffin-node-report PATH   Write Muffin AC-boundary sine diagnostics as JSON and exit\n\
          \x20 --diagnostic-frequency HZ  Diagnostic sine frequency [default: 1000]\n\
          \x20 --diagnostic-input-v V     Diagnostic sine peak voltage [default: 0.120]\n\
          \x20 --diagnostic-seconds N     Diagnostic duration [default: 0.120]\n\
          \x20 --diagnostic-gain N        Minotaur diagnostic gain control [default: 0.55]\n\
          \x20 --diagnostic-treble N      Minotaur diagnostic treble control [default: 0.60]\n\
          \x20 --diagnostic-output N      Minotaur diagnostic output control [default: 0.70]\n\
+         \x20 --diagnostic-sustain N     Muffin diagnostic Sustain [default: 1.0]\n\
+         \x20 --diagnostic-tone N        Muffin diagnostic Tone [default: 0.50]\n\
+         \x20 --diagnostic-level N       Muffin diagnostic Volume [default: 1.0]\n\
+         \x20 --diagnostic-voice N       Muffin voice: 0 V3, 1 RH, 2 RU, 3 Triangle [default: 0]\n\
+         \x20 --diagnostic-wicker N      Muffin Tone Wicker macro: 0 off, 1 on [default: 0]\n\
          \x20 --ir PATH                 Force-enable a speaker IR WAV path, even if the rig has no active cab\n\
          \x20 --list-devices            List CoreAudio devices"
     );

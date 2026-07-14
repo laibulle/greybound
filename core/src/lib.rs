@@ -42,8 +42,8 @@ pub use pedal::{
     Brigade, BrigadeControls, Celeste, CelesteControls, ConnectionState, Dartford,
     DartfordControls, DartfordWave, ElectricalSignal, GodessOne, GodessOneControls, GodessOneMode,
     Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls,
-    MinotaurNodeVoltages, Monarch, MonarchControls, Muffin, MuffinControls, Muon, MuonControls,
-    Springfield, SpringfieldControls, StudioDelay, StudioDelayControls, StudioVerb,
-    StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls, LUMEN_AUDIO_CIRCUIT,
+    MinotaurNodeVoltages, Monarch, MonarchControls, Muffin, MuffinControls, MuffinNodeVoltages,
+    Muon, MuonControls, Springfield, SpringfieldControls, StudioDelay, StudioDelayControls,
+    StudioVerb, StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls, LUMEN_AUDIO_CIRCUIT,
 };
 pub use rig::RigConfig;

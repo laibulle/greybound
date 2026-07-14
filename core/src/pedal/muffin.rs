@@ -16,6 +16,30 @@ pub struct MuffinControls {
     pub voicing: f32,
 }
 
+/// Audio-domain voltages at the named signal boundaries of the Muffin model.
+///
+/// These are AC signals, not the transistor's absolute 9 V DC operating
+/// points.  They map to the corresponding SPICE fixture nodes after their
+/// coupling capacitors: `input_rs`, `q1_c`, `sustain_wiper`, `q2_c`, `q3_c`,
+/// `tone_wiper`, `q4_c`, and `output`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MuffinNodeVoltages {
+    pub loaded_input: f32,
+    pub q1_collector: f32,
+    pub sustain_wiper: f32,
+    pub q2_collector: f32,
+    pub q3_collector: f32,
+    pub tone_wiper: f32,
+    pub q4_collector: f32,
+    pub output: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MuffinProcessResult {
+    output: f32,
+    stages: MuffinNodeVoltages,
+}
+
 impl Default for MuffinControls {
     fn default() -> Self {
         Self {
@@ -123,25 +147,66 @@ impl Muffin {
         self.process_loaded_voltage(loaded_input, controls)
     }
 
+    /// Processes one host-rate sample and returns the AC signal at each
+    /// component-model boundary. This is intended for model validation and
+    /// diagnostics; normal callers should use [`Self::process`].
+    pub fn process_with_node_voltages(
+        &mut self,
+        input: ElectricalSignal,
+        controls: MuffinControls,
+    ) -> (ElectricalSignal, MuffinNodeVoltages) {
+        let loaded_input = self
+            .input_connection
+            .drive_load(input, Load::new(self.input_impedance_ohms));
+        self.process_loaded_voltage_with_node_voltages(loaded_input, controls)
+    }
+
     pub fn process_loaded_voltage(
         &mut self,
         loaded_input: f32,
         controls: MuffinControls,
     ) -> ElectricalSignal {
+        self.process_loaded_voltage_with_node_voltages(loaded_input, controls)
+            .0
+    }
+
+    fn process_loaded_voltage_with_node_voltages(
+        &mut self,
+        loaded_input: f32,
+        controls: MuffinControls,
+    ) -> (ElectricalSignal, MuffinNodeVoltages) {
         let first_input = self.upsampler.process(loaded_input * OVERSAMPLING_FACTOR);
-        let first_output = self.process_circuit(first_input, controls);
-        let output = self.downsampler.process(first_output);
+        let first = self.process_circuit(first_input, controls);
+        // The first 2x output clocks the FIR's intermediate polyphase state.
+        // The following (zero-stuffed) half-step is the host-rate sample. Using
+        // the first result as the returned audio leaves an alternating image in
+        // the rendered waveform even though both steps must advance the BJT
+        // state.
+        self.downsampler.process(first.output);
         let second_input = self.upsampler.process(0.0);
-        let second_output = self.process_circuit(second_input, controls);
-        self.downsampler.process(second_output);
+        let second = self.process_circuit(second_input, controls);
+        let output = self.downsampler.process(second.output);
 
         // The half-band reconstruction can overshoot an otherwise rail-bounded
         // internal waveform by a fraction of a volt. Keep the published pedal
         // boundary inside the 9 V single-supply audio headroom.
-        ElectricalSignal::new(output.clamp(-4.5, 4.5), Self::OUTPUT_IMPEDANCE_OHMS)
+        let output = output.clamp(-4.5, 4.5);
+        // Most diagnostic boundaries describe the first 2x circuit step. The
+        // pedal output, however, is defined at the host-rate decimator
+        // boundary, so expose the exact value returned to the caller.
+        let mut stages = first.stages;
+        stages.output = output;
+        (
+            ElectricalSignal::new(output, Self::OUTPUT_IMPEDANCE_OHMS),
+            stages,
+        )
     }
 
-    fn process_circuit(&mut self, loaded_input: f32, controls: MuffinControls) -> f32 {
+    fn process_circuit(
+        &mut self,
+        loaded_input: f32,
+        controls: MuffinControls,
+    ) -> MuffinProcessResult {
         let sustain = controls.sustain.clamp(0.0, 1.0);
         let tone = controls.tone.clamp(0.0, 1.0);
         let level = controls.level.clamp(0.0, 1.0);
@@ -197,7 +262,19 @@ impl Muffin {
             .process(recovery * volume_taper)
             .clamp(-4.5, 4.5);
 
-        output
+        MuffinProcessResult {
+            output,
+            stages: MuffinNodeVoltages {
+                loaded_input,
+                q1_collector: q1,
+                sustain_wiper,
+                q2_collector: q2,
+                q3_collector: q3,
+                tone_wiper: tone_output,
+                q4_collector: recovery,
+                output,
+            },
+        }
     }
 
     fn sustain_wiper(input_v: f32, sustain: f32) -> f32 {
@@ -310,4 +387,36 @@ impl Muffin {
 
 fn parallel(a: f32, b: f32) -> f32 {
     1.0 / (1.0 / a.max(1.0) + 1.0 / b.max(1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn host_output_uses_the_second_decimator_clock() {
+        let controls = MuffinControls {
+            sustain: 1.0,
+            tone: 0.5,
+            level: 1.0,
+            wicker: 0.0,
+            voicing: 0.0,
+        };
+        let input = ElectricalSignal::new(0.04, 10_000.0);
+        let mut pedal = Muffin::new(48_000.0);
+        let mut manual = Muffin::new(48_000.0);
+
+        let output = pedal.process(input, controls).voltage;
+        let loaded = manual
+            .input_connection
+            .drive_load(input, Load::new(manual.input_impedance_ohms));
+        let first_input = manual.upsampler.process(loaded * OVERSAMPLING_FACTOR);
+        let first = manual.process_circuit(first_input, controls);
+        manual.downsampler.process(first.output);
+        let second_input = manual.upsampler.process(0.0);
+        let second = manual.process_circuit(second_input, controls);
+        let expected = manual.downsampler.process(second.output).clamp(-4.5, 4.5);
+
+        assert!((output - expected).abs() < 1.0e-6);
+    }
 }

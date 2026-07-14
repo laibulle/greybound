@@ -26,6 +26,41 @@ fn muffin_exposes_low_output_impedance() {
 }
 
 #[test]
+fn muffin_exposes_finite_ac_boundary_voltages() {
+    let mut pedal = Muffin::new(48_000.0);
+    let controls = MuffinControls {
+        sustain: 1.0,
+        tone: 0.5,
+        level: 1.0,
+        wicker: 0.0,
+        voicing: 0.0,
+    };
+
+    let mut last = MuffinNodeVoltages::default();
+    for sample_idx in 0..9_600 {
+        let input = (std::f32::consts::TAU * 1_000.0 * sample_idx as f32 / 48_000.0).sin() * 0.04;
+        let (_output, stages) =
+            pedal.process_with_node_voltages(ElectricalSignal::new(input, 10_000.0), controls);
+        last = stages;
+    }
+
+    for voltage in [
+        last.loaded_input,
+        last.q1_collector,
+        last.sustain_wiper,
+        last.q2_collector,
+        last.q3_collector,
+        last.tone_wiper,
+        last.q4_collector,
+        last.output,
+    ] {
+        assert!(voltage.is_finite());
+    }
+    assert!(last.q3_collector.abs() > 0.01);
+    assert!(last.tone_wiper.abs() > 0.001);
+}
+
+#[test]
 fn muffin_sustain_changes_transfer_curve() {
     let mut quiet = Muffin::new(48_000.0);
     let mut middle = Muffin::new(48_000.0);

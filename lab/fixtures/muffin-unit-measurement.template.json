@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "muffin_unit_measurement",
+  "unit_identity": {
+    "manufacturer": "",
+    "model": "Big Muff Pi",
+    "era_or_revision": "",
+    "serial": "",
+    "measurement_date": "",
+    "supply_voltage_v": null
+  },
+  "measurement_conditions": {
+    "temperature_c": null,
+    "instrument": "",
+    "lcr_test_frequency_hz": null,
+    "transistor_test_current_ma": null,
+    "diode_test_currents_ma": [0.1, 1.0, 10.0]
+  },
+  "transistors": {
+    "q1": {"part_marking": "", "hfe": null, "vbe_v": null, "cob_pf": null, "dc": {"base_v": null, "collector_v": null, "emitter_v": null}},
+    "q2": {"part_marking": "", "hfe": null, "vbe_v": null, "cob_pf": null, "dc": {"base_v": null, "collector_v": null, "emitter_v": null}},
+    "q3": {"part_marking": "", "hfe": null, "vbe_v": null, "cob_pf": null, "dc": {"base_v": null, "collector_v": null, "emitter_v": null}},
+    "q4": {"part_marking": "", "hfe": null, "vbe_v": null, "cob_pf": null, "dc": {"base_v": null, "collector_v": null, "emitter_v": null}}
+  },
+  "diodes": {
+    "q2_pair": {"part_marking": "", "forward_v_at_ma": {"0.1": null, "1": null, "10": null}, "junction_capacitance_pf": null},
+    "q3_pair": {"part_marking": "", "forward_v_at_ma": {"0.1": null, "1": null, "10": null}, "junction_capacitance_pf": null}
+  },
+  "potentiometers": {
+    "sustain": {"total_ohms": null, "wiper_ohms_from_ccw": {"0": null, "25": null, "50": null, "75": null, "100": null}},
+    "tone": {"total_ohms": null, "wiper_ohms_from_ccw": {"0": null, "25": null, "50": null, "75": null, "100": null}},
+    "volume": {"total_ohms": null, "wiper_ohms_from_ccw": {"0": null, "25": null, "50": null, "75": null, "100": null}}
+  },
+  "passive_components": {},
+  "notes": "Measure passive parts out of circuit or with one leg lifted. Record in-circuit transistor DC voltages at the stated supply; do not infer them from a generic component tolerance."
+}

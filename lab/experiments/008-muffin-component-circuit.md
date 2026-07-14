@@ -11,7 +11,7 @@ matching reference.
 - Four incremental BJT common-emitter stages with explicit emitter-bypass and
   collector-capacitor state.
 - Two finite-source antiparallel silicon diode Shockley solves.
-- Four-node trapezoidal MNA Muffin tone stack with Q3 source and Q4 base load.
+- Five-node trapezoidal MNA Muffin tone stack with Q3 source and Q4 base load.
 - 117 kOhm input and 25 kOhm output electrical boundaries.
 
 The source of truth is `core/src/pedal/muffin.rs`; the semantic topology is in

@@ -8,7 +8,7 @@
 * 10 kOhm source, Sustain=1, Tone=noon, Volume=open.  Each pass writes a
 * settled transient and an AC sweep to /tmp/greybound_muffin_voice_*.
 
-.param V9=9 SUSTAIN=1 TONE=0.5
+.param V9=9 SUSTAIN=1 TONE=0.5 VINPK=40m FREQ=1k
 .param RSUS_TOP={max(100k*(1-SUSTAIN),1)} RSUS_BOTTOM={max(100k*SUSTAIN,1)}
 .param RTONE_HIGH={max(100k*(1-TONE),1)} RTONE_LOW={max(100k*TONE,1)}
 
@@ -20,7 +20,7 @@
 .param CIN=1u CSUS=1u CDRIVE=100n CINTER=100n COUT=100n
 
 V9 vcc 0 DC {V9}
-VIN input 0 DC 0 AC 1 SIN(0 40m 1k)
+VIN input 0 DC 0 AC 1 SIN(0 {VINPK} {FREQ})
 RSOURCE input input_rs 10k
 
 R1 input_rs q1_in {RIN}
@@ -88,49 +88,177 @@ set filetype=ascii
 * V3 1976/77, matching muffin_v3.cir.
 reset
 tran 1u 120m 0 1u
-wrdata /tmp/greybound_muffin_voice_v3_tran.dat v(output)
+wrdata /tmp/greybound_muffin_voice_v3_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 ac dec 60 40 12000
 wrdata /tmp/greybound_muffin_voice_v3_ac.dat v(output)
+alterparam FREQ=3k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_3k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=6k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_6k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+* Control-law checks use the V3 topology before stepping into the other
+* schematic families. They validate the quiet/mid Sustain region and both
+* ends of the passive Tone control at the same 40 mV input.
+alterparam FREQ=1k
+alterparam SUSTAIN=0
+alterparam TONE=0.5
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_sustain_0_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+ac dec 60 40 12000
+wrdata /tmp/greybound_muffin_voice_v3_sustain_0_ac.dat v(output)
+alterparam SUSTAIN=0.5
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_sustain_50_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam SUSTAIN=1
+alterparam TONE=0
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_tone_0_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam TONE=1
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_tone_100_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam TONE=0.5
+alterparam FREQ=1k
+alterparam VINPK=200m
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_hot_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 
 * Violet Ram's Head: 15k clip collectors, 8.2k stage feeds, 100n diode
 * branch capacitors, 33k/33k tone stack and 2.2k recovery emitter.
-alterparam RB1=100k RC1=15k
-alterparam RIN2=8.2k RC2=15k RE2=100 CD2=100n
-alterparam RIN3=8.2k RC3=15k RE3=100 CD3=100n
-alterparam RFB4=390k RC4=10k RE4=2.2k RLP=33k RHP=33k
-alterparam CIN=100n CSUS=100n
+alterparam VINPK=40m
+alterparam RB1=100k
+alterparam RC1=15k
+alterparam RIN2=8.2k
+alterparam RC2=15k
+alterparam RE2=100
+alterparam CD2=100n
+alterparam RIN3=8.2k
+alterparam RC3=15k
+alterparam RE3=100
+alterparam CD3=100n
+alterparam RFB4=390k
+alterparam RC4=10k
+alterparam RE4=2.2k
+alterparam RLP=33k
+alterparam RHP=33k
+alterparam CIN=100n
+alterparam CSUS=100n
 altermod QVOICE bf=420
 reset
 tran 1u 120m 0 1u
-wrdata /tmp/greybound_muffin_voice_rams_head_tran.dat v(output)
+wrdata /tmp/greybound_muffin_voice_rams_head_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 ac dec 60 40 12000
 wrdata /tmp/greybound_muffin_voice_rams_head_ac.dat v(output)
+alterparam FREQ=3k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_rams_head_3k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=6k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_rams_head_6k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=1k
+alterparam VINPK=200m
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_rams_head_hot_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 
 * Tall Font Green Russian: 12k / 390 Ohm clipping stages, 47n diode caps,
 * 560 pF feedback, 20k/22k tone stack and 2k recovery emitter.
-alterparam RC1=12k RE1=390
-alterparam RIN2=10k RC2=12k RE2=390 CD2=47n CFB2=560p
-alterparam RIN3=10k RC3=12k RE3=390 CD3=47n CFB3=560p
-alterparam RFB4=470k RC4=10k RE4=2k RLP=20k RHP=22k
+alterparam FREQ=1k
+alterparam VINPK=40m
+alterparam RC1=12k
+alterparam RE1=390
+alterparam RIN2=10k
+alterparam RC2=12k
+alterparam RE2=390
+alterparam CD2=47n
+alterparam CFB2=560p
+alterparam RIN3=10k
+alterparam RC3=12k
+alterparam RE3=390
+alterparam CD3=47n
+alterparam CFB3=560p
+alterparam RFB4=470k
+alterparam RC4=10k
+alterparam RE4=2k
+alterparam RLP=20k
+alterparam RHP=22k
 altermod QVOICE bf=230
 reset
 tran 1u 120m 0 1u
-wrdata /tmp/greybound_muffin_voice_green_russian_tran.dat v(output)
+wrdata /tmp/greybound_muffin_voice_green_russian_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 ac dec 60 40 12000
 wrdata /tmp/greybound_muffin_voice_green_russian_ac.dat v(output)
+alterparam FREQ=3k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_green_russian_3k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=6k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_green_russian_6k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=1k
+alterparam VINPK=200m
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_green_russian_hot_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 
 * Triangle: 33k input, 82k base networks, 390k feedback, 12k collectors,
 * 560 pF feedback, 50n diode branches, and 2.7k recovery emitter.
-alterparam RIN=33k RB1=82k RF1=390k RC1=12k RE1=100 CFB1=560p
-alterparam RIN2=8.2k RB2=82k RF2=390k RC2=12k RE2=100 CD2=50n CFB2=560p
-alterparam RIN3=8.2k RB3=82k RF3=390k RC3=12k RE3=100 CD3=50n CFB3=560p
-alterparam RFB4=390k RC4=12k RE4=2.7k RLP=33k RHP=33k
+alterparam FREQ=1k
+alterparam VINPK=40m
+alterparam RIN=33k
+alterparam RB1=82k
+alterparam RF1=390k
+alterparam RC1=12k
+alterparam RE1=100
+alterparam CFB1=560p
+alterparam RIN2=8.2k
+alterparam RB2=82k
+alterparam RF2=390k
+alterparam RC2=12k
+alterparam RE2=100
+alterparam CD2=50n
+alterparam CFB2=560p
+alterparam RIN3=8.2k
+alterparam RB3=82k
+alterparam RF3=390k
+alterparam RC3=12k
+alterparam RE3=100
+alterparam CD3=50n
+alterparam CFB3=560p
+alterparam RFB4=390k
+alterparam RC4=12k
+alterparam RE4=2.7k
+alterparam RLP=33k
+alterparam RHP=33k
 altermod QVOICE bf=260
 reset
 tran 1u 120m 0 1u
-wrdata /tmp/greybound_muffin_voice_triangle_tran.dat v(output)
+wrdata /tmp/greybound_muffin_voice_triangle_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 ac dec 60 40 12000
 wrdata /tmp/greybound_muffin_voice_triangle_ac.dat v(output)
+alterparam FREQ=3k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_triangle_3k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=6k
+reset
+tran 1u 80m 0 1u
+wrdata /tmp/greybound_muffin_voice_triangle_6k_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
+alterparam FREQ=1k
+alterparam VINPK=200m
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_triangle_hot_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 quit
 .endc
 

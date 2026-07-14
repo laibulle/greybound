@@ -8,7 +8,7 @@
 
 const THERMAL_VOLTAGE_V: f32 = 25.85e-3;
 const BJT_CURRENT_GAIN: f32 = 300.0;
-const TONE_NODES: usize = 4;
+const TONE_NODES: usize = 5;
 
 /// Three passive tone-stack component sets found in the transistor Big Muff
 /// family. They intentionally preserve the common four-transistor topology;
@@ -693,7 +693,9 @@ fn solve_4x4(mut matrix: [[f32; 4]; 4], mut rhs: [f32; 4]) -> Option<[f32; 4]> {
 
 /// The classic Big Muff passive blend: a 39 kOhm / 10 nF low path, a 3.9 nF
 /// / 22 kOhm high path, and a 100 kOhm pot. The MNA system retains both
-/// capacitor histories and includes source/recovery loading.
+/// capacitor histories and includes source/recovery loading. The high branch
+/// remains a *series* capacitor/resistor path into the top of the pot; it is
+/// not a resistor-to-ground shelf.
 pub struct MuffinToneStack {
     low_capacitor: TrapezoidalCapacitor,
     high_capacitor: TrapezoidalCapacitor,
@@ -782,7 +784,7 @@ impl MuffinToneStack {
             self.update_matrix(tone, source_resistance_ohms, load_resistance_ohms);
         }
 
-        // input, low branch, high branch, pot wiper/output
+        // input, low branch, high-capacitor output, high pot terminal, wiper
         let mut rhs = [0.0; TONE_NODES];
         rhs[0] = input_v / source_resistance_ohms;
         self.low_capacitor.stamp_rhs_to_ground(&mut rhs, 1);
@@ -790,27 +792,27 @@ impl MuffinToneStack {
         let voltages = multiply(self.inverse_matrix, rhs);
         self.low_capacitor.update(voltages[1]);
         self.high_capacitor.update(voltages[0] - voltages[2]);
-        voltages[3]
+        voltages[4]
     }
 
     fn update_matrix(&mut self, tone: f32, source_resistance_ohms: f32, load_resistance_ohms: f32) {
         let mut matrix = [[0.0; TONE_NODES]; TONE_NODES];
         stamp_to_ground(&mut matrix, 0, source_resistance_ohms);
         stamp_between(&mut matrix, 0, 1, self.low_resistance_ohms);
-        stamp_to_ground(&mut matrix, 2, self.high_resistance_ohms);
+        stamp_between(&mut matrix, 2, 3, self.high_resistance_ohms);
         stamp_between(
             &mut matrix,
             1,
-            3,
+            4,
             pot_segment(Self::POTENTIOMETER_OHMS * tone),
         );
         stamp_between(
             &mut matrix,
+            4,
             3,
-            2,
             pot_segment(Self::POTENTIOMETER_OHMS * (1.0 - tone)),
         );
-        stamp_to_ground(&mut matrix, 3, load_resistance_ohms);
+        stamp_to_ground(&mut matrix, 4, load_resistance_ohms);
         self.low_capacitor.stamp_to_ground(&mut matrix, 1);
         self.high_capacitor.stamp_between(&mut matrix, 0, 2);
         self.inverse_matrix = invert(matrix);
@@ -1029,6 +1031,29 @@ mod tests {
             }
         }
         assert!(bright_energy > dark_energy * 1.5);
+    }
+
+    #[test]
+    fn v3_tone_stack_noon_matches_the_series_high_branch_transfer() {
+        let mut tone_stack = MuffinToneStack::new(48_000.0);
+        let mut input_energy = 0.0;
+        let mut output_energy = 0.0;
+        for index in 0..9_600 {
+            let input = (std::f32::consts::TAU * 1_000.0 * index as f32 / 48_000.0).sin();
+            let output = tone_stack.process(input, 0.5, 10_000.0, 100_000.0);
+            if index >= 4_800 {
+                input_energy += input.powi(2);
+                output_energy += output.powi(2);
+            }
+        }
+        let transfer = (output_energy / input_energy).sqrt();
+        // The V3 ngspice network at this point is 0.2929 V/V. The high
+        // capacitor must feed R18 in series into the pot; grounding R18, as
+        // an earlier four-node solve did, yields roughly 0.12 V/V instead.
+        assert!(
+            (0.28..0.31).contains(&transfer),
+            "unexpected V3 noon tone transfer={transfer}"
+        );
     }
 
     #[test]

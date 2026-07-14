@@ -241,7 +241,7 @@
       },
       emulation: {
         implementation: "core/src/circuit/muffin.rs::MuffinToneStack",
-        algorithm: "100 kOhm split potentiometer in a four-node MNA network",
+        algorithm: "100 kOhm split potentiometer in a five-node MNA network",
       },
       spice: null,
       layout: { x: 1560, y: 250 },
