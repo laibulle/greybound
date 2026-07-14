@@ -34,6 +34,8 @@ pub(super) struct SharedRuntimeControls {
     muffin_sustain: Arc<AtomicU32>,
     muffin_tone: Arc<AtomicU32>,
     muffin_level: Arc<AtomicU32>,
+    muffin_wicker: Arc<AtomicU32>,
+    muffin_voicing: Arc<AtomicU32>,
     minotaur_bypassed: Arc<AtomicBool>,
     minotaur_gain: Arc<AtomicU32>,
     minotaur_treble: Arc<AtomicU32>,
@@ -111,6 +113,8 @@ impl SharedRuntimeControls {
             muffin_sustain: atomic_f32(MuffinControls::default().sustain),
             muffin_tone: atomic_f32(MuffinControls::default().tone),
             muffin_level: atomic_f32(MuffinControls::default().level),
+            muffin_wicker: atomic_f32(MuffinControls::default().wicker),
+            muffin_voicing: atomic_f32(MuffinControls::default().voicing),
             minotaur_bypassed: Arc::new(AtomicBool::new(false)),
             minotaur_gain: atomic_f32(0.0),
             minotaur_treble: atomic_f32(0.0),
@@ -235,6 +239,8 @@ impl SharedRuntimeControls {
                     store_f32(&self.muffin_sustain, controls.sustain);
                     store_f32(&self.muffin_tone, controls.tone);
                     store_f32(&self.muffin_level, controls.level);
+                    store_f32(&self.muffin_wicker, controls.wicker);
+                    store_f32(&self.muffin_voicing, controls.voicing);
                 }
                 DeviceControls::Minotaur(controls) => {
                     self.minotaur_bypassed
@@ -344,6 +350,8 @@ impl SharedRuntimeControls {
                         sustain: load_f32(&self.muffin_sustain),
                         tone: load_f32(&self.muffin_tone),
                         level: load_f32(&self.muffin_level),
+                        wicker: load_f32(&self.muffin_wicker),
+                        voicing: load_f32(&self.muffin_voicing),
                     }),
                 }),
                 DeviceConfig::Minotaur => target.push(DeviceSlotControls {

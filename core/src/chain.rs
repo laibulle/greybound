@@ -143,6 +143,26 @@ const MUFFIN_CONTROLS: &[ControlDescriptor] = &[
     unit_pot("sustain", "sustain"),
     unit_pot("tone", "tone"),
     unit_pot("level", "level"),
+    ControlDescriptor {
+        id: "wicker",
+        label: "tone wicker",
+        kind: ControlKind::Switch,
+        min: 0.0,
+        max: 1.0,
+        display_scale: 1.0,
+        step: 1.0,
+        large_step: 1.0,
+    },
+    ControlDescriptor {
+        id: "voicing",
+        label: "voice V3/RH/RU",
+        kind: ControlKind::Switch,
+        min: 0.0,
+        max: 2.0,
+        display_scale: 1.0,
+        step: 1.0,
+        large_step: 1.0,
+    },
 ];
 const MINOTAUR_CONTROLS: &[ControlDescriptor] = &[
     unit_pot("gain", "gain"),
@@ -1850,6 +1870,8 @@ mod tests {
                 sustain: 0.9,
                 tone: 0.2,
                 level: 0.7,
+                wicker: 0.0,
+                voicing: 0.0,
             })),
             DeviceSlotControls::bypassed(DeviceControls::Default),
         ];
@@ -1859,6 +1881,8 @@ mod tests {
                 sustain: 0.1,
                 tone: 0.8,
                 level: 0.7,
+                wicker: 0.0,
+                voicing: 0.0,
             })),
         ];
         let mut difference_sum = 0.0;

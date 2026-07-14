@@ -27,21 +27,24 @@ This JSON5 graph and the runtime descriptor at `core/src/circuit_descriptor.rs::
 
 ## Published Boundary Targets
 
-For the modern Ram's Head reissue/manual:
-
-- input impedance target: 117 kOhm,
-- nominal output impedance target: 25 kOhm,
-- current draw target: about 2 mA at 9 V,
-- tone clockwise increases treble and decreases bass,
-- sustain controls sustain/distortion amount.
-
-The current Rust model uses the 117 kOhm / 25 kOhm published boundary targets. The modeling priority is to match electrical boundaries first, then stage transfer curves, then variant voicing.
+For the modern Ram's Head reissue/manual, useful family references include a
+117 kOhm input, 25 kOhm nominal output, roughly 2 mA at 9 V, clockwise treble
+increase, and a Sustain/distortion control. The V3 implementation does not
+substitute those reissue values for its own topology: its input boundary is the
+documented 39 kOhm V3 path and its output boundary remains 25 kOhm.
 
 ## Controls
 
 - `sustain`: variable gain/drive feeding the two clipping stages.
 - `tone`: 100 kOhm passive blend between low-pass and high-pass branches.
-- `volume`: output attenuation after the recovery stage.
+- `level`: output attenuation after the recovery stage.
+- `wicker`: the one-control `Tone Wicker` macro opens the three 470 pF
+  collector-to-base high-frequency filters (Q1, Q2, and Q3) and bypasses the
+  passive tone stack. The normal Tone pot is intentionally inactive while it
+  is engaged.
+- `voicing`: `V3` (default), `Ram's Head`, or `Green Russian`. This selects
+  documented passive tone-stack values only, not a full clone of every
+  transistor, diode, bias, and production-era difference.
 - `bypass`: routing state; active circuit state should remain private to the pedal instance.
 
 ## 2026-07-13 Greybound Free Promotion
@@ -102,15 +105,15 @@ The pedal should receive and emit voltage plus impedance:
 
 `ConnectionState` owns cable capacitance and source/load division. The pedal should not mutate arbitrary amp internals.
 
-## 2026-07-14 Component-Circuit Candidate
+## 2026-07-14 V3 Component-Circuit Implementation
 
-`core/src/pedal/muffin.rs` now instantiates four reusable
-`BjtCommonEmitterStage` cells from `core/src/circuit/muffin.rs`. Each stage
-uses an incremental Shockley BJT current around a fixed quiescent current, a
-bounded four-step Newton solve for the emitter, and explicit trapezoidal
-emitter-bypass and collector-capacitor state. The two clipping pairs use a
-bounded Shockley solve against the collector source resistance; they are no
-longer a `tanh` applied after arbitrary gain.
+`core/src/pedal/muffin.rs` implements the V3 values and signal order verified
+by `tests/fixtures/circuit/muffin_v3.cir`. Q1 uses
+`MuffinShuntFeedbackStage`; Q4 uses `BjtCommonEmitterStage`. Q2/Q3 use
+`MuffinFeedbackClippingStage`, which combines the BJT solve with its 470 kOhm
+/ 470 pF collector-to-base feedback and the AC-isolated 1N914 pair. The pairs
+are no longer output diodes to ground, and Sustain is no longer an empirical
+multiplier.
 
 The audio path runs the nonlinear circuit at 2x with the shared 33-tap
 half-band FIR up/downsamplers. This preserves the one-sample pedal boundary
@@ -129,26 +132,23 @@ Q3 collector -- Rs --+-- 39k --+-- 10n -- ground
                                 \ 100k tone pot / --> Q4 base load
 ```
 
-The candidate working values are a Ram's Head/Violet-era hypothesis, not a
-universal Big Muff bill of materials:
+The V3 working values are not a universal Big Muff bill of materials:
 
-- Q1/Q4: 39 kOhm collectors, 390 Ohm emitter resistors, 10 uF/1 uF bypass
-  capacitors respectively, `0.12 mA` quiescent collector current, and 470 pF /
-  4.7 nF collector smoothing capacitors.
-- Q2/Q3: 100 kOhm collectors, 390 Ohm emitter resistors, 1 uF bypass
-  capacitors, `45 uA` quiescent collector current, 4.7 nF collector smoothing
-  capacitors, and antiparallel 1N4148-like pairs to ground.
+- Q1: 10 kOhm collector, 100 Ohm emitter, 470 pF Miller-feedback
+  approximation, and `0.187 mA` quiescent collector current.
+- Q2/Q3: 10 kOhm collectors, 150 Ohm emitters, `0.438 mA` quiescent collector
+  current, 470 kOhm / 470 pF linear feedback, and 1 uF + antiparallel
+  1N914-like feedback clipping branches.
+- Q4: 15 kOhm collector, 3.3 kOhm emitter, and `0.164 mA` quiescent collector
+  current.
 - Tone stack: 39 kOhm/10 nF low path, 3.9 nF/22 kOhm high path, 100 kOhm pot.
-- Input and output: 117 kOhm input load, 25 kOhm output boundary, both
+- Input and output: 39 kOhm V3 input boundary and 25 kOhm output boundary, both
   AC-coupled.
 
-The `sustain` control moves the base drive made available by the two
-clipping-stage shunt-feedback networks. Its current monotonic audio taper is
-calibrated to the V3 NAM captures: it uses a fourth-power wiper plus a small
-low-travel lift that is zero at both stops. That gives usable drive at 8
-o'clock, keeps noon below the clipping plateau, and leaves full Sustain
-unchanged. It is a measured working taper, not yet a claim about the exact
-resistance law or feedback network of every Muffin revision.
+The `sustain` control is the physical 100 kOhm divider before Q2.  Its low stop
+retains the V3 1 kOhm resistor, so zero Sustain is a small finite feed rather
+than silence or an invented drive floor. Q3 is driven only by Q2, as in the
+circuit.
 
 ## Stage Notes
 
@@ -161,11 +161,12 @@ Input booster:
 Clipping stages:
 
 - Two common-emitter stages with antiparallel silicon diode clipping.
-- Diode target is a 1N914/1N4148-equivalent Shockley pair loaded by the stage
-  collector resistance.
+- Diode target is a 1N914/1N4148-equivalent Shockley pair in an AC-isolated
+  collector-to-base feedback branch.
 - Forward voltage target for vintage silicon parts is roughly 0.5 to 0.6 V, but measured curves are better than fixed constants.
-- Current implementation is an incremental BJT plus diode solve. A future full
-  DC MNA fixture can replace the fixed operating-point assumption.
+- Current implementation is an incremental BJT plus same-sample relaxed
+  feedback solve. A future full DC MNA solve can replace its fixed operating
+  point assumption.
 
 Tone stack:
 
@@ -187,16 +188,27 @@ Output recovery:
 
 Keep `ElectricalSignal`, `Load`, and `ConnectionState` as the rig-level interface. The first reusable cells are now `BjtCommonEmitterStage`, `SiliconDiodePair`, and `MuffinToneStack`; they are scalar, deterministic, bounded, and non-allocating in the audio path.
 
-Next, add the matching full SPICE fixture and test Q1-Q4 operating points,
-Sustain taper, and pot taper against a selected public or project-owned
-reference unit.
+## 2026-07-14 V3 SPICE Topology Gate
+
+The first validation target is now the 1976/77 red-and-black V3 circuit,
+because the available TONE3000 reference is a Big Muff V3.  The reproducible
+ngspice fixture is `tests/fixtures/circuit/muffin_v3.cir`; the result and its
+source scope are recorded in `lab/experiments/009-muffin-v3-spice-topology-validation.md`.
+
+The resulting runtime implements the physical divider and Q2/Q3 feedback-loop
+topology. The focused regression runs a guitar-scale 110 Hz input at Sustain
+0, 50, and 100 percent: low Sustain retains a non-hard-clipped waveform while
+middle and full produce distinct energy levels. This proves the intended
+control direction, not a complete SPICE transfer-curve match; per-stage trace
+comparison remains the next validation gate before any NAM fitting.
 
 ## Validation Gates
 
 The model is not component-exact until:
 
 - published/manual impedance targets match within useful tolerance,
-- SPICE and Rust agree for individual stages (not yet available for Muffin),
+- SPICE and Rust agree for individual V3 stages (SPICE fixture exists; Rust
+  comparison is not yet available),
 - tone-stack response agrees at several tone positions,
 - sustain changes harmonic density and compression correctly,
 - guitar-source versus buffered-source input changes are audible and measurable,

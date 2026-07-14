@@ -19,8 +19,11 @@
         tone: 0.50,
         // The direct, amp-bypassed CLI path emits pedal volts directly rather
         // than applying the amp output trim. This 100 kOhm volume-pot position
-        // matches the NAM capture's published output level before comparison.
-        level: 0.12,
+        // matches the NAM capture after Q4's documented 470 kOhm feedback
+        // branch is included in the runtime circuit.
+        level: 0.47,
+        wicker: 0.0,
+        voicing: 0.0,
       },
     },
   ],

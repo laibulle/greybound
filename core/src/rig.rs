@@ -212,6 +212,8 @@ pub struct RigDeviceControls {
     pub sustain: f32,
     pub tone: f32,
     pub level: f32,
+    pub wicker: f32,
+    pub voicing: f32,
     pub gain: f32,
     pub emphasis: f32,
     pub treble: f32,
@@ -257,6 +259,8 @@ impl Default for RigDeviceControls {
             sustain: muffin.sustain,
             tone: muffin.tone,
             level: muffin.level,
+            wicker: muffin.wicker,
+            voicing: muffin.voicing,
             gain: minotaur.gain,
             emphasis: lumen.emphasis,
             treble: minotaur.treble,
@@ -307,6 +311,8 @@ impl RigDeviceControls {
             sustain: self.sustain.clamp(0.0, 1.0),
             tone: self.tone.clamp(0.0, 1.0),
             level: self.level.clamp(0.0, 1.0),
+            wicker: self.wicker.clamp(0.0, 1.0),
+            voicing: self.voicing.round().clamp(0.0, 2.0),
         }
     }
 

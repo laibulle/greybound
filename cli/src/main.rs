@@ -117,6 +117,8 @@ enum SharedDeviceControl {
         sustain: AtomicU32,
         tone: AtomicU32,
         level: AtomicU32,
+        wicker: AtomicU32,
+        voicing: AtomicU32,
     },
     Minotaur {
         gain: AtomicU32,
@@ -400,6 +402,8 @@ impl SharedDeviceControl {
                 sustain: AtomicU32::new(controls.sustain.to_bits()),
                 tone: AtomicU32::new(controls.tone.to_bits()),
                 level: AtomicU32::new(controls.level.to_bits()),
+                wicker: AtomicU32::new(controls.wicker.to_bits()),
+                voicing: AtomicU32::new(controls.voicing.to_bits()),
             },
             DeviceControls::Minotaur(controls) => Self::Minotaur {
                 gain: AtomicU32::new(controls.gain.to_bits()),
@@ -518,10 +522,14 @@ impl SharedDeviceControl {
                 sustain,
                 tone,
                 level,
+                wicker,
+                voicing,
             } => DeviceControls::Muffin(MuffinControls {
                 sustain: load_atomic_f32(sustain),
                 tone: load_atomic_f32(tone),
                 level: load_atomic_f32(level),
+                wicker: load_atomic_f32(wicker),
+                voicing: load_atomic_f32(voicing),
             }),
             Self::Minotaur {
                 gain,
@@ -694,8 +702,12 @@ impl SharedDeviceControl {
                 sustain,
                 tone,
                 level,
+                wicker,
+                voicing,
             } => adjust_control_param(
-                [sustain, tone, level].get(param_index).copied(),
+                [sustain, tone, level, wicker, voicing]
+                    .get(param_index)
+                    .copied(),
                 delta,
                 min,
                 max,
@@ -2074,6 +2086,12 @@ fn device_control_value(controls: DeviceControls, id: &str) -> ControlValue {
             "sustain" => ControlValue::Number(controls.sustain),
             "tone" => ControlValue::Number(controls.tone),
             "level" => ControlValue::Number(controls.level),
+            "wicker" => ControlValue::Number(controls.wicker),
+            "voicing" => ControlValue::Text(match controls.voicing.round() as i32 {
+                1 => "ram's head",
+                2 => "green russian",
+                _ => "v3",
+            }),
             _ => ControlValue::Missing,
         },
         DeviceControls::Minotaur(controls) => match id {

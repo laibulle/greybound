@@ -17,6 +17,23 @@ The Rust model should eventually load measured or simulated operating points
 from these fixtures in regression tests. For now, this file documents the
 electrical target while the in-process solver is still evolving.
 
+`muffin_v3.cir` is the stage-by-stage ngspice reference for the 1976/77
+red-and-black Big Muff Pi V3 topology.  It writes traces for Sustain at 0,
+50%, and 100% to `/tmp/greybound_muffin_v3_sustain_{0,50,100}.dat` and prints
+the DC point of Q1–Q4 for each pass.  Its purpose is to validate the original
+signal topology before fitting the Rust Muffin model:
+
+- Q1 has collector-to-base shunt feedback and a 470 pF Miller capacitor.
+- Sustain is a 100 kOhm divider with the 1 kOhm minimum-stop resistor.
+- Q2 and Q3 use antiparallel 1N914s in AC-isolated collector-to-base feedback
+  loops; they are not output diodes to ground.
+- Q4 is the 15 kOhm / 3.3 kOhm recovery stage after the passive tone blend.
+
+The netlist intentionally treats its BC239 parameters as a high-gain NPN
+approximation.  Component values and connectivity are the fixture target;
+absolute operating points require a measured transistor or a model fitted to
+the particular unit.
+
 Current ngspice DC operating point:
 
 - plate: 250.54 V

@@ -33,15 +33,19 @@ fn muffin_sustain_changes_transfer_curve() {
     let mut quiet_energy = 0.0;
     let mut middle_energy = 0.0;
     let mut driven_energy = 0.0;
+    let mut quiet_peak = 0.0_f32;
+    let mut samples = 0.0_f32;
 
     for sample_idx in 0..9_600 {
-        let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.08;
+        let input = (std::f32::consts::TAU * 110.0 * sample_idx as f32 / 48_000.0).sin() * 0.02;
         let quiet_output = quiet.process(
             ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
             MuffinControls {
-                sustain: 0.1,
+                sustain: 0.0,
                 tone: 0.5,
-                level: 0.7,
+                level: 0.5,
+                wicker: 0.0,
+                voicing: 0.0,
             },
         );
         let middle_output = middle.process(
@@ -49,29 +53,46 @@ fn muffin_sustain_changes_transfer_curve() {
             MuffinControls {
                 sustain: 0.5,
                 tone: 0.5,
-                level: 0.7,
+                level: 0.5,
+                wicker: 0.0,
+                voicing: 0.0,
             },
         );
         let driven_output = driven.process(
             ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
             MuffinControls {
-                sustain: 0.9,
+                sustain: 1.0,
                 tone: 0.5,
-                level: 0.7,
+                level: 0.5,
+                wicker: 0.0,
+                voicing: 0.0,
             },
         );
         if sample_idx >= 4_800 {
             quiet_energy += quiet_output.voltage.powi(2);
             middle_energy += middle_output.voltage.powi(2);
             driven_energy += driven_output.voltage.powi(2);
+            quiet_peak = quiet_peak.max(quiet_output.voltage.abs());
+            samples += 1.0;
         }
     }
 
-    // Sustain must have useful travel below the clipping plateau.  These
-    // energy gaps prevent a nonzero drive floor from making the low, middle,
-    // and full settings sound effectively identical again.
-    assert!(middle_energy > quiet_energy * 3.0);
-    assert!(driven_energy > middle_energy * 1.05);
+    // Sustain must have useful travel below the clipping plateau.  The V3
+    // circuit is a passive divider with a 1 kOhm minimum-stop resistor, not
+    // an empirical gain floor: low, middle, and full must remain distinct.
+    assert!(
+        middle_energy > quiet_energy * 1.25,
+        "quiet={quiet_energy}, middle={middle_energy}, driven={driven_energy}"
+    );
+    assert!(
+        driven_energy > middle_energy * 1.02,
+        "quiet={quiet_energy}, middle={middle_energy}, driven={driven_energy}"
+    );
+    let quiet_crest_factor = quiet_peak / (quiet_energy / samples).sqrt();
+    assert!(
+        quiet_crest_factor > 1.2,
+        "low Sustain is unexpectedly hard-clipped: crest={quiet_crest_factor}, quiet={quiet_energy}"
+    );
 }
 
 #[test]
@@ -86,11 +107,171 @@ fn muffin_component_circuit_stays_bounded_under_hot_drive() {
                 sustain: 1.0,
                 tone: 1.0,
                 level: 1.0,
+                wicker: 0.0,
+                voicing: 0.0,
             },
         );
         assert!(output.voltage.is_finite());
         assert!(output.voltage.abs() <= 4.5);
     }
+}
+
+#[test]
+fn muffin_wicker_and_voicing_controls_change_the_component_response() {
+    let mut standard = Muffin::new(48_000.0);
+    let mut wicker = Muffin::new(48_000.0);
+    let mut rams_head = Muffin::new(48_000.0);
+    let mut green_russian = Muffin::new(48_000.0);
+    let base = MuffinControls {
+        sustain: 0.78,
+        tone: 0.50,
+        level: 0.50,
+        wicker: 0.0,
+        voicing: 0.0,
+    };
+    let mut wicker_difference = 0.0;
+    let mut rams_head_difference = 0.0;
+    let mut green_russian_difference = 0.0;
+
+    for sample_idx in 0..12_000 {
+        // High enough to exercise the lifted 470 pF filters, while remaining
+        // in the intended guitar/pedal spectral range.
+        let input = (std::f32::consts::TAU * 3_000.0 * sample_idx as f32 / 48_000.0).sin() * 0.03;
+        let standard_output = standard.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            base,
+        );
+        let wicker_output = wicker.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                wicker: 1.0,
+                ..base
+            },
+        );
+        let rams_head_output = rams_head.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                voicing: 1.0,
+                ..base
+            },
+        );
+        let green_russian_output = green_russian.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                voicing: 2.0,
+                ..base
+            },
+        );
+        if sample_idx >= 6_000 {
+            wicker_difference += (wicker_output.voltage - standard_output.voltage).abs();
+            rams_head_difference += (rams_head_output.voltage - standard_output.voltage).abs();
+            green_russian_difference +=
+                (green_russian_output.voltage - standard_output.voltage).abs();
+        }
+    }
+
+    assert!(
+        wicker_difference > 1.0,
+        "wicker difference={wicker_difference}"
+    );
+    assert!(
+        rams_head_difference > 0.1,
+        "Ram's Head difference={rams_head_difference}"
+    );
+    assert!(
+        green_russian_difference > 0.1,
+        "Green Russian difference={green_russian_difference}"
+    );
+}
+
+#[test]
+fn muffin_wicker_switch_recovers_after_returning_to_standard_mode() {
+    let mut pedal = Muffin::new(48_000.0);
+    let base = MuffinControls {
+        sustain: 1.0,
+        tone: 0.50,
+        level: 0.70,
+        wicker: 0.0,
+        voicing: 0.0,
+    };
+    let mut standard_energy_after_switch = 0.0;
+    let mut standard_energy_before_switch = 0.0;
+    let mut wicker_energy = 0.0;
+
+    for sample_idx in 0..24_000 {
+        let input = (std::f32::consts::TAU * 2_400.0 * sample_idx as f32 / 48_000.0).sin() * 0.12;
+        let controls = if (8_000..16_000).contains(&sample_idx) {
+            MuffinControls {
+                wicker: 1.0,
+                ..base
+            }
+        } else {
+            base
+        };
+        let output = pedal.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            controls,
+        );
+        assert!(output.voltage.is_finite(), "sample={sample_idx}");
+        assert!(output.voltage.abs() <= 4.5, "sample={sample_idx}");
+        if (4_000..8_000).contains(&sample_idx) {
+            standard_energy_before_switch += output.voltage.powi(2);
+        }
+        if (12_000..16_000).contains(&sample_idx) {
+            wicker_energy += output.voltage.powi(2);
+        }
+        if sample_idx >= 20_000 {
+            standard_energy_after_switch += output.voltage.powi(2);
+        }
+    }
+
+    assert!(
+        wicker_energy > standard_energy_before_switch * 0.50,
+        "Wicker is nearly silent: wicker={wicker_energy}, standard={standard_energy_before_switch}"
+    );
+    assert!(
+        standard_energy_after_switch > 0.01,
+        "standard mode did not recover after Wicker: {standard_energy_after_switch}"
+    );
+}
+
+#[test]
+fn muffin_tone_wicker_bypasses_tone_control() {
+    let mut dark = Muffin::new(48_000.0);
+    let mut bright = Muffin::new(48_000.0);
+    let mut difference = 0.0;
+
+    for sample_idx in 0..12_000 {
+        let input = (std::f32::consts::TAU * 1_000.0 * sample_idx as f32 / 48_000.0).sin() * 0.04;
+        let dark_output = dark.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                sustain: 0.75,
+                tone: 0.0,
+                level: 0.50,
+                wicker: 1.0,
+                voicing: 0.0,
+            },
+        );
+        let bright_output = bright.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                sustain: 0.75,
+                tone: 1.0,
+                level: 0.50,
+                wicker: 1.0,
+                voicing: 0.0,
+            },
+        );
+        if sample_idx >= 6_000 {
+            difference += (dark_output.voltage - bright_output.voltage).abs();
+        }
+    }
+
+    assert!(
+        difference < 1.0e-5,
+        "Tone affected Tone Wicker: {difference}"
+    );
 }
 
 #[test]

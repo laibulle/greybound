@@ -1836,13 +1836,13 @@ const MUFFIN_NODES: &[CircuitNodeDescriptor] = &[
     },
     CircuitNodeDescriptor {
         id: "input_load",
-        label: "117 kOhm input",
+        label: "39 kOhm V3 input",
         kind: CircuitNodeKind::InputLoad,
-        role: "Input resistor and cable capacitance establish the guitar-sensitive load.",
+        role: "V3's 39 kOhm input resistor and cable capacitance establish the guitar-sensitive load.",
         control_id: None,
         confidence: CircuitConfidence::KnownBoundary,
         implementation: "core/src/pedal.rs::Muffin::input_connection",
-        algorithm: "Source/load division with 470 pF cable state against 117 kOhm.",
+        algorithm: "Source/load division with 470 pF cable state against the V3 39 kOhm input path.",
         layout: CircuitLayout { x: 0.13, y: 0.50 },
     },
     CircuitNodeDescriptor {
@@ -1853,62 +1853,62 @@ const MUFFIN_NODES: &[CircuitNodeDescriptor] = &[
         control_id: None,
         confidence: CircuitConfidence::SchematicInspired,
         implementation: "core/src/pedal/muffin.rs::Muffin",
-        algorithm: "7.2 Hz coupling high-pass derived from the target input network.",
+        algorithm: "V3 C1-derived 1.8 Hz coupling high-pass.",
         layout: CircuitLayout { x: 0.23, y: 0.50 },
     },
     CircuitNodeDescriptor {
         id: "q1_booster",
         label: "Q1 booster",
         kind: CircuitNodeKind::GainStage,
-        role: "First silicon NPN common-emitter booster, with 39 kOhm collector and bypassed emitter network.",
+        role: "V3 first silicon NPN common-emitter booster, with 10 kOhm collector and 100 Ohm emitter network.",
         control_id: None,
         confidence: CircuitConfidence::SchematicInspired,
-        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
-        algorithm: "Bounded Newton BJT solve with explicit emitter and collector capacitor histories.",
+        implementation: "core/src/circuit/muffin.rs::MuffinShuntFeedbackStage",
+        algorithm: "Same-sample bounded BJT solve with V3 470 kOhm / 470 pF collector-to-base shunt feedback.",
         layout: CircuitLayout { x: 0.34, y: 0.50 },
     },
     CircuitNodeDescriptor {
         id: "q2_clip",
         label: "Q2 clip gain",
         kind: CircuitNodeKind::GainStage,
-        role: "First 100 kOhm collector common-emitter clipping gain stage.",
+        role: "First V3 10 kOhm collector / 150 Ohm emitter clipping gain stage with collector-to-base feedback.",
         control_id: Some("sustain"),
         confidence: CircuitConfidence::SchematicInspired,
-        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
-        algorithm: "Sustain-controlled shunt-feedback base drive into a BJT/emitter-capacitor solve.",
+        implementation: "core/src/circuit/muffin.rs::MuffinFeedbackClippingStage",
+        algorithm: "Same-sample bounded Q2 feedback solve; Sustain is the passive divider before this stage.",
         layout: CircuitLayout { x: 0.47, y: 0.34 },
     },
     CircuitNodeDescriptor {
         id: "diodes_a",
         label: "D1 / D2",
         kind: CircuitNodeKind::ClippingCell,
-        role: "First antiparallel 1N4148-like silicon clipping pair loading Q2's collector.",
+        role: "First antiparallel 1N914-like silicon pair in Q2's AC-isolated collector-to-base feedback branch.",
         control_id: None,
         confidence: CircuitConfidence::SchematicInspired,
         implementation: "core/src/circuit/muffin.rs::SiliconDiodePair",
-        algorithm: "Bounded Shockley diode-pair solve against Q2 collector resistance.",
+        algorithm: "Bounded Shockley diode-pair solve in Q2 collector-to-base feedback, after the 1 uF branch capacitor.",
         layout: CircuitLayout { x: 0.56, y: 0.34 },
     },
     CircuitNodeDescriptor {
         id: "q3_clip",
         label: "Q3 clip gain",
         kind: CircuitNodeKind::GainStage,
-        role: "Second 100 kOhm collector common-emitter clipping gain stage.",
+        role: "Second V3 10 kOhm collector / 150 Ohm emitter clipping gain stage with collector-to-base feedback.",
         control_id: Some("sustain"),
         confidence: CircuitConfidence::SchematicInspired,
-        implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
-        algorithm: "Sustain-controlled base drive into a BJT/emitter-capacitor solve.",
+        implementation: "core/src/circuit/muffin.rs::MuffinFeedbackClippingStage",
+        algorithm: "Same-sample bounded Q3 feedback solve following the Q2 coupling path.",
         layout: CircuitLayout { x: 0.66, y: 0.34 },
     },
     CircuitNodeDescriptor {
         id: "diodes_b",
         label: "D3 / D4",
         kind: CircuitNodeKind::ClippingCell,
-        role: "Second antiparallel 1N4148-like silicon clipping pair loading Q3's collector.",
+        role: "Second antiparallel 1N914-like silicon pair in Q3's AC-isolated collector-to-base feedback branch.",
         control_id: None,
         confidence: CircuitConfidence::SchematicInspired,
         implementation: "core/src/circuit/muffin.rs::SiliconDiodePair",
-        algorithm: "Bounded Shockley diode-pair solve against Q3 collector resistance.",
+        algorithm: "Bounded Shockley diode-pair solve in Q3 collector-to-base feedback, after the 1 uF branch capacitor.",
         layout: CircuitLayout { x: 0.75, y: 0.34 },
     },
     CircuitNodeDescriptor {
@@ -1926,7 +1926,7 @@ const MUFFIN_NODES: &[CircuitNodeDescriptor] = &[
         id: "q4_recovery",
         label: "Q4 recovery",
         kind: CircuitNodeKind::GainStage,
-        role: "Post-tone silicon NPN recovery stage with an explicit emitter bypass capacitor.",
+        role: "V3 post-tone silicon NPN recovery stage with 15 kOhm collector and 3.3 kOhm emitter.",
         control_id: None,
         confidence: CircuitConfidence::SchematicInspired,
         implementation: "core/src/circuit/muffin.rs::BjtCommonEmitterStage",
@@ -1941,7 +1941,7 @@ const MUFFIN_NODES: &[CircuitNodeDescriptor] = &[
         control_id: Some("level"),
         confidence: CircuitConfidence::KnownBoundary,
         implementation: "core/src/pedal/muffin.rs::Muffin",
-        algorithm: "Audio-taper output attenuation followed by DC-blocking output coupling.",
+        algorithm: "Linear 100 kOhm output attenuation followed by V3 C13 DC-blocking output coupling.",
         layout: CircuitLayout { x: 0.94, y: 0.56 },
     },
     CircuitNodeDescriptor {
@@ -1970,10 +1970,8 @@ const MUFFIN_EDGES: &[CircuitEdgeDescriptor] = &[
         CircuitSignalKind::DriveAudio,
     ),
     edge("q1_booster", "q2_clip", CircuitSignalKind::DriveAudio),
-    edge("q2_clip", "diodes_a", CircuitSignalKind::DriveAudio),
-    edge("diodes_a", "q3_clip", CircuitSignalKind::ClippedAudio),
-    edge("q3_clip", "diodes_b", CircuitSignalKind::DriveAudio),
-    edge("diodes_b", "tone_stack", CircuitSignalKind::ClippedAudio),
+    edge("q2_clip", "q3_clip", CircuitSignalKind::ClippedAudio),
+    edge("q3_clip", "tone_stack", CircuitSignalKind::ClippedAudio),
     edge("tone_stack", "q4_recovery", CircuitSignalKind::VoicedAudio),
     edge("q4_recovery", "level", CircuitSignalKind::DriveAudio),
     edge("level", "output_jack", CircuitSignalKind::AudioVoltage),
@@ -1983,17 +1981,44 @@ const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
     CircuitControlBinding {
         control_id: "sustain",
         node_id: "q2_clip",
-        role: "Sets clipping-stage base drive through the feedback-network hypothesis.",
+        role: "Sets the passive V3 Sustain-divider wiper feeding Q2.",
     },
     CircuitControlBinding {
         control_id: "sustain",
         node_id: "q3_clip",
-        role: "Sets the second clipping-stage base drive.",
+        role:
+            "Changes Q3 drive indirectly through the Q2 output; it is not a second gain multiplier.",
     },
     CircuitControlBinding {
         control_id: "tone",
         node_id: "tone_stack",
         role: "Moves the 100 kOhm passive tone-stack wiper from low to high branch.",
+    },
+    CircuitControlBinding {
+        control_id: "wicker",
+        node_id: "q1_booster",
+        role: "Tone Wicker opens Q1's 470 pF collector-to-base high-frequency filter.",
+    },
+    CircuitControlBinding {
+        control_id: "wicker",
+        node_id: "q2_clip",
+        role: "Tone Wicker opens Q2's 470 pF collector-to-base high-frequency filter.",
+    },
+    CircuitControlBinding {
+        control_id: "wicker",
+        node_id: "q3_clip",
+        role: "Tone Wicker opens Q3's 470 pF collector-to-base high-frequency filter.",
+    },
+    CircuitControlBinding {
+        control_id: "voicing",
+        node_id: "tone_stack",
+        role: "Selects V3, Ram's Head, or Green Russian passive tone-stack values.",
+    },
+    CircuitControlBinding {
+        control_id: "wicker",
+        node_id: "tone_stack",
+        role:
+            "Tone Wicker routes around this passive tone stack, so Tone is inactive while engaged.",
     },
     CircuitControlBinding {
         control_id: "level",
@@ -2003,9 +2028,9 @@ const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
 ];
 
 const MUFFIN_NOTES: &[&str] = &[
-    "This is a Ram's Head/Violet-era component-value hypothesis; Muffin variants are not interchangeable.",
+    "The V3 setting is the 1976/77 red-and-black Big Muff Pi topology target. Ram's Head and Green Russian settings change the passive tone-stack values only; they are voicings, not full revision clones.",
     "The runtime solves incremental BJT behavior around fixed DC operating points, so it is circuit-informed rather than a full 9 V DC MNA netlist.",
-    "The diode pairs and passive tone stack are explicit bounded component solves; validate values against a matching hardware capture or SPICE fixture before claiming component-exact accuracy.",
+    "The diode pairs are solved in AC-isolated Q2/Q3 feedback loops; the passive tone stack is an explicit bounded component solve. Compare stage traces against the matching V3 SPICE fixture before claiming component-exact accuracy.",
 ];
 
 pub static MUFFIN_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
@@ -2015,7 +2040,7 @@ pub static MUFFIN_CIRCUIT: CircuitDescriptor = CircuitDescriptor {
     kind: CircuitDescriptorKind::CircuitInformed,
     source_of_truth: "rust-model",
     implementation: "core/src/pedal/muffin.rs::Muffin",
-    summary: "Ram's Head-era BJT fuzz hypothesis with loaded input, four common-emitter stages, two Shockley diode pairs, passive MNA tone stack, and AC-coupled output boundary.",
+    summary: "V3 BJT fuzz hypothesis with 39 kOhm input, physical Sustain divider, two Shockley diode feedback loops, Tone Wicker high-filter lift plus tone-stack bypass, selectable passive MNA tone-stack voicings, and AC-coupled output boundary.",
     nodes: MUFFIN_NODES,
     edges: MUFFIN_EDGES,
     groups: MUFFIN_GROUPS,
@@ -2346,7 +2371,7 @@ mod tests {
             device_circuit_descriptor(DeviceConfig::Muffin).map(|descriptor| descriptor.model_id),
             Some("muffin")
         );
-        for control_id in ["sustain", "tone", "level"] {
+        for control_id in ["sustain", "tone", "level", "wicker", "voicing"] {
             assert!(MUFFIN_CIRCUIT
                 .controls
                 .iter()

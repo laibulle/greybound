@@ -1,6 +1,6 @@
 use crate::amp::oversampling::{half_band_coefficients, FirFilter, OVERSAMPLING_FACTOR};
 use crate::circuit::muffin::{
-    BjtCommonEmitterParams, BjtCommonEmitterStage, MuffinToneStack, SiliconDiodePair,
+    MuffinFeedbackClippingStage, MuffinShuntFeedbackStage, MuffinToneStack, MuffinVoicing,
 };
 
 use super::common::*;
@@ -10,6 +10,10 @@ pub struct MuffinControls {
     pub sustain: f32,
     pub tone: f32,
     pub level: f32,
+    /// Tone Wicker macro: lifts C2/C6/C9 and bypasses the passive tone stack.
+    pub wicker: f32,
+    /// 0 = V3, 1 = Ram's Head, 2 = Green Russian.
+    pub voicing: f32,
 }
 
 impl Default for MuffinControls {
@@ -18,120 +22,74 @@ impl Default for MuffinControls {
             sustain: 0.55,
             tone: 0.50,
             level: 0.70,
+            wicker: 0.0,
+            voicing: MuffinVoicing::V3.control_value(),
         }
     }
 }
 
-/// Ram's Head-era Big Muff topology hypothesis.
+/// 1976/77 red-and-black Big Muff Pi V3 topology hypothesis.
 ///
 /// The model is intentionally a component circuit, rather than four scalar
 /// gains followed by `tanh`: every transistor has an emitter/capacitor state,
-/// the clipping pairs use a bounded Shockley solve, and the tone control is a
-/// passive MNA network. Exact production values vary between Muffin revisions;
-/// the constants below are the documented Violet/Ram's-Head working set.
+/// Q2/Q3 place the clipping pairs in bounded collector-to-base feedback
+/// branches, and the tone control is a passive MNA network. Exact production
+/// values vary between units; the constants below are the documented V3 set.
 pub struct Muffin {
+    circuit_sample_rate: f32,
     input_connection: ConnectionState,
     upsampler: FirFilter,
     downsampler: FirFilter,
     input_coupling: OnePoleHighpass,
-    q1: BjtCommonEmitterStage,
-    q2: BjtCommonEmitterStage,
-    q3: BjtCommonEmitterStage,
-    q4: BjtCommonEmitterStage,
-    q1_to_q2: OnePoleHighpass,
+    q1: MuffinShuntFeedbackStage,
+    q2: MuffinFeedbackClippingStage,
+    q3: MuffinFeedbackClippingStage,
+    q4: MuffinShuntFeedbackStage,
+    q1_to_sustain: OnePoleHighpass,
+    sustain_to_q2: OnePoleHighpass,
     q2_to_q3: OnePoleHighpass,
-    q3_to_tone: OnePoleHighpass,
     tone_to_q4: OnePoleHighpass,
     output_coupling: OnePoleHighpass,
-    diodes_a: SiliconDiodePair,
-    diodes_b: SiliconDiodePair,
     tone_stack: MuffinToneStack,
+    active_wicker: bool,
+    active_voicing: MuffinVoicing,
 }
 
 impl Muffin {
-    pub const INPUT_IMPEDANCE_OHMS: f32 = 117_000.0;
+    /// The V3 source resistance is dominated by its 39 kOhm input resistor.
+    pub const INPUT_IMPEDANCE_OHMS: f32 = 39_000.0;
     pub const OUTPUT_IMPEDANCE_OHMS: f32 = 25_000.0;
-    const CLIPPING_STAGE_INPUT_LOAD_OHMS: f32 = 100_000.0;
     const RECOVERY_STAGE_INPUT_LOAD_OHMS: f32 = 100_000.0;
-    // The Sustain pot is an audio taper: its low-clockwise travel must keep
-    // both clipping stages below the diode knee rather than beginning from a
-    // nearly saturated fixed drive.  The previous 0.12 floor made `0.0` and
-    // `1.0` almost indistinguishable at the pedal output.
-    const SUSTAIN_DRIVE_MIN: f32 = 0.002;
-    const SUSTAIN_DRIVE_MAX: f32 = 1.22;
-    const SUSTAIN_TAPER_EXPONENT: f32 = 4.0;
-    const SUSTAIN_LOW_TRAVEL_LIFT: f32 = 0.17;
+    const SUSTAIN_POTENTIOMETER_OHMS: f32 = 100_000.0;
+    const SUSTAIN_STOP_RESISTANCE_OHMS: f32 = 1_000.0;
+    // Q2's base network plus its small-signal transistor input load the pot
+    // well below the nominal 100 kOhm shunt resistor.  This value is the
+    // V3/SPICE operating-region approximation used to retain that loading.
+    const SUSTAIN_WIPER_LOAD_OHMS: f32 = 16_000.0;
 
     pub fn new(sample_rate: f32) -> Self {
         let circuit_sample_rate = sample_rate * OVERSAMPLING_FACTOR;
-        // Coupling corners are derived from the named capacitor and the
-        // adjacent source/load resistances. They keep DC bias private to each
-        // BJT cell while retaining the physical low-frequency recovery.
+        // Coupling corners are derived from the V3 capacitor/resistor paths.
+        // They keep DC bias private to each BJT cell while retaining the
+        // physical low-frequency recovery.
         Self {
+            circuit_sample_rate,
             input_connection: ConnectionState::new(sample_rate, 470e-12),
             upsampler: FirFilter::new(half_band_coefficients()),
             downsampler: FirFilter::new(half_band_coefficients()),
-            input_coupling: OnePoleHighpass::new(circuit_sample_rate, 7.2),
-            q1: BjtCommonEmitterStage::new(
-                circuit_sample_rate,
-                BjtCommonEmitterParams {
-                    supply_voltage_v: 9.0,
-                    collector_resistance_ohms: 39_000.0,
-                    emitter_resistance_ohms: 390.0,
-                    emitter_bypass_capacitance_f: 10e-6,
-                    collector_capacitance_f: 470e-12,
-                    quiescent_collector_current_a: 0.12e-3,
-                    collector_load_ohms: Self::CLIPPING_STAGE_INPUT_LOAD_OHMS,
-                },
-            ),
-            q2: BjtCommonEmitterStage::new(
-                circuit_sample_rate,
-                BjtCommonEmitterParams {
-                    supply_voltage_v: 9.0,
-                    collector_resistance_ohms: 100_000.0,
-                    emitter_resistance_ohms: 390.0,
-                    emitter_bypass_capacitance_f: 1e-6,
-                    // Collector smoothing capacitors are a high-confidence
-                    // voicing family in Ram's Head/V3-style Muff circuits.
-                    // This 4.7 nF working value is calibrated against the V3
-                    // NAM sustain sweep at the documented noon-tone setting.
-                    collector_capacitance_f: 4.7e-9,
-                    quiescent_collector_current_a: 45e-6,
-                    collector_load_ohms: Self::CLIPPING_STAGE_INPUT_LOAD_OHMS,
-                },
-            ),
-            q3: BjtCommonEmitterStage::new(
-                circuit_sample_rate,
-                BjtCommonEmitterParams {
-                    supply_voltage_v: 9.0,
-                    collector_resistance_ohms: 100_000.0,
-                    emitter_resistance_ohms: 390.0,
-                    emitter_bypass_capacitance_f: 1e-6,
-                    collector_capacitance_f: 4.7e-9,
-                    quiescent_collector_current_a: 45e-6,
-                    collector_load_ohms: 39_000.0,
-                },
-            ),
-            q4: BjtCommonEmitterStage::new(
-                circuit_sample_rate,
-                BjtCommonEmitterParams {
-                    supply_voltage_v: 9.0,
-                    collector_resistance_ohms: 39_000.0,
-                    emitter_resistance_ohms: 390.0,
-                    emitter_bypass_capacitance_f: 1e-6,
-                    collector_capacitance_f: 4.7e-9,
-                    quiescent_collector_current_a: 0.12e-3,
-                    collector_load_ohms: 250_000.0,
-                },
-            ),
-            q1_to_q2: OnePoleHighpass::new(circuit_sample_rate, 3.4),
-            q2_to_q3: OnePoleHighpass::new(circuit_sample_rate, 3.4),
-            q3_to_tone: OnePoleHighpass::new(circuit_sample_rate, 3.4),
-            tone_to_q4: OnePoleHighpass::new(circuit_sample_rate, 4.6),
-            output_coupling: OnePoleHighpass::new(circuit_sample_rate, 7.2),
-            diodes_a: SiliconDiodePair::one_n4148(),
-            diodes_b: SiliconDiodePair::one_n4148(),
+            input_coupling: OnePoleHighpass::new(circuit_sample_rate, 1.8),
+            q1: MuffinShuntFeedbackStage::v3_input_booster(circuit_sample_rate),
+            q2: MuffinFeedbackClippingStage::v3(circuit_sample_rate),
+            q3: MuffinFeedbackClippingStage::v3(circuit_sample_rate),
+            q4: MuffinShuntFeedbackStage::v3_recovery(circuit_sample_rate),
+            q1_to_sustain: OnePoleHighpass::new(circuit_sample_rate, 1.6),
+            sustain_to_q2: OnePoleHighpass::new(circuit_sample_rate, 60.0),
+            q2_to_q3: OnePoleHighpass::new(circuit_sample_rate, 14.5),
+            tone_to_q4: OnePoleHighpass::new(circuit_sample_rate, 15.9),
+            output_coupling: OnePoleHighpass::new(circuit_sample_rate, 15.9),
             tone_stack: MuffinToneStack::new(circuit_sample_rate),
+            active_wicker: false,
+            active_voicing: MuffinVoicing::V3,
         }
     }
 
@@ -144,9 +102,9 @@ impl Muffin {
         self.q2.reset();
         self.q3.reset();
         self.q4.reset();
-        self.q1_to_q2.reset();
+        self.q1_to_sustain.reset();
+        self.sustain_to_q2.reset();
         self.q2_to_q3.reset();
-        self.q3_to_tone.reset();
         self.tone_to_q4.reset();
         self.output_coupling.reset();
         self.tone_stack.reset();
@@ -185,44 +143,54 @@ impl Muffin {
         let sustain = controls.sustain.clamp(0.0, 1.0);
         let tone = controls.tone.clamp(0.0, 1.0);
         let level = controls.level.clamp(0.0, 1.0);
+        let wicker = controls.wicker >= 0.5;
+        let voicing = MuffinVoicing::from_control(controls.voicing);
 
+        let control_topology_changed =
+            wicker != self.active_wicker || voicing != self.active_voicing;
+        if wicker != self.active_wicker {
+            self.q1.set_wicker_enabled(wicker);
+            self.q2.set_wicker_enabled(wicker);
+            self.q3.set_wicker_enabled(wicker);
+            self.active_wicker = wicker;
+        }
+        if voicing != self.active_voicing {
+            self.tone_stack
+                .set_voicing(self.circuit_sample_rate, voicing);
+            self.active_voicing = voicing;
+        }
+        if control_topology_changed {
+            // Wicker and the voicing selector are topology changes. Their
+            // capacitor histories and nonlinear Newton seeds cannot be
+            // carried safely into the new circuit. A short reset avoids a
+            // latched invalid state after rapid UI switching.
+            self.reset();
+        }
+
+        // R1/C1/R2/R3/C2 are the V3 input path. Q1 owns the 39 kOhm source
+        // divider and its 470 kOhm / 470 pF collector-to-base feedback loop.
         let q1 = self.q1.process(self.input_coupling.process(loaded_input));
 
-        // The Sustain pot moves the shunt-feedback operating range of the two
-        // clipping stages. It is represented as the physical base drive made
-        // available through their 100 kOhm feedback networks, not an output
-        // waveshaper gain.
-        // This monotonic taper is constrained by the TONE3000 captures at
-        // 8 o'clock, noon, and full: retain usable clean drive at the bottom,
-        // hold the middle below the clipping plateau, then open fully near
-        // the clockwise stop.  The lift is zero at both stops, so it does not
-        // fabricate residual drive at Sustain = 0 or change the full setting.
-        let sustain_wiper = (sustain.powf(Self::SUSTAIN_TAPER_EXPONENT)
-            + Self::SUSTAIN_LOW_TRAVEL_LIFT * sustain * (1.0 - sustain).powi(2))
-        .clamp(0.0, 1.0);
-        let clipping_drive = Self::SUSTAIN_DRIVE_MIN
-            + sustain_wiper * (Self::SUSTAIN_DRIVE_MAX - Self::SUSTAIN_DRIVE_MIN);
-        let q2_open = self.q2.process(self.q1_to_q2.process(q1) * clipping_drive);
-        let q2 = self
-            .diodes_a
-            .process(q2_open, self.q2.collector_resistance_ohms());
-        let q3_open = self.q3.process(self.q2_to_q3.process(q2) * clipping_drive);
-        let q3 = self
-            .diodes_b
-            .process(q3_open, self.q3.collector_resistance_ohms());
+        // C3 feeds the physical 100 kOhm Sustain divider.  R6 retains the
+        // finite low-stop feed; there is no artificial gain floor or taper.
+        let sustain_wiper = Self::sustain_wiper(self.q1_to_sustain.process(q1), sustain);
+        let q2 = self.q2.process(self.sustain_to_q2.process(sustain_wiper));
+        let q3 = self.q3.process(self.q2_to_q3.process(q2));
 
-        let tone_input = self.q3_to_tone.process(q3);
-        let tone_output = self.tone_stack.process(
-            tone_input,
-            tone,
-            self.q3.collector_resistance_ohms(),
-            Self::RECOVERY_STAGE_INPUT_LOAD_OHMS,
-        );
+        // The single Tone Wicker control is deliberately a macro: it opens
+        // the three high-frequency filters and routes around the lossy tone
+        // stack. This is the useful one-control form of the EHX Tone Wicker
+        // behavior; Tone is intentionally inactive while it is engaged.
+        let tone_output = if wicker {
+            q3
+        } else {
+            self.tone_stack
+                .process(q3, tone, 10_000.0, Self::RECOVERY_STAGE_INPUT_LOAD_OHMS)
+        };
         let recovery = self.q4.process(self.tone_to_q4.process(tone_output));
 
-        // The level control is the 100 kOhm output pot after Q4. It attenuates
-        // the recovered voltage but does not alter clipping-stage bias.
-        let volume_taper = level.powf(1.35);
+        // V3 uses a linear 100 kOhm output pot after Q4.
+        let volume_taper = level;
         let output = self
             .output_coupling
             .process(recovery * volume_taper)
@@ -230,4 +198,16 @@ impl Muffin {
 
         output
     }
+
+    fn sustain_wiper(input_v: f32, sustain: f32) -> f32 {
+        let top = (1.0 - sustain) * Self::SUSTAIN_POTENTIOMETER_OHMS + 1.0;
+        let bottom =
+            sustain * Self::SUSTAIN_POTENTIOMETER_OHMS + Self::SUSTAIN_STOP_RESISTANCE_OHMS + 1.0;
+        let loaded_bottom = parallel(bottom, Self::SUSTAIN_WIPER_LOAD_OHMS);
+        input_v * loaded_bottom / (top + loaded_bottom)
+    }
+}
+
+fn parallel(a: f32, b: f32) -> f32 {
+    1.0 / (1.0 / a.max(1.0) + 1.0 / b.max(1.0))
 }

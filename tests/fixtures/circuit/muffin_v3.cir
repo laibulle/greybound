@@ -1,0 +1,138 @@
+* Big Muff Pi V3 (1976/77 red-and-black) ngspice reference fixture.
+*
+* Project-owned netlist derived from the published V3 stage topology and
+* component list; it is not a redistributed schematic.
+*
+* Primary topology/value reference:
+* - ElectroSmash, "Big Muff Pi Analysis" (American Version 3):
+*   https://www.electrosmash.com/big-muff-pi-analysis
+* Supporting redraw used only to disambiguate node connectivity:
+* - alberand, "BigMuff Pi fuzzbox", based on that analysis:
+*   https://cdn.hackaday.io/files/1787287646698752/schematics.pdf
+*
+* Scope:
+* - Effect path only; switching, LED, reverse-polarity protection, and supply
+*   decoupling are deliberately outside this audio-path fixture.
+* - The passive component values and topology are the V3 target.  The BC239
+*   model is a documented high-gain NPN approximation, not a claim about a
+*   particular 1970s transistor's measured parameters.
+* - SUSTAIN=0, 0.5, and 1 model the wiper at the low stop, middle, and high
+*   stop.  The 1 kOhm stop resistor is retained, so Sustain=0 is attenuated
+*   rather than disconnected.
+
+.param SUSTAIN=0
+.param TONE=0.5
+.param V9=9
+.param RSUS_TOP={max(100k*(1-SUSTAIN), 1)}
+.param RSUS_BOTTOM={max(100k*SUSTAIN, 1)}
+.param RTONE_HIGH={max(100k*(1-TONE), 1)}
+.param RTONE_LOW={max(100k*TONE, 1)}
+
+V9 vcc 0 DC {V9}
+VIN input 0 SIN(0 40m 1k)
+RSOURCE input input_rs 10k
+
+* Q1: input booster.  Collector-to-base resistor/capacitor shunt feedback
+* establishes its bias and Miller high-frequency roll-off.
+R1 input_rs q1_in 39k
+C1 q1_in q1_b 1u
+R2 q1_b 0 47k
+R3 q1_c q1_b 470k
+C2 q1_c q1_b 470p
+R4 vcc q1_c 10k
+R5 q1_e 0 100
+Q1 q1_c q1_b q1_e QBC239
+
+* Sustain divider.  At the low stop the 1 kOhm R6 keeps a small, finite feed
+* to Q2 instead of breaking the signal path.
+C3 q1_c sustain_top 1u
+RSUSTAIN_TOP sustain_top sustain_wiper {RSUS_TOP}
+RSUSTAIN_BOTTOM sustain_wiper sustain_bottom {RSUS_BOTTOM}
+R6 sustain_bottom 0 1k
+
+* Q2: first clipping amplifier.  The antiparallel pair belongs in the
+* collector-to-base feedback loop and is AC-isolated by C5; it is not a
+* shunt-to-ground clipper.
+C4 sustain_wiper q2_drive 100n
+R7 q2_drive q2_b 10k
+R8 q2_b 0 100k
+R9 q2_c q2_b 470k
+C5 q2_b q2_diode 1u
+D1 q2_diode q2_c D1N914
+D2 q2_c q2_diode D1N914
+C6 q2_c q2_b 470p
+R10 vcc q2_c 10k
+R11 q2_e 0 150
+Q2 q2_c q2_b q2_e QBC239
+
+* Q3: second clipping amplifier, same V3 feedback-clipping topology.
+C7 q2_c q3_drive 100n
+R12 q3_drive q3_b 10k
+R13 q3_b 0 100k
+R14 q3_c q3_b 470k
+C8 q3_b q3_diode 1u
+D3 q3_diode q3_c D1N914
+D4 q3_c q3_diode D1N914
+C9 q3_c q3_b 470p
+R15 vcc q3_c 10k
+R16 q3_e 0 150
+Q3 q3_c q3_b q3_e QBC239
+
+* Passive tone blend.  The wiper feeds Q4 through C12.
+C10 q3_c tone_high 3.9n
+R18 tone_high tone_top 22k
+R17 q3_c tone_low 39k
+C11 tone_low 0 10n
+RTONE_HIGH tone_top tone_wiper {RTONE_HIGH}
+RTONE_LOW tone_wiper tone_low {RTONE_LOW}
+C12 tone_wiper q4_b 100n
+
+* Q4: output recovery and volume control.
+R19 q4_c q4_b 470k
+R20 q4_b 0 100k
+R21 vcc q4_c 15k
+R22 q4_e 0 3.3k
+Q4 q4_c q4_b q4_e QBC239
+C13 q4_c volume_top 100n
+RVOLUME_TOP volume_top output 1
+RVOLUME_BOTTOM output 0 100k
+RLOAD output 0 1Meg
+
+* High-gain silicon NPN and 1N914 approximations.  The V3 original used
+* BC239 or equivalent NPN devices; exact hFE and capacitances vary by unit.
+.model QBC239 NPN(Is=1e-14 Bf=300 Vaf=100 Ikf=100m Cje=15p Cjc=5p Tf=500p Tr=50n)
+.model D1N914 D(Is=2.52n N=1.752 Rs=0.568 Cjo=4p M=0.333 Eg=1.11 Bv=100 Ibv=100u Tt=20n)
+
+.save v(input_rs) v(q1_b) v(q1_c) v(q1_e) v(sustain_wiper) v(q2_b) v(q2_c) v(q2_e) v(q3_b) v(q3_c) v(q3_e) v(tone_wiper) v(q4_b) v(q4_c) v(q4_e) v(output)
+
+.control
+set filetype=ascii
+
+* Low sustain: the expected control condition for a mild, non-clipped input.
+alterparam SUSTAIN = 0
+reset
+op
+print v(q1_b) v(q1_c) v(q1_e) v(sustain_wiper) v(q2_b) v(q2_c) v(q2_e) v(q3_b) v(q3_c) v(q3_e) v(q4_b) v(q4_c) v(q4_e)
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_v3_sustain_0.dat v(input_rs) v(q1_b) v(q1_c) v(sustain_wiper) v(q2_b) v(q2_c) v(q3_b) v(q3_c) v(tone_wiper) v(q4_b) v(q4_c) v(output)
+
+* Middle and full Sustain are retained as separate traces for the stage-by-
+* stage gain/clipping comparison.  DC points should remain unchanged because
+* all control coupling is capacitive.
+alterparam SUSTAIN = 0.5
+reset
+op
+print v(q1_b) v(q1_c) v(q1_e) v(sustain_wiper) v(q2_b) v(q2_c) v(q2_e) v(q3_b) v(q3_c) v(q3_e) v(q4_b) v(q4_c) v(q4_e)
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_v3_sustain_50.dat v(input_rs) v(q1_b) v(q1_c) v(sustain_wiper) v(q2_b) v(q2_c) v(q3_b) v(q3_c) v(tone_wiper) v(q4_b) v(q4_c) v(output)
+
+alterparam SUSTAIN = 1
+reset
+op
+print v(q1_b) v(q1_c) v(q1_e) v(sustain_wiper) v(q2_b) v(q2_c) v(q2_e) v(q3_b) v(q3_c) v(q3_e) v(q4_b) v(q4_c) v(q4_e)
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_v3_sustain_100.dat v(input_rs) v(q1_b) v(q1_c) v(sustain_wiper) v(q2_b) v(q2_c) v(q3_b) v(q3_c) v(tone_wiper) v(q4_b) v(q4_c) v(output)
+quit
+.endc
+
+.end

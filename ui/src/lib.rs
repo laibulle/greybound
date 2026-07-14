@@ -1516,6 +1516,28 @@ pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
         asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
     },
     RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Presence),
+        widget: RenderControlWidget::Pot,
+        label: "Tone Wicker",
+        anchor_x: 0.268,
+        anchor_y: 0.744,
+        radius: 22.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Cut),
+        widget: RenderControlWidget::Pot,
+        label: "Voice",
+        anchor_x: 0.732,
+        anchor_y: 0.744,
+        radius: 22.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+    },
+    RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Treble),
         widget: RenderControlWidget::Pot,
         label: "Tone",
@@ -3632,6 +3654,8 @@ impl GreyboundUi {
                     sustain: device.gain,
                     tone: device.treble,
                     level: device.master,
+                    wicker: device.presence,
+                    voicing: (device.cut * 2.0).round(),
                 })
             }
             CoreDeviceConfig::Minotaur => {
@@ -10311,8 +10335,10 @@ fn draw_pedal_controls(
         if control.widget != RenderControlWidget::Pot {
             continue;
         }
+        let extra_muffin_control_label = device.model == DeviceModel::Muffin
+            && matches!(kind, ControlKind::Presence | ControlKind::Cut);
         if control.asset.is_some() {
-            if draw_labels {
+            if draw_labels || extra_muffin_control_label {
                 let center = render_control_center(control, origin, size);
                 let label_color = match device.model {
                     DeviceModel::Lumen => Color::from_rgba(0.18, 0.16, 0.12, 0.86),
@@ -10334,7 +10360,11 @@ fn draw_pedal_controls(
             frame,
             render_control_center(control, origin, size),
             control.radius,
-            if draw_labels { control.label } else { "" },
+            if draw_labels || extra_muffin_control_label {
+                control.label
+            } else {
+                ""
+            },
             device.control_value(kind),
             control.skin,
         );
@@ -11980,6 +12010,34 @@ mod tests {
             CoreDeviceControls::Minotaur(_)
         ));
         assert!(!snapshot.devices[3].bypassed);
+    }
+
+    #[test]
+    fn muffin_ui_controls_route_wicker_and_voice_to_the_runtime() {
+        let mut ui = GreyboundUi::default();
+        let muffin = ui
+            .devices
+            .iter_mut()
+            .find(|device| device.model == DeviceModel::Muffin)
+            .expect("Free profile must contain Muffin");
+        muffin.presence = 1.0;
+        muffin.cut = 1.0;
+
+        let snapshot = ui.runtime_audio_snapshot();
+        let controls = snapshot.devices[1].controls;
+        let CoreDeviceControls::Muffin(controls) = controls else {
+            panic!("second Free slot must be Muffin");
+        };
+        assert_eq!(controls.wicker, 1.0);
+        assert_eq!(controls.voicing, 2.0);
+        assert!(MUFFIN_PEDAL_CONTROLS.iter().any(|control| {
+            control.role == RenderControlRole::Parameter(ControlKind::Presence)
+                && control.label == "Tone Wicker"
+        }));
+        assert!(MUFFIN_PEDAL_CONTROLS.iter().any(|control| {
+            control.role == RenderControlRole::Parameter(ControlKind::Cut)
+                && control.label == "Voice"
+        }));
     }
 
     #[test]
