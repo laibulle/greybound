@@ -231,6 +231,11 @@ impl OnePoleLowpass {
         self.state = 0.0;
     }
 
+    pub(super) fn set_cutoff(&mut self, sample_rate: f32, cutoff_hz: f32) {
+        self.coefficient =
+            (1.0 - (-std::f32::consts::TAU * cutoff_hz / sample_rate).exp()).clamp(0.0, 1.0);
+    }
+
     pub(super) fn process(&mut self, input: f32) -> f32 {
         self.state += self.coefficient * (input - self.state);
         self.state
@@ -250,6 +255,10 @@ impl OnePoleHighpass {
 
     pub(super) fn reset(&mut self) {
         self.lowpass.reset();
+    }
+
+    pub(super) fn set_cutoff(&mut self, sample_rate: f32, cutoff_hz: f32) {
+        self.lowpass.set_cutoff(sample_rate, cutoff_hz);
     }
 
     pub(super) fn process(&mut self, input: f32) -> f32 {

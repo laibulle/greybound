@@ -3655,7 +3655,7 @@ impl GreyboundUi {
                     tone: device.treble,
                     level: device.master,
                     wicker: device.presence,
-                    voicing: (device.cut * 2.0).round(),
+                    voicing: (device.cut * 3.0).round(),
                 })
             }
             CoreDeviceConfig::Minotaur => {
@@ -12029,7 +12029,7 @@ mod tests {
             panic!("second Free slot must be Muffin");
         };
         assert_eq!(controls.wicker, 1.0);
-        assert_eq!(controls.voicing, 2.0);
+        assert_eq!(controls.voicing, 3.0);
         assert!(MUFFIN_PEDAL_CONTROLS.iter().any(|control| {
             control.role == RenderControlRole::Parameter(ControlKind::Presence)
                 && control.label == "Tone Wicker"

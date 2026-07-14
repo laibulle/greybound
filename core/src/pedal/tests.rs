@@ -122,6 +122,7 @@ fn muffin_wicker_and_voicing_controls_change_the_component_response() {
     let mut wicker = Muffin::new(48_000.0);
     let mut rams_head = Muffin::new(48_000.0);
     let mut green_russian = Muffin::new(48_000.0);
+    let mut triangle = Muffin::new(48_000.0);
     let base = MuffinControls {
         sustain: 0.78,
         tone: 0.50,
@@ -132,6 +133,7 @@ fn muffin_wicker_and_voicing_controls_change_the_component_response() {
     let mut wicker_difference = 0.0;
     let mut rams_head_difference = 0.0;
     let mut green_russian_difference = 0.0;
+    let mut triangle_difference = 0.0;
 
     for sample_idx in 0..12_000 {
         // High enough to exercise the lifted 470 pF filters, while remaining
@@ -162,11 +164,19 @@ fn muffin_wicker_and_voicing_controls_change_the_component_response() {
                 ..base
             },
         );
+        let triangle_output = triangle.process(
+            ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+            MuffinControls {
+                voicing: 3.0,
+                ..base
+            },
+        );
         if sample_idx >= 6_000 {
             wicker_difference += (wicker_output.voltage - standard_output.voltage).abs();
             rams_head_difference += (rams_head_output.voltage - standard_output.voltage).abs();
             green_russian_difference +=
                 (green_russian_output.voltage - standard_output.voltage).abs();
+            triangle_difference += (triangle_output.voltage - standard_output.voltage).abs();
         }
     }
 
@@ -181,6 +191,10 @@ fn muffin_wicker_and_voicing_controls_change_the_component_response() {
     assert!(
         green_russian_difference > 0.1,
         "Green Russian difference={green_russian_difference}"
+    );
+    assert!(
+        triangle_difference > 0.1,
+        "Triangle difference={triangle_difference}"
     );
 }
 
@@ -271,6 +285,43 @@ fn muffin_tone_wicker_bypasses_tone_control() {
     assert!(
         difference < 1.0e-5,
         "Tone affected Tone Wicker: {difference}"
+    );
+}
+
+#[test]
+fn muffin_voice_switch_keeps_a_continuous_output_state() {
+    let mut pedal = Muffin::new(48_000.0);
+    let mut previous_output = 0.0;
+    let mut switch_delta = 0.0;
+    let mut normal_delta = 0.0_f32;
+
+    for sample_idx in 0..18_000 {
+        let input = (std::f32::consts::TAU * 330.0 * sample_idx as f32 / 48_000.0).sin() * 0.05;
+        let controls = MuffinControls {
+            sustain: 0.80,
+            tone: 0.50,
+            level: 0.50,
+            wicker: 0.0,
+            voicing: if sample_idx < 9_000 { 0.0 } else { 1.0 },
+        };
+        let output = pedal
+            .process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                controls,
+            )
+            .voltage;
+        let delta = (output - previous_output).abs();
+        if sample_idx == 9_000 {
+            switch_delta = delta;
+        } else if sample_idx > 1_000 && sample_idx != 9_001 {
+            normal_delta = normal_delta.max(delta);
+        }
+        previous_output = output;
+    }
+
+    assert!(
+        switch_delta <= normal_delta * 2.0,
+        "Voice switch stepped too far: switch={switch_delta}, normal={normal_delta}"
     );
 }
 

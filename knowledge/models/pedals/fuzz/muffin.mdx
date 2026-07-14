@@ -42,9 +42,17 @@ documented 39 kOhm V3 path and its output boundary remains 25 kOhm.
   collector-to-base high-frequency filters (Q1, Q2, and Q3) and bypasses the
   passive tone stack. The normal Tone pot is intentionally inactive while it
   is engaged.
-- `voicing`: `V3` (default), `Ram's Head`, or `Green Russian`. This selects
-  documented passive tone-stack values only, not a full clone of every
-  transistor, diode, bias, and production-era difference.
+- `voicing`: `V3` (default), `Ram's Head`, `Green Russian`, or `Triangle`.
+  This selects
+  the passive tone stack plus representative per-stage transistor gain, bias,
+  and emitter behavior. It remains a voicing model, not a full clone of every
+  transistor, diode, and production-era unit.
+
+The four selected circuit families are simulated with the same stimulus in
+`tests/fixtures/circuit/muffin_voices.cir`. The component deltas and ngspice
+results are recorded in
+`lab/experiments/010-muffin-four-voice-spice-comparison.md`; this is the
+acceptance reference for variant work, rather than subjective parameter tweaks.
 - `bypass`: routing state; active circuit state should remain private to the pedal instance.
 
 ## 2026-07-13 Greybound Free Promotion

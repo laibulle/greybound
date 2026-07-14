@@ -34,6 +34,13 @@ approximation.  Component values and connectivity are the fixture target;
 absolute operating points require a measured transistor or a model fitted to
 the particular unit.
 
+`muffin_voices.cir` is the four-profile comparison fixture for V3, Violet
+Ram's Head, Tall Font Green Russian, and Triangle. It applies the same input,
+Sustain, Tone, and volume conditions to each circuit, writing transient and
+AC sweep data under `/tmp/greybound_muffin_voice_*`. See
+`lab/experiments/010-muffin-four-voice-spice-comparison.md` for the selected
+schematic families, component deltas, and measured ngspice table.
+
 Current ngspice DC operating point:
 
 - plate: 250.54 V

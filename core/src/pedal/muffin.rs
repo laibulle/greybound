@@ -12,7 +12,7 @@ pub struct MuffinControls {
     pub level: f32,
     /// Tone Wicker macro: lifts C2/C6/C9 and bypasses the passive tone stack.
     pub wicker: f32,
-    /// 0 = V3, 1 = Ram's Head, 2 = Green Russian.
+    /// 0 = V3, 1 = Ram's Head, 2 = Green Russian, 3 = Triangle.
     pub voicing: f32,
 }
 
@@ -37,6 +37,7 @@ impl Default for MuffinControls {
 /// values vary between units; the constants below are the documented V3 set.
 pub struct Muffin {
     circuit_sample_rate: f32,
+    input_impedance_ohms: f32,
     input_connection: ConnectionState,
     upsampler: FirFilter,
     downsampler: FirFilter,
@@ -74,6 +75,7 @@ impl Muffin {
         // physical low-frequency recovery.
         Self {
             circuit_sample_rate,
+            input_impedance_ohms: Self::INPUT_IMPEDANCE_OHMS,
             input_connection: ConnectionState::new(sample_rate, 470e-12),
             upsampler: FirFilter::new(half_band_coefficients()),
             downsampler: FirFilter::new(half_band_coefficients()),
@@ -117,7 +119,7 @@ impl Muffin {
     ) -> ElectricalSignal {
         let loaded_input = self
             .input_connection
-            .drive_load(input, Load::new(Self::INPUT_IMPEDANCE_OHMS));
+            .drive_load(input, Load::new(self.input_impedance_ohms));
         self.process_loaded_voltage(loaded_input, controls)
     }
 
@@ -146,8 +148,7 @@ impl Muffin {
         let wicker = controls.wicker >= 0.5;
         let voicing = MuffinVoicing::from_control(controls.voicing);
 
-        let control_topology_changed =
-            wicker != self.active_wicker || voicing != self.active_voicing;
+        let wicker_topology_changed = wicker != self.active_wicker;
         if wicker != self.active_wicker {
             self.q1.set_wicker_enabled(wicker);
             self.q2.set_wicker_enabled(wicker);
@@ -157,13 +158,13 @@ impl Muffin {
         if voicing != self.active_voicing {
             self.tone_stack
                 .set_voicing(self.circuit_sample_rate, voicing);
+            self.apply_transistor_voicing(voicing);
             self.active_voicing = voicing;
         }
-        if control_topology_changed {
-            // Wicker and the voicing selector are topology changes. Their
-            // capacitor histories and nonlinear Newton seeds cannot be
-            // carried safely into the new circuit. A short reset avoids a
-            // latched invalid state after rapid UI switching.
+        if wicker_topology_changed {
+            // Wicker changes the feedback topology. Voice only retunes live
+            // component values and must not reset the whole circuit, which
+            // was the source of its audible switch click.
             self.reset();
         }
 
@@ -205,6 +206,105 @@ impl Muffin {
             sustain * Self::SUSTAIN_POTENTIOMETER_OHMS + Self::SUSTAIN_STOP_RESISTANCE_OHMS + 1.0;
         let loaded_bottom = parallel(bottom, Self::SUSTAIN_WIPER_LOAD_OHMS);
         input_v * loaded_bottom / (top + loaded_bottom)
+    }
+
+    fn apply_transistor_voicing(&mut self, voicing: MuffinVoicing) {
+        // Each voice changes the actual stage networks, not only hFE. Values
+        // are a named schematic-family target and remain hypotheses until a
+        // particular vintage unit is traced or measured.
+        let sr = self.circuit_sample_rate;
+        match voicing {
+            MuffinVoicing::V3 => {
+                self.input_impedance_ohms = 39_000.0;
+                self.q1.set_component_profile(
+                    sr, 39_000.0, 47_000.0, 470_000.0, 10_000.0, 100.0, 0.187e-3, 300.0, 470e-12,
+                );
+                self.q2.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 10_000.0, 150.0, 0.438e-3, 300.0, 1e-6,
+                    470e-12,
+                );
+                self.q3.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 10_000.0, 150.0, 0.438e-3, 300.0, 1e-6,
+                    470e-12,
+                );
+                self.q4.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 15_000.0, 3_300.0, 0.164e-3, 300.0, 0.0,
+                );
+                self.set_coupling_corners(1.8, 1.6, 60.0, 14.5, 15.9, 15.9);
+            }
+            MuffinVoicing::RamsHead => {
+                self.input_impedance_ohms = 39_000.0;
+                self.q1.set_component_profile(
+                    sr, 39_000.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.190e-3, 420.0, 470e-12,
+                );
+                self.q2.set_component_profile(
+                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 420.0, 100e-9,
+                    470e-12,
+                );
+                self.q3.set_component_profile(
+                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 420.0, 100e-9,
+                    470e-12,
+                );
+                self.q4.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 390_000.0, 10_000.0, 2_200.0, 0.180e-3, 420.0, 0.0,
+                );
+                self.set_coupling_corners(18.0, 16.0, 60.0, 14.5, 15.9, 15.9);
+            }
+            MuffinVoicing::GreenRussian => {
+                self.input_impedance_ohms = 39_000.0;
+                self.q1.set_component_profile(
+                    sr, 39_000.0, 100_000.0, 470_000.0, 12_000.0, 390.0, 0.160e-3, 230.0, 470e-12,
+                );
+                self.q2.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 12_000.0, 390.0, 0.330e-3, 230.0, 47e-9,
+                    560e-12,
+                );
+                self.q3.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 12_000.0, 390.0, 0.330e-3, 230.0, 47e-9,
+                    560e-12,
+                );
+                self.q4.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 470_000.0, 10_000.0, 2_000.0, 0.130e-3, 230.0, 0.0,
+                );
+                self.set_coupling_corners(18.0, 16.0, 60.0, 14.5, 15.9, 15.9);
+            }
+            MuffinVoicing::Triangle => {
+                self.input_impedance_ohms = 33_000.0;
+                self.q1.set_component_profile(
+                    sr, 33_000.0, 82_000.0, 390_000.0, 12_000.0, 100.0, 0.175e-3, 260.0, 560e-12,
+                );
+                self.q2.set_component_profile(
+                    sr, 8_200.0, 82_000.0, 390_000.0, 12_000.0, 100.0, 0.400e-3, 260.0, 50e-9,
+                    560e-12,
+                );
+                self.q3.set_component_profile(
+                    sr, 8_200.0, 82_000.0, 390_000.0, 12_000.0, 100.0, 0.400e-3, 260.0, 50e-9,
+                    560e-12,
+                );
+                self.q4.set_component_profile(
+                    sr, 10_000.0, 100_000.0, 390_000.0, 12_000.0, 2_700.0, 0.155e-3, 260.0, 0.0,
+                );
+                self.set_coupling_corners(18.0, 16.0, 60.0, 14.5, 15.9, 15.9);
+            }
+        }
+    }
+
+    fn set_coupling_corners(
+        &mut self,
+        input_hz: f32,
+        sustain_hz: f32,
+        q2_hz: f32,
+        q3_hz: f32,
+        recovery_hz: f32,
+        output_hz: f32,
+    ) {
+        let sr = self.circuit_sample_rate;
+        self.input_coupling.set_cutoff(sr, input_hz);
+        self.q1_to_sustain.set_cutoff(sr, sustain_hz);
+        self.sustain_to_q2.set_cutoff(sr, q2_hz);
+        self.q2_to_q3.set_cutoff(sr, q3_hz);
+        self.tone_to_q4.set_cutoff(sr, recovery_hz);
+        self.output_coupling.set_cutoff(sr, output_hz);
     }
 }
 

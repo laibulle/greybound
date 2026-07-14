@@ -19,13 +19,15 @@ pub enum MuffinVoicing {
     V3,
     RamsHead,
     GreenRussian,
+    Triangle,
 }
 
 impl MuffinVoicing {
     pub fn from_control(value: f32) -> Self {
-        match value.round().clamp(0.0, 2.0) as u8 {
+        match value.round().clamp(0.0, 3.0) as u8 {
             1 => Self::RamsHead,
             2 => Self::GreenRussian,
+            3 => Self::Triangle,
             _ => Self::V3,
         }
     }
@@ -35,6 +37,7 @@ impl MuffinVoicing {
             Self::V3 => 0.0,
             Self::RamsHead => 1.0,
             Self::GreenRussian => 2.0,
+            Self::Triangle => 3.0,
         }
     }
 }
@@ -207,8 +210,10 @@ pub struct MuffinFeedbackClippingStage {
     collector_resistance_ohms: f32,
     emitter_resistance_ohms: f32,
     quiescent_collector_current_a: f32,
+    current_gain: f32,
     diode_capacitor: TrapezoidalCapacitor,
     miller_capacitor: TrapezoidalCapacitor,
+    wicker_enabled: bool,
     base_v: f32,
     collector_v: f32,
     emitter_v: f32,
@@ -226,12 +231,14 @@ impl MuffinFeedbackClippingStage {
             collector_resistance_ohms: 10_000.0,
             emitter_resistance_ohms: 150.0,
             quiescent_collector_current_a: 0.438e-3,
+            current_gain: BJT_CURRENT_GAIN,
             // C5/C8 connect the base to a separate diode node, not directly
             // to the collector. Retaining that node is essential to the
             // feedback loop's smooth release.
             diode_capacitor: TrapezoidalCapacitor::new(sample_rate, 1e-6),
             // C6/C9 are literal collector-to-base Miller capacitors.
             miller_capacitor: TrapezoidalCapacitor::new(sample_rate, 470e-12),
+            wicker_enabled: false,
             base_v: 0.0,
             collector_v: 0.0,
             emitter_v: 0.0,
@@ -252,6 +259,7 @@ impl MuffinFeedbackClippingStage {
     /// feedback capacitors on all three fuzz stages. The diode feedback path
     /// remains active.
     pub fn set_wicker_enabled(&mut self, enabled: bool) {
+        self.wicker_enabled = enabled;
         self.miller_capacitor.set_wicker_lifted(enabled);
         // This is a hard component switch, not a continuously varying
         // capacitance. Discard the prior Newton seed rather than starting the
@@ -260,6 +268,47 @@ impl MuffinFeedbackClippingStage {
         self.collector_v = 0.0;
         self.emitter_v = 0.0;
         self.diode_v = 0.0;
+    }
+
+    pub fn set_transistor_profile(
+        &mut self,
+        current_gain: f32,
+        quiescent_collector_current_a: f32,
+        emitter_resistance_ohms: f32,
+    ) {
+        self.current_gain = current_gain.max(20.0);
+        self.quiescent_collector_current_a = quiescent_collector_current_a.max(1.0e-6);
+        self.emitter_resistance_ohms = emitter_resistance_ohms.max(10.0);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_component_profile(
+        &mut self,
+        sample_rate: f32,
+        input_series_resistance_ohms: f32,
+        base_resistance_ohms: f32,
+        feedback_resistance_ohms: f32,
+        collector_resistance_ohms: f32,
+        emitter_resistance_ohms: f32,
+        quiescent_collector_current_a: f32,
+        current_gain: f32,
+        diode_capacitance_f: f32,
+        miller_capacitance_f: f32,
+    ) {
+        self.input_series_resistance_ohms = input_series_resistance_ohms.max(100.0);
+        self.base_resistance_ohms = base_resistance_ohms.max(1_000.0);
+        self.feedback_resistance_ohms = feedback_resistance_ohms.max(10_000.0);
+        self.collector_resistance_ohms = collector_resistance_ohms.max(1_000.0);
+        self.set_transistor_profile(
+            current_gain,
+            quiescent_collector_current_a,
+            emitter_resistance_ohms,
+        );
+        self.diode_capacitor
+            .set_capacitance(sample_rate, diode_capacitance_f);
+        self.miller_capacitor
+            .set_capacitance(sample_rate, miller_capacitance_f);
+        self.miller_capacitor.set_wicker_lifted(self.wicker_enabled);
     }
 
     /// Drive the physical 10 kOhm base input and return the collector AC
@@ -338,14 +387,14 @@ impl MuffinFeedbackClippingStage {
                 + (base_v - collector_v) / self.feedback_resistance_ohms
                 - miller_current
                 + diode_capacitor_current
-                + collector_current / BJT_CURRENT_GAIN,
+                + collector_current / self.current_gain,
             collector_v / self.collector_resistance_ohms
                 + (collector_v - base_v) / self.feedback_resistance_ohms
                 + miller_current
                 - diode_current
                 + collector_current,
             emitter_v / self.emitter_resistance_ohms
-                - collector_current * (1.0 + 1.0 / BJT_CURRENT_GAIN),
+                - collector_current * (1.0 + 1.0 / self.current_gain),
             diode_current - diode_capacitor_current,
         ]
     }
@@ -374,7 +423,9 @@ pub struct MuffinShuntFeedbackStage {
     collector_resistance_ohms: f32,
     emitter_resistance_ohms: f32,
     quiescent_collector_current_a: f32,
+    current_gain: f32,
     miller_capacitor: TrapezoidalCapacitor,
+    wicker_enabled: bool,
     base_v: f32,
     collector_v: f32,
     emitter_v: f32,
@@ -424,7 +475,9 @@ impl MuffinShuntFeedbackStage {
             collector_resistance_ohms,
             emitter_resistance_ohms,
             quiescent_collector_current_a,
+            current_gain: BJT_CURRENT_GAIN,
             miller_capacitor: TrapezoidalCapacitor::new(sample_rate, miller_capacitance_f),
+            wicker_enabled: false,
             base_v: 0.0,
             collector_v: 0.0,
             emitter_v: 0.0,
@@ -439,10 +492,49 @@ impl MuffinShuntFeedbackStage {
     }
 
     pub fn set_wicker_enabled(&mut self, enabled: bool) {
+        self.wicker_enabled = enabled;
         self.miller_capacitor.set_wicker_lifted(enabled);
         self.base_v = 0.0;
         self.collector_v = 0.0;
         self.emitter_v = 0.0;
+    }
+
+    pub fn set_transistor_profile(
+        &mut self,
+        current_gain: f32,
+        quiescent_collector_current_a: f32,
+        emitter_resistance_ohms: f32,
+    ) {
+        self.current_gain = current_gain.max(20.0);
+        self.quiescent_collector_current_a = quiescent_collector_current_a.max(1.0e-6);
+        self.emitter_resistance_ohms = emitter_resistance_ohms.max(10.0);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_component_profile(
+        &mut self,
+        sample_rate: f32,
+        input_series_resistance_ohms: f32,
+        base_resistance_ohms: f32,
+        feedback_resistance_ohms: f32,
+        collector_resistance_ohms: f32,
+        emitter_resistance_ohms: f32,
+        quiescent_collector_current_a: f32,
+        current_gain: f32,
+        miller_capacitance_f: f32,
+    ) {
+        self.input_series_resistance_ohms = input_series_resistance_ohms.max(100.0);
+        self.base_resistance_ohms = base_resistance_ohms.max(1_000.0);
+        self.feedback_resistance_ohms = feedback_resistance_ohms.max(10_000.0);
+        self.collector_resistance_ohms = collector_resistance_ohms.max(1_000.0);
+        self.set_transistor_profile(
+            current_gain,
+            quiescent_collector_current_a,
+            emitter_resistance_ohms,
+        );
+        self.miller_capacitor
+            .set_capacitance(sample_rate, miller_capacitance_f);
+        self.miller_capacitor.set_wicker_lifted(self.wicker_enabled);
     }
 
     pub fn process(&mut self, source_v: f32) -> f32 {
@@ -506,13 +598,13 @@ impl MuffinShuntFeedbackStage {
                 + base_v / self.base_resistance_ohms
                 + (base_v - collector_v) / self.feedback_resistance_ohms
                 - miller_current
-                + collector_current / BJT_CURRENT_GAIN,
+                + collector_current / self.current_gain,
             collector_v / self.collector_resistance_ohms
                 + (collector_v - base_v) / self.feedback_resistance_ohms
                 + miller_current
                 + collector_current,
             emitter_v / self.emitter_resistance_ohms
-                - collector_current * (1.0 + 1.0 / BJT_CURRENT_GAIN),
+                - collector_current * (1.0 + 1.0 / self.current_gain),
         ]
     }
 
@@ -643,12 +735,15 @@ impl MuffinToneStack {
             match voicing {
                 // 1976/77 V3 target.
                 MuffinVoicing::V3 => (39_000.0, 10e-9, 22_000.0, 3.9e-9),
-                // V2 Ram's Head family: 33 kOhm low-path resistor and a 4 nF
-                // high-path capacitor retain more midrange around noon.
-                MuffinVoicing::RamsHead => (33_000.0, 10e-9, 22_000.0, 4e-9),
+                // Violet Ram's Head family: 33 kOhm resistors in both tone
+                // branches and the 3.9 nF high-path capacitor.
+                MuffinVoicing::RamsHead => (33_000.0, 10e-9, 33_000.0, 3.9e-9),
                 // Green Russian: the 20 kOhm low-branch resistor shifts the
                 // scoop for the heavier, smoother Russian voice.
                 MuffinVoicing::GreenRussian => (20_000.0, 10e-9, 22_000.0, 3.9e-9),
+                // Early Triangle family: less scooped 33 kOhm / 10 nF low
+                // path and 33 kOhm / 4 nF high path.
+                MuffinVoicing::Triangle => (33_000.0, 10e-9, 33_000.0, 4e-9),
             };
         if self.low_resistance_ohms == low_resistance_ohms
             && self.high_resistance_ohms == high_resistance_ohms
@@ -765,11 +860,18 @@ impl TrapezoidalCapacitor {
     }
 
     fn set_capacitance(&mut self, sample_rate: f32, capacitance_f: f32) {
+        let previous_conductance = self.conductance;
         self.sample_rate = sample_rate;
         self.capacitance_f = capacitance_f.max(0.0);
         self.nominal_conductance = 2.0 * sample_rate * self.capacitance_f;
         self.conductance = self.nominal_conductance;
-        self.reset();
+        // Preserve the equivalent capacitor voltage across a voice switch
+        // rather than dumping the companion state and creating a click.
+        if previous_conductance > 0.0 {
+            self.history_current *= self.conductance / previous_conductance;
+        } else {
+            self.reset();
+        }
     }
 
     fn current(&self, voltage_v: f32) -> f32 {

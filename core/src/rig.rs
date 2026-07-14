@@ -312,7 +312,7 @@ impl RigDeviceControls {
             tone: self.tone.clamp(0.0, 1.0),
             level: self.level.clamp(0.0, 1.0),
             wicker: self.wicker.clamp(0.0, 1.0),
-            voicing: self.voicing.round().clamp(0.0, 2.0),
+            voicing: self.voicing.round().clamp(0.0, 3.0),
         }
     }
 

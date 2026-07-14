@@ -2090,6 +2090,7 @@ fn device_control_value(controls: DeviceControls, id: &str) -> ControlValue {
             "voicing" => ControlValue::Text(match controls.voicing.round() as i32 {
                 1 => "ram's head",
                 2 => "green russian",
+                3 => "triangle",
                 _ => "v3",
             }),
             _ => ControlValue::Missing,

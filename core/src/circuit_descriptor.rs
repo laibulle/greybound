@@ -2012,7 +2012,7 @@ const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
     CircuitControlBinding {
         control_id: "voicing",
         node_id: "tone_stack",
-        role: "Selects V3, Ram's Head, or Green Russian passive tone-stack values.",
+        role: "Selects V3, Ram's Head, Green Russian, or Triangle tone-stack and representative transistor operating profiles.",
     },
     CircuitControlBinding {
         control_id: "wicker",
@@ -2028,7 +2028,7 @@ const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
 ];
 
 const MUFFIN_NOTES: &[&str] = &[
-    "The V3 setting is the 1976/77 red-and-black Big Muff Pi topology target. Ram's Head and Green Russian settings change the passive tone-stack values only; they are voicings, not full revision clones.",
+    "The V3 setting is the 1976/77 red-and-black Big Muff Pi topology target. Ram's Head, Green Russian, and Triangle settings combine passive tone-stack values with representative transistor gain, bias, and emitter profiles; they are voicings, not full revision clones.",
     "The runtime solves incremental BJT behavior around fixed DC operating points, so it is circuit-informed rather than a full 9 V DC MNA netlist.",
     "The diode pairs are solved in AC-isolated Q2/Q3 feedback loops; the passive tone stack is an explicit bounded component solve. Compare stage traces against the matching V3 SPICE fixture before claiming component-exact accuracy.",
 ];

@@ -155,10 +155,10 @@ const MUFFIN_CONTROLS: &[ControlDescriptor] = &[
     },
     ControlDescriptor {
         id: "voicing",
-        label: "voice V3/RH/RU",
+        label: "voice V3/RH/RU/TR",
         kind: ControlKind::Switch,
         min: 0.0,
-        max: 2.0,
+        max: 3.0,
         display_scale: 1.0,
         step: 1.0,
         large_step: 1.0,

@@ -1,0 +1,19 @@
+{
+  // Triangle voicing on the shared four-BJT circuit; prior voice indices stay stable.
+  name: "muffin-triangle-reference",
+  chain: { cable_capacitance_pf: 470 },
+  pre_amp: [{
+    id: "muffin-fuzz",
+    device: "muffin",
+    bypassed: false,
+    controls: {
+      sustain: 1.0,
+      tone: 0.50,
+      level: 0.47,
+      wicker: 0.0,
+      voicing: 3.0,
+    },
+  }],
+  amp: { model: "nox30", bypassed: true },
+  cab: { ir: "lab/references/tone3000-irs/celestion.wav", bypassed: true },
+}

@@ -1,0 +1,137 @@
+* Four Big Muff transistor-voice ngspice comparison fixture.
+*
+* Targets: V3 (1976/77), Violet Ram's Head, Tall Font Green Russian, and
+* Triangle.  One documented schematic family is chosen for each voice; this
+* is deliberately not an average of all production units.
+*
+* Measurements are identical for every voice: 40 mVpk / 1 kHz input through
+* 10 kOhm source, Sustain=1, Tone=noon, Volume=open.  Each pass writes a
+* settled transient and an AC sweep to /tmp/greybound_muffin_voice_*.
+
+.param V9=9 SUSTAIN=1 TONE=0.5
+.param RSUS_TOP={max(100k*(1-SUSTAIN),1)} RSUS_BOTTOM={max(100k*SUSTAIN,1)}
+.param RTONE_HIGH={max(100k*(1-TONE),1)} RTONE_LOW={max(100k*TONE,1)}
+
+* Default: V3.
+.param RIN=39k RB1=47k RF1=470k RC1=10k RE1=100 CFB1=470p
+.param RIN2=10k RB2=100k RF2=470k RC2=10k RE2=150 CD2=1u CFB2=470p
+.param RIN3=10k RB3=100k RF3=470k RC3=10k RE3=150 CD3=1u CFB3=470p
+.param RFB4=470k RC4=15k RE4=3.3k RLP=39k RHP=22k CHP=3.9n CLP=10n
+.param CIN=1u CSUS=1u CDRIVE=100n CINTER=100n COUT=100n
+
+V9 vcc 0 DC {V9}
+VIN input 0 DC 0 AC 1 SIN(0 40m 1k)
+RSOURCE input input_rs 10k
+
+R1 input_rs q1_in {RIN}
+C1 q1_in q1_b {CIN}
+R2 q1_b 0 {RB1}
+R3 q1_c q1_b {RF1}
+C2 q1_c q1_b {CFB1}
+R4 vcc q1_c {RC1}
+R5 q1_e 0 {RE1}
+Q1 q1_c q1_b q1_e QVOICE
+
+C3 q1_c sustain_top {CSUS}
+RSUSTAIN_TOP sustain_top sustain_wiper {RSUS_TOP}
+RSUSTAIN_BOTTOM sustain_wiper sustain_bottom {RSUS_BOTTOM}
+R6 sustain_bottom 0 1k
+
+C4 sustain_wiper q2_drive {CDRIVE}
+R7 q2_drive q2_b {RIN2}
+R8 q2_b 0 {RB2}
+R9 q2_c q2_b {RF2}
+C5 q2_b q2_diode {CD2}
+D1 q2_diode q2_c D1N914
+D2 q2_c q2_diode D1N914
+C6 q2_c q2_b {CFB2}
+R10 vcc q2_c {RC2}
+R11 q2_e 0 {RE2}
+Q2 q2_c q2_b q2_e QVOICE
+
+C7 q2_c q3_drive {CINTER}
+R12 q3_drive q3_b {RIN3}
+R13 q3_b 0 {RB3}
+R14 q3_c q3_b {RF3}
+C8 q3_b q3_diode {CD3}
+D3 q3_diode q3_c D1N914
+D4 q3_c q3_diode D1N914
+C9 q3_c q3_b {CFB3}
+R15 vcc q3_c {RC3}
+R16 q3_e 0 {RE3}
+Q3 q3_c q3_b q3_e QVOICE
+
+C10 q3_c tone_high {CHP}
+R18 tone_high tone_top {RHP}
+R17 q3_c tone_low {RLP}
+C11 tone_low 0 {CLP}
+RTONE_HIGH tone_top tone_wiper {RTONE_HIGH}
+RTONE_LOW tone_wiper tone_low {RTONE_LOW}
+C12 tone_wiper q4_b 100n
+
+R19 q4_c q4_b {RFB4}
+R20 q4_b 0 100k
+R21 vcc q4_c {RC4}
+R22 q4_e 0 {RE4}
+Q4 q4_c q4_b q4_e QVOICE
+C13 q4_c volume_top {COUT}
+RVOLUME_TOP volume_top output 1
+RVOLUME_BOTTOM output 0 100k
+RLOAD output 0 1Meg
+
+.model QVOICE NPN(Is=1e-14 Bf=300 Vaf=100 Ikf=100m Cje=15p Cjc=5p Tf=500p Tr=50n)
+.model D1N914 D(Is=2.52n N=1.752 Rs=0.568 Cjo=4p M=0.333 Eg=1.11 Bv=100 Ibv=100u Tt=20n)
+
+.control
+set filetype=ascii
+
+* V3 1976/77, matching muffin_v3.cir.
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_v3_tran.dat v(output)
+ac dec 60 40 12000
+wrdata /tmp/greybound_muffin_voice_v3_ac.dat v(output)
+
+* Violet Ram's Head: 15k clip collectors, 8.2k stage feeds, 100n diode
+* branch capacitors, 33k/33k tone stack and 2.2k recovery emitter.
+alterparam RB1=100k RC1=15k
+alterparam RIN2=8.2k RC2=15k RE2=100 CD2=100n
+alterparam RIN3=8.2k RC3=15k RE3=100 CD3=100n
+alterparam RFB4=390k RC4=10k RE4=2.2k RLP=33k RHP=33k
+alterparam CIN=100n CSUS=100n
+altermod QVOICE bf=420
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_rams_head_tran.dat v(output)
+ac dec 60 40 12000
+wrdata /tmp/greybound_muffin_voice_rams_head_ac.dat v(output)
+
+* Tall Font Green Russian: 12k / 390 Ohm clipping stages, 47n diode caps,
+* 560 pF feedback, 20k/22k tone stack and 2k recovery emitter.
+alterparam RC1=12k RE1=390
+alterparam RIN2=10k RC2=12k RE2=390 CD2=47n CFB2=560p
+alterparam RIN3=10k RC3=12k RE3=390 CD3=47n CFB3=560p
+alterparam RFB4=470k RC4=10k RE4=2k RLP=20k RHP=22k
+altermod QVOICE bf=230
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_green_russian_tran.dat v(output)
+ac dec 60 40 12000
+wrdata /tmp/greybound_muffin_voice_green_russian_ac.dat v(output)
+
+* Triangle: 33k input, 82k base networks, 390k feedback, 12k collectors,
+* 560 pF feedback, 50n diode branches, and 2.7k recovery emitter.
+alterparam RIN=33k RB1=82k RF1=390k RC1=12k RE1=100 CFB1=560p
+alterparam RIN2=8.2k RB2=82k RF2=390k RC2=12k RE2=100 CD2=50n CFB2=560p
+alterparam RIN3=8.2k RB3=82k RF3=390k RC3=12k RE3=100 CD3=50n CFB3=560p
+alterparam RFB4=390k RC4=12k RE4=2.7k RLP=33k RHP=33k
+altermod QVOICE bf=260
+reset
+tran 1u 120m 0 1u
+wrdata /tmp/greybound_muffin_voice_triangle_tran.dat v(output)
+ac dec 60 40 12000
+wrdata /tmp/greybound_muffin_voice_triangle_ac.dat v(output)
+quit
+.endc
+
+.end
