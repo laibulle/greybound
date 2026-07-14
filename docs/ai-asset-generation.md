@@ -15,6 +15,34 @@ Do not regenerate a working asset only to satisfy the new ratio. Keep Minotaur a
 
 Attach `docs/templates/pedal-standard-1200x2172.svg` as the layout reference and the closest existing Greybound render as the style reference. The SVG is only a construction guide; its colored lines and placeholder text must not appear in the final image.
 
+### Shared pedal geometry
+
+The template standardizes the mechanical silhouette only; it deliberately does
+not prescribe a knob grid. New pedal designs use:
+
+- canvas: `1200 x 2172 px`, transparent;
+- file boundary: the solid grey outline in the template is the exact PNG edge
+  at `x=0..1200`, `y=0..2172`; use it to judge the final filled area, but do
+  not render it into the asset;
+- enclosure body: `x=72`, `y=72`, `1056 x 2028 px`, outer corner radius
+  `72 px`, with a uniform `24 px` visible bevel. Its inside edge is
+  `x=96`, `y=96`, `1008 x 1980 px`, corner radius `48 px`;
+- side I/O jack placeholders: identical `72 x 136 px` rectangles, fully
+  outside the front-face boundary. Input occupies `x=0..72`, output
+  `x=1128..1200`, both centred at `y=1086`; no part may extend onto the front
+  face;
+- I/O labels: `IN` has a start-aligned baseline at `(120, 1096)` and `OUT` an
+  end-aligned baseline at `(1080, 1096)`; both sit inside the enclosure and
+  align vertically with their jack; use a `44 px` source font size;
+- footswitch placement: the small unlabelled cross at `(600, 1780)` marks its
+  centre only; it is a guide and must not be rendered into the final asset;
+- control-label baseline: centred horizontally on its control anchor and placed
+  `177 px` below it.
+
+Controls themselves remain model-specific: their number, anchor positions,
+sizes, and arrangement are free. The label rule is an offset convention, not a
+requirement to draw labels into a faceplate that uses `DrawnByUi` typography.
+
 ```text
 Create a single photorealistic boutique guitar pedal faceplate as a transparent-background PNG.
 
@@ -22,9 +50,14 @@ Canvas and layout:
 - exact canvas: 1200 x 2172 pixels
 - straight-on orthographic product render, no perspective tilt
 - centered vertical pedal enclosure, rounded corners, realistic bevels
+- use a uniform 24 px enclosure bevel; the outer corner radius is 72 px and
+  the bevel's inside edge has a 48 px radius
 - no external background, no floor, no cast shadow outside the transparent canvas
 - body must fill the safe body area without touching the canvas edges
 - preserve circular hardware proportions; do not stretch the footswitch, jacks, LED bezel, or knob holes
+- use the shared pedal geometry from the attached template: side I/O jacks use
+  the fixed rectangles and the small footswitch cross marks its centre, while
+  controls may be arranged freely
 
 Visual quality:
 - same high-end photorealistic quality as the Greybound Minotaur and Springfield renders
