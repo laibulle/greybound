@@ -1,5 +1,5 @@
 {
-  // Ram's Head passive-tone-stack voicing on the shared four-BJT circuit.
+  // 1974 Violet Ram's Head voicing on the shared four-BJT circuit.
   name: "muffin-rams-head-reference",
   chain: { cable_capacitance_pf: 470 },
   pre_amp: [{
@@ -9,7 +9,7 @@
     controls: {
       sustain: 1.0,
       tone: 0.50,
-      level: 0.47,
+      level: 0.32,
       wicker: 0.0,
       voicing: 1.0,
     },

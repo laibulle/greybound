@@ -737,9 +737,10 @@ impl MuffinToneStack {
             match voicing {
                 // 1976/77 V3 target.
                 MuffinVoicing::V3 => (39_000.0, 10e-9, 22_000.0, 3.9e-9),
-                // Violet Ram's Head family: 33 kOhm resistors in both tone
-                // branches and the 3.9 nF high-path capacitor.
-                MuffinVoicing::RamsHead => (33_000.0, 10e-9, 33_000.0, 3.9e-9),
+                // 1974 V2 Violet Ram's Head: 39 kOhm branches, 10 nF low
+                // path, and 3.9 nF high path. This is a named V2 circuit
+                // target, not an arbitrary midrange modification of the V3.
+                MuffinVoicing::RamsHead => (39_000.0, 10e-9, 39_000.0, 3.9e-9),
                 // Green Russian: the 20 kOhm low-branch resistor shifts the
                 // scoop for the heavier, smoother Russian voice.
                 MuffinVoicing::GreenRussian => (20_000.0, 10e-9, 22_000.0, 3.9e-9),

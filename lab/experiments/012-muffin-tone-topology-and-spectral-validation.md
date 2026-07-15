@@ -23,13 +23,13 @@ Common conditions: 1 kHz, Sustain full, Tone noon, Volume full, Wicker off,
 | Profile | Stimulus | Input | Q1 C | Sustain | Q2 C | Q3 C | Tone | Q4 C | Output |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | V3 | 40 mVpk | -0.33 | +1.88 | +1.90 | +0.65 | +0.19 | +0.12 | -0.27 | -0.27 |
-| Ram's Head | 40 mVpk | -0.26 | +1.63 | +2.02 | +0.69 | +0.10 | +0.51 | -0.66 | -0.66 |
-| Green Russian | 40 mVpk | -0.50 | +1.43 | +1.66 | +1.02 | +0.32 | -0.01 | -1.41 | -1.42 |
-| Triangle | 40 mVpk | -0.30 | +1.04 | +1.43 | +0.60 | +0.01 | +0.34 | -0.68 | -0.68 |
+| Ram's Head | 40 mVpk | -0.26 | +1.41 | +1.79 | +0.65 | +0.09 | +0.69 | -0.56 | -0.55 |
+| Green Russian | 40 mVpk | -0.46 | +1.91 | +2.15 | +1.14 | +0.35 | +0.02 | -1.39 | -1.40 |
+| Triangle | 40 mVpk | -0.30 | +1.04 | +1.43 | +0.60 | +0.01 | +0.29 | -0.72 | -0.72 |
 | V3 | 200 mVpk | -0.36 | +2.23 | +2.25 | +0.42 | +0.16 | +0.09 | -0.30 | -0.35 |
-| Ram's Head | 200 mVpk | -0.28 | +1.77 | +2.20 | +0.61 | -0.16 | +0.27 | -0.92 | -0.92 |
-| Green Russian | 200 mVpk | -0.53 | +1.79 | +2.08 | +0.86 | -0.12 | -0.44 | -1.87 | -1.88 |
-| Triangle | 200 mVpk | -0.32 | +1.12 | +1.56 | +0.70 | -0.39 | -0.01 | -1.04 | -1.10 |
+| Ram's Head | 200 mVpk | -0.28 | +1.55 | +1.98 | +0.57 | -0.17 | +0.46 | -0.82 | -0.80 |
+| Green Russian | 200 mVpk | -0.49 | +2.26 | +2.55 | +0.95 | -0.13 | -0.45 | -1.89 | -1.89 |
+| Triangle | 200 mVpk | -0.32 | +1.12 | +1.56 | +0.70 | -0.39 | -0.05 | -1.08 | -1.14 |
 
 The first-stage errors remain a bias-model limitation. More importantly, the
 nonlinear clipping boundary (Q3) is within 0.4 dB for all eight checks.
@@ -51,15 +51,15 @@ are Rust minus SPICE RMS in dB at Q3 / Tone wiper / output:
 | Profile | 3 kHz | 6 kHz |
 | --- | --- | --- |
 | V3 | +0.23 / -0.42 / -0.86 | +0.36 / -0.34 / -0.84 |
-| Ram's Head | +0.30 / +0.01 / -1.28 | +0.34 / +0.01 / -1.29 |
-| Green Russian | +0.47 / -1.15 / -2.44 | +0.82 / -1.00 / -2.28 |
-| Triangle | +0.15 / -0.26 / -1.23 | +0.28 / -0.21 / -1.28 |
+| Ram's Head | +0.29 / +0.34 / -1.04 | +0.30 / +0.32 / -1.03 |
+| Green Russian | +0.60 / -1.03 / -2.32 | +1.36 / -0.46 / -1.74 |
+| Triangle | +0.15 / -0.27 / -1.24 | +0.28 / -0.22 / -1.28 |
 
 This rules out the former wiring error across the presence band. The residual
-high-frequency slope, most visible in the Green Russian, comes from treating
-Q3 as a finite 10 kOhm Thevenin source rather than a fully coupled nonlinear
-collector/load solve. It reaches -2.44 dB at the Green Russian 3 kHz output
-and is kept explicit rather than hidden by a voice-specific EQ correction.
+high-frequency slope comes from treating Q3 as a finite 10 kOhm Thevenin
+source rather than a fully coupled nonlinear collector/load solve. It reaches
+-2.32 dB at the Green Russian 3 kHz output; it is kept explicit rather than
+hidden by a voice-specific EQ correction.
 
 ### V3 harmonic projection, 40 mVpk
 
@@ -139,7 +139,7 @@ matching hardware/NAM capture for the other three units.
 
 | Voice | Guitar-band LSD vs V3 | Maximum balance delta | Dominant result |
 | --- | ---: | ---: | --- |
-| Ram's Head | 7.76 dB | 1.63 dB | different clipping/dynamics with a close overall EQ |
+| Ram's Head | 7.74 dB | 1.58 dB | distinct clipping/dynamics with a close overall EQ |
 | Green Russian | 14.26 dB | 10.31 dB | substantially darker presence/air response |
 | Triangle | 9.19 dB | 4.24 dB | darker mid/presence response and greater transient level |
 

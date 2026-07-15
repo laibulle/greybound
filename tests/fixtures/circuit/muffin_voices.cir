@@ -130,27 +130,42 @@ reset
 tran 1u 120m 0 1u
 wrdata /tmp/greybound_muffin_voice_v3_hot_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
 
-* Violet Ram's Head: 15k clip collectors, 8.2k stage feeds, 100n diode
-* branch capacitors, 33k/33k tone stack and 2.2k recovery emitter.
+* 1974 V2 Violet Ram's Head, 470p filter version: 15k clipping collectors,
+* 8.2k stage feeds, 100n diode branches, 39k/39k tone stack, 2.2k recovery.
 alterparam VINPK=40m
+alterparam RIN=39k
 alterparam RB1=100k
+alterparam RF1=470k
 alterparam RC1=15k
+alterparam RE1=100
 alterparam RIN2=8.2k
+alterparam RB2=100k
+alterparam RF2=470k
 alterparam RC2=15k
 alterparam RE2=100
 alterparam CD2=100n
 alterparam RIN3=8.2k
+alterparam RB3=100k
+alterparam RF3=470k
 alterparam RC3=15k
 alterparam RE3=100
 alterparam CD3=100n
 alterparam RFB4=390k
 alterparam RC4=10k
 alterparam RE4=2.2k
-alterparam RLP=33k
-alterparam RHP=33k
+alterparam RLP=39k
+alterparam RHP=39k
+alterparam CHP=3.9n
+alterparam CLP=10n
+alterparam CFB1=470p
+alterparam CFB2=470p
+alterparam CFB3=470p
 alterparam CIN=100n
 alterparam CSUS=100n
-altermod QVOICE bf=420
+alterparam CDRIVE=100n
+alterparam CINTER=100n
+alterparam COUT=100n
+altermod QVOICE bf=220
 reset
 tran 1u 120m 0 1u
 wrdata /tmp/greybound_muffin_voice_rams_head_tran.dat v(input_rs) v(q1_c) v(sustain_wiper) v(q2_c) v(q3_c) v(tone_wiper) v(q4_c) v(output)
@@ -174,14 +189,22 @@ wrdata /tmp/greybound_muffin_voice_rams_head_hot_tran.dat v(input_rs) v(q1_c) v(
 * 560 pF feedback, 20k/22k tone stack and 2k recovery emitter.
 alterparam FREQ=1k
 alterparam VINPK=40m
+alterparam RIN=39k
+alterparam RB1=100k
+alterparam RF1=470k
 alterparam RC1=12k
 alterparam RE1=390
+alterparam CFB1=560p
 alterparam RIN2=10k
+alterparam RB2=100k
+alterparam RF2=470k
 alterparam RC2=12k
 alterparam RE2=390
 alterparam CD2=47n
 alterparam CFB2=560p
 alterparam RIN3=10k
+alterparam RB3=100k
+alterparam RF3=470k
 alterparam RC3=12k
 alterparam RE3=390
 alterparam CD3=47n
@@ -191,6 +214,13 @@ alterparam RC4=10k
 alterparam RE4=2k
 alterparam RLP=20k
 alterparam RHP=22k
+alterparam CHP=3.9n
+alterparam CLP=10n
+alterparam CIN=100n
+alterparam CSUS=100n
+alterparam CDRIVE=100n
+alterparam CINTER=100n
+alterparam COUT=100n
 altermod QVOICE bf=230
 reset
 tran 1u 120m 0 1u
@@ -240,6 +270,13 @@ alterparam RC4=12k
 alterparam RE4=2.7k
 alterparam RLP=33k
 alterparam RHP=33k
+alterparam CHP=4n
+alterparam CLP=10n
+alterparam CIN=100n
+alterparam CSUS=100n
+alterparam CDRIVE=100n
+alterparam CINTER=100n
+alterparam COUT=100n
 altermod QVOICE bf=260
 reset
 tran 1u 120m 0 1u

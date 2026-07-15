@@ -23,7 +23,7 @@ AC sweep per profile under `/tmp/greybound_muffin_voice_*`.
 | Voice | Selected target | Material differences represented in the fixture/runtime |
 | --- | --- | --- |
 | V3 | 1976/77 red-and-black | 10 k / 150 Ohm clipping stages, 1 uF diode-feedback branches, 470 pF feedback, 39 k / 22 k tone resistors, 15 k / 3.3 k recovery. |
-| Ram's Head | 1973 Violet V2 | 15 k / 100 Ohm clipping stages, 8.2 k drive resistors, 100 nF diode-feedback branches, 33 k / 33 k tone resistors, 10 k / 2.2 k recovery. |
+| Ram's Head | 1974 V2 Violet | 15 k / 100 Ohm clipping stages, 8.2 k drive resistors, 100 nF diode-feedback branches, 470 pF filters, 39 k / 39 k tone resistors, and 10 k / 2.2 k recovery. |
 | Green Russian | Tall Font V7C | 12 k / 390 Ohm clipping stages, 47 nF diode-feedback branches, 560 pF feedback, 20 k / 22 k tone resistors, 10 k / 2 k recovery. |
 | Triangle | early V1 family | 33 k input, 82 k base networks, 390 k feedback, 12 k / 100 Ohm clipping stages, 50 nF diode-feedback branches, 560 pF feedback, 12 k / 2.7 k recovery. |
 
@@ -39,6 +39,14 @@ Sources used to select the families:
 - [Triangle component list](https://www.freestompboxes.org/museum/gaussmarkov.net/layouts/bigmuffpitri/bigmuffpitri-project.pdf)
 - [Russian/variant component comparison](https://www.kitrae.net/music/big_muff_guts.html)
 
+The Ram's Head profile is explicitly the 1974 V2 Violet 470 pF filter variant,
+rather than a mixture of V2 revisions. Its nominal `hFE = 220` represents a
+lower-gain early-V2 silicon target; the 15 k clipping collectors, 8.2 k drives,
+100 nF diode branches, 39 k / 39 k tone stack, and 2.2 k recovery emitter are
+implemented in both Rust and SPICE. This is a component-network correction,
+not an output-EQ offset, and remains a family target rather than a claim about
+an unavailable individual vintage unit.
+
 ## Initial ngspice result
 
 Settled time-domain output at the common 1 kHz, full-Sustain test:
@@ -46,21 +54,22 @@ Settled time-domain output at the common 1 kHz, full-Sustain test:
 | Voice | RMS | Peak-to-peak |
 | --- | ---: | ---: |
 | V3 | 0.403 V | 0.911 V |
-| Ram's Head | 0.398 V | 0.892 V |
-| Green Russian | 0.405 V | 0.915 V |
-| Triangle | 0.399 V | 0.895 V |
+| Ram's Head | 0.406 V | 1.063 V |
+| Green Russian | 0.562 V | 1.487 V |
+| Triangle | 0.445 V | 1.261 V |
 
-This intentionally shows why a single 1 kHz, fully clipped test is inadequate:
-the output limiter/diode loops converge to similar amplitudes.
+This still shows why a single 1 kHz, fully clipped test is inadequate: output
+amplitude separates some voices, but it cannot distinguish the passive tone
+network, nonlinear dynamics, and transistor/bias effects that created it.
 
 The small-signal AC sweep at noon does separate the circuit transfer curves:
 
 | Voice | 100 Hz | 1 kHz | 3 kHz | 6 kHz | 10 kHz |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | V3 | 60.42 dB | 56.56 dB | 41.48 dB | 26.80 dB | 14.71 dB |
-| Ram's Head | 62.37 dB | 59.10 dB | 44.02 dB | 29.67 dB | 17.76 dB |
-| Green Russian | 62.23 dB | 58.03 dB | 42.11 dB | 27.15 dB | 14.98 dB |
-| Triangle | 63.54 dB | 60.23 dB | 45.13 dB | 30.79 dB | 18.89 dB |
+| Ram's Head | 62.73 dB | 61.53 dB | 44.50 dB | 29.35 dB | 17.15 dB |
+| Green Russian | 55.11 dB | 51.75 dB | 35.55 dB | 21.26 dB | 9.50 dB |
+| Triangle | 59.19 dB | 59.23 dB | 41.82 dB | 26.39 dB | 14.07 dB |
 
 These values are simulation outputs from the fixture, not hardware claims.
 They set the required direction for the Rust runtime: the profiles must remain

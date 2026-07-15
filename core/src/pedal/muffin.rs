@@ -12,7 +12,7 @@ pub struct MuffinControls {
     pub level: f32,
     /// Tone Wicker macro: lifts C2/C6/C9 and bypasses the passive tone stack.
     pub wicker: f32,
-    /// 0 = V3, 1 = Ram's Head, 2 = Green Russian, 3 = Triangle.
+    /// 0 = V3, 1 = 1974 Violet Ram's Head, 2 = Green Russian, 3 = Triangle.
     pub voicing: f32,
 }
 
@@ -310,20 +310,21 @@ impl Muffin {
                 self.set_coupling_corners(1.8, 1.6, 60.0, 14.5, 15.9, 15.9);
             }
             MuffinVoicing::RamsHead => {
+                // 1974 V2 Violet Ram's Head, 470 pF filter version.
                 self.input_impedance_ohms = 39_000.0;
                 self.q1.set_component_profile(
-                    sr, 39_000.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.190e-3, 420.0, 470e-12,
+                    sr, 39_000.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.190e-3, 220.0, 470e-12,
                 );
                 self.q2.set_component_profile(
-                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 420.0, 100e-9,
+                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 220.0, 100e-9,
                     470e-12,
                 );
                 self.q3.set_component_profile(
-                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 420.0, 100e-9,
+                    sr, 8_200.0, 100_000.0, 470_000.0, 15_000.0, 100.0, 0.430e-3, 220.0, 100e-9,
                     470e-12,
                 );
                 self.q4.set_component_profile(
-                    sr, 10_000.0, 100_000.0, 390_000.0, 10_000.0, 2_200.0, 0.180e-3, 420.0, 0.0,
+                    sr, 10_000.0, 100_000.0, 390_000.0, 10_000.0, 2_200.0, 0.180e-3, 220.0, 0.0,
                 );
                 self.set_coupling_corners(18.0, 16.0, 60.0, 14.5, 15.9, 15.9);
             }
