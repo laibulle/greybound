@@ -965,6 +965,20 @@ pub const MUFFIN_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSp
     rotation: None,
 };
 
+const MUFFIN_SLIDE_RAIL_ASSET: RenderAssetSpec = RenderAssetSpec {
+    path: "assets/controls/switches/muffin-slide-rail@2x.png",
+    format: RenderAssetFormat::PngRgba,
+    pixel_width: 128,
+    pixel_height: 384,
+};
+
+const MUFFIN_SLIDE_CAP_ASSET: RenderAssetSpec = RenderAssetSpec {
+    path: "assets/controls/switches/muffin-slide-cap@2x.png",
+    format: RenderAssetFormat::PngRgba,
+    pixel_width: 256,
+    pixel_height: 96,
+};
+
 pub const SPRINGFIELD_STAINLESS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
     image: RenderAssetSpec {
         path: "assets/controls/knobs/springfield-stainless@2x.png",
@@ -1517,25 +1531,25 @@ pub const MUFFIN_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Presence),
-        widget: RenderControlWidget::Pot,
+        widget: RenderControlWidget::Slider,
         label: "Tone Wicker",
         anchor_x: 0.268,
         anchor_y: 0.744,
-        radius: 22.0,
+        radius: 28.0,
         hit_radius: 42.0,
         skin: KnobSkin::AsatoBlack,
-        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+        asset: None,
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Cut),
-        widget: RenderControlWidget::Pot,
+        widget: RenderControlWidget::Slider,
         label: "Voice",
         anchor_x: 0.732,
         anchor_y: 0.744,
-        radius: 22.0,
+        radius: 28.0,
         hit_radius: 42.0,
         skin: KnobSkin::AsatoBlack,
-        asset: Some(MUFFIN_BLACK_BRASS_KNOB_ASSET),
+        asset: None,
     },
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Treble),
@@ -3299,6 +3313,17 @@ impl GreyboundUi {
                 value,
             } => {
                 if let Some(device) = self.devices.get_mut(index) {
+                    let value = match (device.model, control) {
+                        (DeviceModel::Muffin, ControlKind::Presence) => {
+                            if value >= 0.5 {
+                                1.0
+                            } else {
+                                0.0
+                            }
+                        }
+                        (DeviceModel::Muffin, ControlKind::Cut) => (value * 3.0).round() / 3.0,
+                        _ => value,
+                    };
                     device.set_control(control, value);
                     self.selected_index = index;
                     self.view_mode = view_mode_for_device_kind(device.kind);
@@ -5053,6 +5078,25 @@ fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, boun
         let render_spec = device_render_spec(art.app_profile, slot.device.model);
 
         for control in render_spec.controls {
+            if slot.device.model == DeviceModel::Muffin
+                && control.widget == RenderControlWidget::Slider
+                && matches!(
+                    control.role,
+                    RenderControlRole::Parameter(ControlKind::Presence | ControlKind::Cut)
+                )
+            {
+                let RenderControlRole::Parameter(kind) = control.role else {
+                    unreachable!("Muffin selector must be a parameter");
+                };
+                draw_muffin_selector_assets(
+                    renderer,
+                    art.scale,
+                    render_control_center(control, origin, pedal_size),
+                    kind,
+                    slot.device.control_value(kind),
+                );
+                continue;
+            }
             let Some(asset) = control.asset else {
                 continue;
             };
@@ -5074,6 +5118,51 @@ fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, boun
             advanced_image::Renderer::draw(renderer, handle, image_bounds);
         }
     }
+}
+
+fn draw_muffin_selector_assets(
+    renderer: &mut iced::Renderer,
+    scale: f32,
+    center: Point,
+    kind: ControlKind,
+    value: f32,
+) {
+    const TRACK_WIDTH: f32 = 20.0;
+    const TRACK_HEIGHT: f32 = 60.0;
+    const CAP_WIDTH: f32 = 36.0;
+    const CAP_HEIGHT: f32 = 14.0;
+
+    let Some(rail) = render_asset_handle(MUFFIN_SLIDE_RAIL_ASSET) else {
+        return;
+    };
+    let Some(cap) = render_asset_handle(MUFFIN_SLIDE_CAP_ASSET) else {
+        return;
+    };
+
+    let top = center.y - TRACK_HEIGHT * 0.5;
+    advanced_image::Renderer::draw(
+        renderer,
+        rail,
+        Rectangle {
+            x: (center.x - TRACK_WIDTH * 0.5) * scale,
+            y: top * scale,
+            width: TRACK_WIDTH * scale,
+            height: TRACK_HEIGHT * scale,
+        },
+    );
+
+    let value = muffin_selector_value(kind, value);
+    let cap_center_y = top + 8.0 + (1.0 - value) * (TRACK_HEIGHT - 16.0);
+    advanced_image::Renderer::draw(
+        renderer,
+        cap,
+        Rectangle {
+            x: (center.x - CAP_WIDTH * 0.5) * scale,
+            y: (cap_center_y - CAP_HEIGHT * 0.5) * scale,
+            width: CAP_WIDTH * scale,
+            height: CAP_HEIGHT * scale,
+        },
+    );
 }
 
 fn draw_board_background(renderer: &iced::Renderer, art: &BoardArt, bounds: Size) -> Geometry {
@@ -6000,6 +6089,16 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
             512,
             512
         ),
+        "assets/controls/switches/muffin-slide-rail@2x.png" => decoded_handle!(
+            "../assets/controls/switches/muffin-slide-rail@2x.png",
+            128,
+            384
+        ),
+        "assets/controls/switches/muffin-slide-cap@2x.png" => decoded_handle!(
+            "../assets/controls/switches/muffin-slide-cap@2x.png",
+            256,
+            96
+        ),
         "assets/controls/leds/lumen-jewel-off@2x.png" => {
             decoded_handle!("../assets/controls/leds/lumen-jewel-off@2x.png", 256, 256)
         }
@@ -6492,12 +6591,22 @@ impl canvas::Program<Message> for BoardArt {
                         unscale_size(bounds.size(), self.scale),
                         position,
                     ) {
+                        let board_size = unscale_size(bounds.size(), self.scale);
                         let start_value = self
                             .devices
                             .iter()
                             .find(|slot| slot.source_index == index)
                             .map(|slot| slot.device.control_value(control))
                             .unwrap_or(0.0);
+                        let start_value = muffin_selector_value_at(
+                            self.app_profile,
+                            &self.devices,
+                            board_size,
+                            index,
+                            control,
+                            position,
+                        )
+                        .unwrap_or(start_value);
                         state.gesture = Some(DragGesture {
                             index: Some(index),
                             control,
@@ -6552,13 +6661,23 @@ impl canvas::Program<Message> for BoardArt {
                 let Some(index) = gesture.index else {
                     return (canvas::event::Status::Ignored, None);
                 };
+                let board_size = unscale_size(bounds.size(), self.scale);
+                let value = muffin_selector_value_at(
+                    self.app_profile,
+                    &self.devices,
+                    board_size,
+                    index,
+                    gesture.control,
+                    position,
+                )
+                .unwrap_or_else(|| dragged_value(gesture, position));
 
                 return (
                     canvas::event::Status::Captured,
                     Some(Message::SetDeviceControl {
                         index,
                         control: gesture.control,
-                        value: dragged_value(gesture, position),
+                        value,
                     }),
                 );
             }
@@ -7507,6 +7626,50 @@ fn pedal_knob_centers(
             RenderControlRole::Bypass => None,
         })
         .collect()
+}
+
+fn muffin_selector_value_at(
+    app_profile: AppProfile,
+    devices: &[BoardDeviceSlot],
+    size: Size,
+    source_index: usize,
+    control: ControlKind,
+    position: Point,
+) -> Option<f32> {
+    if !matches!(control, ControlKind::Presence | ControlKind::Cut) {
+        return None;
+    }
+
+    let visible_index = devices
+        .iter()
+        .position(|slot| slot.source_index == source_index)?;
+    let device = &devices[visible_index].device;
+    if device.model != DeviceModel::Muffin {
+        return None;
+    }
+
+    let layout = board_layout(devices.len(), size);
+    let origin = Point::new(
+        layout.start_x + visible_index as f32 * (layout.pedal_w + layout.gap),
+        pedal_board_y(size, layout.pedal_h),
+    );
+    let pedal_size = Size::new(layout.pedal_w, layout.pedal_h);
+    let selector = device_render_spec(app_profile, device.model)
+        .controls
+        .iter()
+        .find(|spec| spec.role == RenderControlRole::Parameter(control))?;
+    let center = render_control_center(selector, origin, pedal_size);
+
+    Some(muffin_selector_value_from_y(control, center.y, position.y))
+}
+
+fn muffin_selector_value_from_y(kind: ControlKind, center_y: f32, pointer_y: f32) -> f32 {
+    const TRACK_HEIGHT: f32 = 60.0;
+    const CAP_TRAVEL_INSET: f32 = 8.0;
+    let top = center_y - TRACK_HEIGHT * 0.5;
+    let normalized =
+        1.0 - ((pointer_y - (top + CAP_TRAVEL_INSET)) / (TRACK_HEIGHT - CAP_TRAVEL_INSET * 2.0));
+    muffin_selector_value(kind, normalized.clamp(0.0, 1.0))
 }
 
 fn hit_test_amp_knob(
@@ -10332,11 +10495,23 @@ fn draw_pedal_controls(
         let RenderControlRole::Parameter(kind) = control.role else {
             continue;
         };
+        let extra_muffin_control_label = device.model == DeviceModel::Muffin
+            && matches!(kind, ControlKind::Presence | ControlKind::Cut);
+        if control.widget == RenderControlWidget::Slider {
+            if device.model == DeviceModel::Muffin {
+                draw_muffin_vertical_selector(
+                    frame,
+                    render_control_center(control, origin, size),
+                    control.label,
+                    kind,
+                    device.control_value(kind),
+                );
+            }
+            continue;
+        }
         if control.widget != RenderControlWidget::Pot {
             continue;
         }
-        let extra_muffin_control_label = device.model == DeviceModel::Muffin
-            && matches!(kind, ControlKind::Presence | ControlKind::Cut);
         if control.asset.is_some() {
             if draw_labels || extra_muffin_control_label {
                 let center = render_control_center(control, origin, size);
@@ -10368,6 +10543,143 @@ fn draw_pedal_controls(
             device.control_value(kind),
             control.skin,
         );
+    }
+}
+
+fn draw_muffin_vertical_selector(
+    frame: &mut Frame,
+    center: Point,
+    label: &str,
+    kind: ControlKind,
+    value: f32,
+) {
+    const TRACK_HEIGHT: f32 = 58.0;
+    const TRACK_WIDTH: f32 = 16.0;
+    const CAP_WIDTH: f32 = 29.0;
+    const CAP_HEIGHT: f32 = 12.0;
+
+    let top = center.y - TRACK_HEIGHT * 0.5;
+    if !render_assets_enabled() {
+        let left = center.x - TRACK_WIDTH * 0.5;
+        let track = rounded_rect(
+            Point::new(left, top),
+            Size::new(TRACK_WIDTH, TRACK_HEIGHT),
+            4.0,
+        );
+        frame.fill(&track, Color::from_rgba(0.025, 0.023, 0.024, 0.92));
+        frame.stroke(
+            &track,
+            Stroke::default()
+                .with_color(Color::from_rgba(0.87, 0.68, 0.46, 0.48))
+                .with_width(1.2),
+        );
+
+        let channel = rounded_rect(
+            Point::new(center.x - 3.0, top + 4.0),
+            Size::new(6.0, TRACK_HEIGHT - 8.0),
+            2.5,
+        );
+        frame.fill(&channel, Color::from_rgba(0.0, 0.0, 0.0, 0.78));
+
+        let steps = if kind == ControlKind::Cut { 4 } else { 2 };
+        for step in 0..steps {
+            let y = top + 7.0 + step as f32 * (TRACK_HEIGHT - 14.0) / (steps - 1) as f32;
+            frame.stroke(
+                &Path::line(Point::new(left - 5.0, y), Point::new(left - 1.0, y)),
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.93, 0.76, 0.52, 0.72))
+                    .with_width(1.2),
+            );
+        }
+
+        let value = muffin_selector_value(kind, value);
+        let cap_center_y = top + 7.0 + (1.0 - value) * (TRACK_HEIGHT - 14.0);
+        let cap = rounded_rect(
+            Point::new(center.x - CAP_WIDTH * 0.5, cap_center_y - CAP_HEIGHT * 0.5),
+            Size::new(CAP_WIDTH, CAP_HEIGHT),
+            3.0,
+        );
+        frame.fill(&cap, Color::from_rgb(0.72, 0.55, 0.36));
+        frame.stroke(
+            &cap,
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 0.90, 0.73, 0.82))
+                .with_width(1.0),
+        );
+        frame.stroke(
+            &Path::line(
+                Point::new(center.x - CAP_WIDTH * 0.30, cap_center_y - 2.2),
+                Point::new(center.x + CAP_WIDTH * 0.30, cap_center_y - 2.2),
+            ),
+            Stroke::default()
+                .with_color(Color::from_rgba(1.0, 0.95, 0.84, 0.42))
+                .with_width(1.0),
+        );
+    }
+
+    let label_color = Color::from_rgba(0.93, 0.86, 0.75, 0.92);
+    // These labels sit in the narrow space above the footswitch; keep the
+    // longer Wicker name compact without changing the pedal's wording.
+    let label_size = if kind == ControlKind::Presence {
+        7.5
+    } else {
+        8.0
+    };
+    draw_text(
+        frame,
+        label,
+        Point::new(center.x, top + TRACK_HEIGHT + 10.0),
+        label_size,
+        label_color,
+        Horizontal::Center,
+    );
+    match kind {
+        ControlKind::Presence => {
+            draw_text(
+                frame,
+                "ON",
+                Point::new(center.x - 25.0, top + 7.0),
+                8.0,
+                label_color,
+                Horizontal::Right,
+            );
+            draw_text(
+                frame,
+                "OFF",
+                Point::new(center.x - 25.0, top + TRACK_HEIGHT - 4.0),
+                8.0,
+                label_color,
+                Horizontal::Right,
+            );
+        }
+        ControlKind::Cut => {
+            for (index, text) in ["TR", "RU", "RH", "V3"].iter().enumerate() {
+                let y = top + 7.0 + index as f32 * (TRACK_HEIGHT - 14.0) / 3.0;
+                draw_text(
+                    frame,
+                    text,
+                    Point::new(center.x + 25.0, y + 3.0),
+                    8.0,
+                    label_color,
+                    Horizontal::Left,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn muffin_selector_value(kind: ControlKind, value: f32) -> f32 {
+    match kind {
+        ControlKind::Presence => {
+            if value >= 0.5 {
+                1.0
+            } else {
+                0.0
+            }
+        }
+        ControlKind::Cut => (value * 3.0).round() / 3.0,
+        _ => value.clamp(0.0, 1.0),
     }
 }
 
@@ -12041,6 +12353,32 @@ mod tests {
     }
 
     #[test]
+    fn muffin_selectors_snap_to_the_position_clicked() {
+        let center_y = 100.0;
+
+        assert_eq!(
+            muffin_selector_value_from_y(ControlKind::Presence, center_y, 78.0),
+            1.0
+        );
+        assert_eq!(
+            muffin_selector_value_from_y(ControlKind::Presence, center_y, 122.0),
+            0.0
+        );
+        assert_eq!(
+            muffin_selector_value_from_y(ControlKind::Cut, center_y, 78.0),
+            1.0
+        );
+        assert_eq!(
+            muffin_selector_value_from_y(ControlKind::Cut, center_y, 100.0),
+            0.666_666_7
+        );
+        assert_eq!(
+            muffin_selector_value_from_y(ControlKind::Cut, center_y, 122.0),
+            0.0
+        );
+    }
+
+    #[test]
     fn minotaur_footswitch_asset_decodes() {
         let footswitch = MINOTAUR_PEDAL_CONTROLS
             .iter()
@@ -12065,13 +12403,23 @@ mod tests {
             pixel_height: 2172,
         })
         .is_some());
-        assert!(MUFFIN_PEDAL_CONTROLS
-            .iter()
-            .all(|control| control.asset.is_some()));
+        assert!(MUFFIN_PEDAL_CONTROLS.iter().all(|control| {
+            control.asset.is_some() || control.widget == RenderControlWidget::Slider
+        }));
+        assert!(MUFFIN_PEDAL_CONTROLS.iter().any(|control| {
+            control.role == RenderControlRole::Parameter(ControlKind::Presence)
+                && control.widget == RenderControlWidget::Slider
+        }));
+        assert!(MUFFIN_PEDAL_CONTROLS.iter().any(|control| {
+            control.role == RenderControlRole::Parameter(ControlKind::Cut)
+                && control.widget == RenderControlWidget::Slider
+        }));
         assert!(render_control_asset_handle(MUFFIN_BLACK_BRASS_KNOB_ASSET, 0.5).is_some());
         assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 0.0).is_some());
         assert!(render_control_asset_handle(MUFFIN_JEWEL_LED_ASSET, 1.0).is_some());
         assert!(render_control_asset_handle(MUFFIN_FOOTSWITCH_ASSET, 0.0).is_some());
+        assert!(render_asset_handle(MUFFIN_SLIDE_RAIL_ASSET).is_some());
+        assert!(render_asset_handle(MUFFIN_SLIDE_CAP_ASSET).is_some());
     }
 
     #[test]
