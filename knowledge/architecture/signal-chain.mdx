@@ -46,3 +46,10 @@ The chain should not let modules reach into each other's private memory. Modules
 2. Add a small registry so processors can be instantiated from configuration.
 3. Use Muffin and Minotaur as circuit-documented models inside that generic chain.
 4. Keep monitor output able to inspect both audio and shared-state evolution.
+
+## Desktop NAM Pedal Slot
+
+The desktop Free profile reserves its final pre-amp pedal slot for `NAM Pedal`.
+Its selected `.nam` file is a runtime choice, not a rig-file field: the pedal
+surface owns file selection, the `IN` and `OUT` trims are respectively applied
+before and after the capture, and its footswitch is a true chain bypass.

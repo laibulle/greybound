@@ -534,6 +534,8 @@ pub enum Message {
     WavFileSelected(Option<PathBuf>),
     LoadNamRequested,
     NamFileSelected(Option<PathBuf>),
+    LoadPedalNamRequested,
+    PedalNamFileSelected(Option<PathBuf>),
     ToggleRecording,
     RecordingFileSelected(Option<PathBuf>),
     RecordingStarted(PathBuf),
@@ -746,6 +748,7 @@ impl AmpModel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceModel {
     Lumen,
+    NamPedal,
     Muffin,
     Minotaur,
     Monarch,
@@ -762,6 +765,7 @@ impl DeviceModel {
     fn title(self) -> &'static str {
         match self {
             Self::Lumen => "Lumen",
+            Self::NamPedal => "NAM Pedal",
             Self::Muffin => "Muffin",
             Self::Minotaur => "Minotaur",
             Self::Monarch => "Monarch",
@@ -869,6 +873,59 @@ pub const MINOTAUR_SILVER_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderContr
     active_image: None,
     pressed_image: None,
     rotation: None,
+};
+
+pub const NAM_PEDAL_FOOTSWITCH_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/buttons/nam-pedal-footswitch@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const NAM_PEDAL_BLACK_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/knobs/nam-pedal-black@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 512,
+        pixel_height: 512,
+    },
+    active_image: None,
+    pressed_image: None,
+    rotation: Some(RenderRotationSpec {
+        min_degrees: -135.0,
+        max_degrees: 135.0,
+        pivot_x: 0.5,
+        pivot_y: 0.5,
+    }),
+};
+
+pub const NAM_PEDAL_JEWEL_LED_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
+    image: RenderAssetSpec {
+        path: "assets/controls/leds/nam-pedal-jewel-off@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    },
+    active_image: Some(RenderAssetSpec {
+        path: "assets/controls/leds/nam-pedal-jewel-on@2x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 256,
+        pixel_height: 256,
+    }),
+    pressed_image: None,
+    rotation: None,
+};
+
+pub const NAM_PEDAL_FILE_SELECTOR_ASSET: RenderAssetSpec = RenderAssetSpec {
+    path: "assets/controls/switches/nam-pedal-file-selector@2x.png",
+    format: RenderAssetFormat::PngRgba,
+    pixel_width: 1024,
+    pixel_height: 256,
 };
 
 pub const MONARCH_BRASS_KNOB_ASSET: RenderControlAssetSpec = RenderControlAssetSpec {
@@ -1459,6 +1516,53 @@ pub const MINOTAUR_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     },
 ];
 
+pub const NAM_PEDAL_CONTROLS: &[RenderControlSpec] = &[
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Gain),
+        widget: RenderControlWidget::Pot,
+        label: "IN",
+        anchor_x: 0.28,
+        anchor_y: 0.30,
+        radius: 22.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(NAM_PEDAL_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Parameter(ControlKind::Master),
+        widget: RenderControlWidget::Pot,
+        label: "OUT",
+        anchor_x: 0.72,
+        anchor_y: 0.30,
+        radius: 22.0,
+        hit_radius: 42.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(NAM_PEDAL_BLACK_KNOB_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Footswitch,
+        label: "BYPASS",
+        anchor_x: 0.50,
+        anchor_y: 0.80,
+        radius: 31.0,
+        hit_radius: 52.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(NAM_PEDAL_FOOTSWITCH_ASSET),
+    },
+    RenderControlSpec {
+        role: RenderControlRole::Bypass,
+        widget: RenderControlWidget::Led,
+        label: "STATUS",
+        anchor_x: 0.50,
+        anchor_y: 0.65,
+        radius: 10.0,
+        hit_radius: 0.0,
+        skin: KnobSkin::AsatoBlack,
+        asset: Some(NAM_PEDAL_JEWEL_LED_ASSET),
+    },
+];
+
 pub const MONARCH_PEDAL_CONTROLS: &[RenderControlSpec] = &[
     RenderControlSpec {
         role: RenderControlRole::Parameter(ControlKind::Gain),
@@ -1980,6 +2084,19 @@ pub const MINOTAUR_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     controls: MINOTAUR_PEDAL_CONTROLS,
 };
 
+pub const NAM_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
+    id: "pedal.nam-loader",
+    surface: STANDARD_PEDAL_SURFACE,
+    asset: Some(RenderAssetSpec {
+        path: "assets/pedals/nam-pedal@4x.png",
+        format: RenderAssetFormat::PngRgba,
+        pixel_width: 1200,
+        pixel_height: 2172,
+    }),
+    typography: RenderTypographyPolicy::BakedIntoAsset,
+    controls: NAM_PEDAL_CONTROLS,
+};
+
 pub const MONARCH_PEDAL_RENDER_SPEC: ModelRenderSpec = ModelRenderSpec {
     id: "pedal.monarch",
     surface: STANDARD_PEDAL_SURFACE,
@@ -2320,6 +2437,15 @@ const FREE_DEVICE_MODELS: &[AppDeviceModelDescriptor] = &[
         circuit: no_circuit_descriptor,
     },
     AppDeviceModelDescriptor {
+        id: "nam-pedal",
+        label: "SELECT .NAM",
+        kind: DeviceKind::Pedal,
+        visual: DeviceModel::NamPedal,
+        runtime_config: Some(CoreDeviceConfig::NamPedal),
+        render: &NAM_PEDAL_RENDER_SPEC,
+        circuit: no_circuit_descriptor,
+    },
+    AppDeviceModelDescriptor {
         id: "auralith",
         label: "Auralith",
         kind: DeviceKind::FxLoop,
@@ -2362,6 +2488,12 @@ const FREE_RUNTIME_DEVICES: &[RuntimeDeviceSlot] = &[
         section: RuntimeDeviceSection::PreAmp,
         config: CoreDeviceConfig::Minotaur,
         bypassed: false,
+    },
+    RuntimeDeviceSlot {
+        model_id: "nam-pedal",
+        section: RuntimeDeviceSection::PreAmp,
+        config: CoreDeviceConfig::NamPedal,
+        bypassed: true,
     },
     RuntimeDeviceSlot {
         model_id: "auralith",
@@ -2529,6 +2661,23 @@ impl DeviceState {
             presence: 0.0,
             sag: 0.0,
             master: 0.03,
+        }
+    }
+
+    pub fn nam_pedal() -> Self {
+        Self {
+            name: "SELECT .NAM".to_string(),
+            kind: DeviceKind::Pedal,
+            model: DeviceModel::NamPedal,
+            bypassed: true,
+            gain: 0.50,
+            drive: 0.0,
+            bass: 0.0,
+            treble: 0.0,
+            cut: 0.0,
+            presence: 0.0,
+            sag: 0.0,
+            master: 0.50,
         }
     }
 
@@ -2783,6 +2932,7 @@ pub struct GreyboundUi {
     pub meters: MeterLevels,
     pub audio_settings: AudioSettingsState,
     pub nam_loader: NamLoaderState,
+    pub pedal_nam_loader: NamLoaderState,
     pub recording: RecordingState,
     pub metronome: MetronomeState,
     pub tuner: TunerState,
@@ -3012,6 +3162,7 @@ impl GreyboundUi {
             meters: MeterLevels::default(),
             audio_settings: AudioSettingsState::default(),
             nam_loader: NamLoaderState::default(),
+            pedal_nam_loader: NamLoaderState::default(),
             recording: RecordingState::default(),
             metronome: MetronomeState::default(),
             tuner: TunerState::default(),
@@ -3046,6 +3197,7 @@ fn device_state_for_descriptor(descriptor: &AppDeviceModelDescriptor) -> DeviceS
 fn device_state_for_model(model: DeviceModel) -> DeviceState {
     match model {
         DeviceModel::Lumen => DeviceState::lumen(),
+        DeviceModel::NamPedal => DeviceState::nam_pedal(),
         DeviceModel::Muffin => DeviceState::muffin(),
         DeviceModel::Minotaur => DeviceState::minotaur(),
         DeviceModel::Monarch => DeviceState::monarch(),
@@ -3232,6 +3384,36 @@ impl GreyboundUi {
                     self.audio_settings.status = "Restarting audio engine".to_string();
                 } else {
                     self.nam_loader.status = "NAM model selection canceled".to_string();
+                }
+            }
+            Message::LoadPedalNamRequested => {
+                self.pedal_nam_loader.status = "Opening pedal NAM picker".to_string();
+            }
+            Message::PedalNamFileSelected(path) => {
+                if let Some(path) = path {
+                    let name = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("NAM model")
+                        .to_string();
+                    self.pedal_nam_loader.path = Some(path);
+                    self.pedal_nam_loader.status =
+                        "Restarting audio engine with pedal NAM".to_string();
+                    if let Some(device) = self
+                        .devices
+                        .iter_mut()
+                        .find(|device| device.model == DeviceModel::NamPedal)
+                    {
+                        device.name = name;
+                        device.bypassed = false;
+                        self.selected_index = self
+                            .devices
+                            .iter()
+                            .position(|device| device.model == DeviceModel::NamPedal)
+                            .unwrap_or(self.selected_index);
+                    }
+                } else {
+                    self.pedal_nam_loader.status = "Pedal NAM selection canceled".to_string();
                 }
             }
             Message::ToggleRecording => {
@@ -3430,7 +3612,6 @@ impl GreyboundUi {
                     app_profile: self.app_profile,
                     devices: self.device_slots_for_kind(DeviceKind::Pedal),
                     selected_index: self.selected_index,
-                    amp_model: self.amp_model,
                     circuit_view: self.circuit_view,
                     pedalboard_backdrop: true,
                     scale,
@@ -3442,7 +3623,6 @@ impl GreyboundUi {
                     app_profile: self.app_profile,
                     devices: self.device_slots_for_kind(DeviceKind::FxLoop),
                     selected_index: self.selected_index,
-                    amp_model: self.amp_model,
                     circuit_view: self.circuit_view,
                     pedalboard_backdrop: true,
                     scale,
@@ -3462,18 +3642,14 @@ impl GreyboundUi {
                 .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::Cab => CabCanvas::new(CabArt {
-                    app_profile: self.app_profile,
                     cab: self.cab.clone(),
-                    amp_model: self.amp_model,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
                 .height(Length::Fixed(self.s(MAIN_VIEW_HEIGHT)))
                 .into(),
                 ViewMode::Eq => EqCanvas::new(EqArt {
-                    app_profile: self.app_profile,
                     eq: self.eq.clone(),
-                    amp_model: self.amp_model,
                     scale,
                 })
                 .width(Length::Fixed(self.s(DESIGN_WIDTH)))
@@ -3646,6 +3822,7 @@ impl GreyboundUi {
     fn device_for_runtime_slot(&self, slot: &RuntimeDeviceSlot) -> Option<&DeviceState> {
         let model = match slot.config {
             CoreDeviceConfig::Lumen => DeviceModel::Lumen,
+            CoreDeviceConfig::NamPedal => DeviceModel::NamPedal,
             CoreDeviceConfig::Muffin => DeviceModel::Muffin,
             CoreDeviceConfig::Minotaur => DeviceModel::Minotaur,
             CoreDeviceConfig::Monarch => DeviceModel::Monarch,
@@ -3671,6 +3848,14 @@ impl GreyboundUi {
                     gain: device.treble,
                     emphasis: device.presence,
                     mix: device.master,
+                })
+            }
+            CoreDeviceConfig::NamPedal => {
+                let device = device.cloned().unwrap_or_else(DeviceState::nam_pedal);
+                CoreDeviceControls::Minotaur(CoreMinotaurControls {
+                    gain: device.gain,
+                    treble: 0.5,
+                    output: device.master,
                 })
             }
             CoreDeviceConfig::Muffin => {
@@ -3805,13 +3990,6 @@ impl GreyboundUi {
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
             .unwrap_or("No WAV loaded");
-        let nam_name = self
-            .nam_loader
-            .path
-            .as_ref()
-            .and_then(|path| path.file_name())
-            .and_then(|name| name.to_str())
-            .unwrap_or("No NAM loaded");
         let input_source = row![
             button(text("LIVE INPUT").size(self.font(15.0)).style(Color::WHITE))
                 .on_press(Message::AudioInputSourceSelected(
@@ -3839,27 +4017,6 @@ impl GreyboundUi {
         ]
         .spacing(self.s(12.0))
         .align_items(Alignment::Center);
-        let nam_loader = row![
-            button(text("LOAD NAM").size(self.font(15.0)).style(Color::WHITE))
-                .on_press(Message::LoadNamRequested)
-                .style(iced::theme::Button::custom(FooterButton {
-                    selected: self.amp_model == AmpModel::NamLoader
-                }))
-                .padding([self.s(13.0), self.s(18.0)]),
-            container(text(nam_name).size(self.font(15.0)).style(Color::WHITE))
-                .width(Length::FillPortion(2))
-                .center_y(),
-            container(
-                text(self.nam_loader.status.as_str())
-                    .size(self.font(15.0))
-                    .style(Color::from_rgb(0.82, 0.84, 0.90))
-            )
-            .width(Length::FillPortion(3))
-            .center_y(),
-        ]
-        .spacing(self.s(12.0))
-        .align_items(Alignment::Center);
-
         let content = column![
             row![
                 self.settings_field(
@@ -3880,7 +4037,6 @@ impl GreyboundUi {
             .spacing(self.s(44.0)),
             self.settings_separator(),
             self.settings_select_field("Input Source", input_source.into(), 846.0),
-            self.settings_select_field("NAM Loader", nam_loader.into(), 846.0),
             row![
                 self.settings_select_field("Audio Input Device", input.into(), 390.0),
                 self.settings_select_field("Audio Output Device", output.into(), 390.0),
@@ -4623,7 +4779,6 @@ struct BoardArt {
     app_profile: AppProfile,
     devices: Vec<BoardDeviceSlot>,
     selected_index: usize,
-    amp_model: AmpModel,
     circuit_view: bool,
     pedalboard_backdrop: bool,
     scale: f32,
@@ -5077,6 +5232,10 @@ fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, boun
         );
         let render_spec = device_render_spec(art.app_profile, slot.device.model);
 
+        if slot.device.model == DeviceModel::NamPedal {
+            draw_nam_pedal_file_selector_asset(renderer, art.scale, origin, pedal_size);
+        }
+
         for control in render_spec.controls {
             if slot.device.model == DeviceModel::Muffin
                 && control.widget == RenderControlWidget::Slider
@@ -5118,6 +5277,28 @@ fn draw_board_control_assets(renderer: &mut iced::Renderer, art: &BoardArt, boun
             advanced_image::Renderer::draw(renderer, handle, image_bounds);
         }
     }
+}
+
+fn draw_nam_pedal_file_selector_asset(
+    renderer: &mut iced::Renderer,
+    scale: f32,
+    origin: Point,
+    pedal_size: Size,
+) {
+    let Some(handle) = render_asset_handle(NAM_PEDAL_FILE_SELECTOR_ASSET) else {
+        return;
+    };
+    let selector = nam_pedal_selector_bounds(origin, pedal_size);
+    advanced_image::Renderer::draw(
+        renderer,
+        handle,
+        Rectangle {
+            x: selector.x * scale,
+            y: selector.y * scale,
+            width: selector.width * scale,
+            height: selector.height * scale,
+        },
+    );
 }
 
 fn draw_muffin_selector_assets(
@@ -5632,6 +5813,19 @@ pub fn preload_render_assets() {
             pixel_width: 914,
             pixel_height: 1721,
         },
+        NAM_PEDAL_FILE_SELECTOR_ASSET,
+        NAM_PEDAL_BLACK_KNOB_ASSET.image,
+        NAM_PEDAL_FOOTSWITCH_ASSET.image,
+        NAM_PEDAL_JEWEL_LED_ASSET.image,
+        NAM_PEDAL_JEWEL_LED_ASSET
+            .active_image
+            .expect("NAM pedal LED is two-state"),
+        RenderAssetSpec {
+            path: "assets/pedals/nam-pedal@4x.png",
+            format: RenderAssetFormat::PngRgba,
+            pixel_width: 1200,
+            pixel_height: 2172,
+        },
         RenderAssetSpec {
             path: "assets/pedals/springfield@4x.png",
             format: RenderAssetFormat::PngRgba,
@@ -5938,6 +6132,32 @@ fn render_asset_handle(asset: RenderAssetSpec) -> Option<advanced_image::Handle>
         "assets/pedals/minotaur-v2@4x.png" => {
             decoded_handle!("../assets/pedals/minotaur-v2@4x.png", 914, 1721)
         }
+        "assets/controls/switches/nam-pedal-file-selector@2x.png" => decoded_handle!(
+            "../assets/controls/switches/nam-pedal-file-selector@2x.png",
+            1024,
+            256
+        ),
+        "assets/controls/knobs/nam-pedal-black@2x.png" => {
+            decoded_handle!("../assets/controls/knobs/nam-pedal-black@2x.png", 512, 512)
+        }
+        "assets/controls/buttons/nam-pedal-footswitch@2x.png" => decoded_handle!(
+            "../assets/controls/buttons/nam-pedal-footswitch@2x.png",
+            512,
+            512
+        ),
+        "assets/controls/leds/nam-pedal-jewel-off@2x.png" => decoded_handle!(
+            "../assets/controls/leds/nam-pedal-jewel-off@2x.png",
+            256,
+            256
+        ),
+        "assets/controls/leds/nam-pedal-jewel-on@2x.png" => decoded_handle!(
+            "../assets/controls/leds/nam-pedal-jewel-on@2x.png",
+            256,
+            256
+        ),
+        "assets/pedals/nam-pedal@4x.png" => {
+            decoded_handle!("../assets/pedals/nam-pedal@4x.png", 1200, 2172)
+        }
         "assets/pedals/monarch@4x.png" => {
             decoded_handle!("../assets/pedals/monarch@4x.png", 1200, 2172)
         }
@@ -6168,6 +6388,13 @@ fn render_control_asset_handle(
         let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
         return minotaur_ivory_knob_handles().get(index).cloned();
     }
+    if asset.image.path == "assets/controls/knobs/nam-pedal-black@2x.png"
+        && asset.rotation.is_some()
+    {
+        const FRAME_COUNT: usize = 31;
+        let index = ((FRAME_COUNT - 1) as f32 * value.clamp(0.0, 1.0)).round() as usize;
+        return nam_pedal_black_knob_handles().get(index).cloned();
+    }
     if asset.image.path == "assets/controls/knobs/monarch-brass@2x.png" && asset.rotation.is_some()
     {
         const FRAME_COUNT: usize = 121;
@@ -6251,6 +6478,33 @@ fn minotaur_ivory_knob_handles() -> &'static [advanced_image::Handle] {
                     .expect("minotaur knob asset must define a rotation range");
                 let angle = (rotation.max_degrees - rotation.min_degrees).to_radians() * t;
                 let pixels = rotate_rgba_pixels(&source, angle);
+                advanced_image::Handle::from_pixels(width, height, pixels)
+            })
+            .collect()
+    })
+}
+
+fn nam_pedal_black_knob_handles() -> &'static [advanced_image::Handle] {
+    static HANDLES: OnceLock<Vec<advanced_image::Handle>> = OnceLock::new();
+    HANDLES.get_or_init(|| {
+        const FRAME_COUNT: usize = 31;
+        let source = image::load_from_memory(include_bytes!(
+            "../assets/controls/knobs/nam-pedal-black@2x.png"
+        ))
+        .expect("embedded NAM pedal knob asset must decode")
+        .to_rgba8();
+        let width = source.width();
+        let height = source.height();
+        let rotation = NAM_PEDAL_BLACK_KNOB_ASSET
+            .rotation
+            .expect("NAM pedal knob asset must define a rotation range");
+
+        (0..FRAME_COUNT)
+            .map(|index| {
+                let value = index as f32 / (FRAME_COUNT - 1) as f32;
+                let angle =
+                    rotation.min_degrees + (rotation.max_degrees - rotation.min_degrees) * value;
+                let pixels = rotate_rgba_pixels(&source, angle.to_radians());
                 advanced_image::Handle::from_pixels(width, height, pixels)
             })
             .collect()
@@ -6573,18 +6827,18 @@ impl canvas::Program<Message> for BoardArt {
                     );
                 }
 
-                if let Some(model) = hit_test_amp_spine(
-                    self.app_profile,
-                    unscale_size(bounds.size(), self.scale),
-                    position,
-                ) {
-                    return (
-                        canvas::event::Status::Captured,
-                        Some(Message::SelectAmpModel(model)),
-                    );
-                }
-
                 if !self.circuit_view {
+                    if hit_test_nam_pedal_selector(
+                        &self.devices,
+                        unscale_size(bounds.size(), self.scale),
+                        position,
+                    ) {
+                        return (
+                            canvas::event::Status::Captured,
+                            Some(Message::LoadPedalNamRequested),
+                        );
+                    }
+
                     if let Some((index, control)) = hit_test_pedal_knob(
                         self.app_profile,
                         &self.devices,
@@ -6711,6 +6965,7 @@ impl canvas::Program<Message> for BoardArt {
             let x = layout.start_x + index as f32 * (layout.pedal_w + layout.gap);
             let palette = match device.model {
                 DeviceModel::Lumen => Color::from_rgb(0.70, 0.73, 0.76),
+                DeviceModel::NamPedal => Color::from_rgb(0.12, 0.16, 0.20),
                 DeviceModel::Muffin => Color::from_rgb(0.31, 0.19, 0.39),
                 DeviceModel::Minotaur => Color::from_rgb(0.73, 0.65, 0.47),
                 DeviceModel::Monarch => Color::from_rgb(0.24, 0.33, 0.44),
@@ -6733,7 +6988,6 @@ impl canvas::Program<Message> for BoardArt {
         }
 
         draw_stage_circuit_toggle(&mut frame, logical_size, self.circuit_view);
-        draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
 
         vec![frame.into_geometry()]
     }
@@ -6900,9 +7154,7 @@ impl canvas::Program<Message> for AmpArt {
 
 #[derive(Debug, Clone)]
 struct CabArt {
-    app_profile: AppProfile,
     cab: DeviceState,
-    amp_model: AmpModel,
     scale: f32,
 }
 
@@ -6912,28 +7164,11 @@ impl canvas::Program<Message> for CabArt {
     fn update(
         &self,
         _state: &mut Self::State,
-        event: canvas::Event,
+        _event: canvas::Event,
         bounds: Rectangle,
-        cursor: mouse::Cursor,
+        _cursor: mouse::Cursor,
     ) -> (canvas::event::Status, Option<Message>) {
-        if let canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) = event {
-            let Some(position) = cursor
-                .position_in(bounds)
-                .map(|p| unscale_point(p, self.scale))
-            else {
-                return (canvas::event::Status::Ignored, None);
-            };
-            if let Some(model) = hit_test_amp_spine(
-                self.app_profile,
-                unscale_size(bounds.size(), self.scale),
-                position,
-            ) {
-                return (
-                    canvas::event::Status::Captured,
-                    Some(Message::SelectAmpModel(model)),
-                );
-            }
-        }
+        let _ = bounds;
         (canvas::event::Status::Ignored, None)
     }
 
@@ -6968,7 +7203,6 @@ impl canvas::Program<Message> for CabArt {
             MUTED_INK,
             Horizontal::Center,
         );
-        draw_amp_spine(&mut frame, logical_size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
 }
@@ -7100,9 +7334,7 @@ impl<'a> From<CabCanvas> for Element<'a, Message> {
 
 #[derive(Debug, Clone)]
 struct EqArt {
-    app_profile: AppProfile,
     eq: EqState,
-    amp_model: AmpModel,
     scale: f32,
 }
 
@@ -7143,16 +7375,6 @@ impl canvas::Program<Message> for EqArt {
                 else {
                     return (canvas::event::Status::Ignored, None);
                 };
-                if let Some(model) = hit_test_amp_spine(
-                    self.app_profile,
-                    unscale_size(bounds.size(), self.scale),
-                    stage_position,
-                ) {
-                    return (
-                        canvas::event::Status::Captured,
-                        Some(Message::SelectAmpModel(model)),
-                    );
-                }
                 let position = Point::new(
                     (stage_position.x - EQ_RENDER_OFFSET_X) / EQ_RENDER_SCALE,
                     (stage_position.y - EQ_RENDER_OFFSET_Y) / EQ_RENDER_SCALE,
@@ -7255,7 +7477,6 @@ impl canvas::Program<Message> for EqArt {
             frame.scale(EQ_RENDER_SCALE);
             draw_eq_panel(frame, size, &self.eq);
         });
-        draw_amp_spine(&mut frame, size, self.app_profile, self.amp_model);
         vec![frame.into_geometry()]
     }
 
@@ -7280,7 +7501,7 @@ struct BoardLayout {
 fn board_layout(device_count: usize, size: Size) -> BoardLayout {
     let count = device_count.max(1) as f32;
     let gap = 74.0;
-    let stage_width = amp_stage_width(size);
+    let stage_width = size.width;
     let available_width = stage_width - 86.0 - gap * (count - 1.0);
     let pedal_w = (available_width / count)
         .min(PEDAL_STANDARD_WIDTH)
@@ -7377,7 +7598,7 @@ fn amp_render_bounds(size: Size, render_spec: &ModelRenderSpec) -> Rectangle {
 fn cab_render_bounds(size: Size) -> Rectangle {
     const CAB_ASPECT_RATIO: f32 = 864.0 / 1821.0;
 
-    let stage_width = amp_stage_width(size);
+    let stage_width = size.width;
     let max_width = (stage_width - 72.0).min(900.0).max(1.0);
     let max_height = (size.height - 116.0).max(1.0);
     let mut width = max_width;
@@ -7472,6 +7693,7 @@ fn record_button_radius(size: Size) -> f32 {
 fn fallback_device_render_spec(model: DeviceModel) -> &'static ModelRenderSpec {
     match model {
         DeviceModel::Lumen => &LUMEN_PEDAL_RENDER_SPEC,
+        DeviceModel::NamPedal => &NAM_PEDAL_RENDER_SPEC,
         DeviceModel::Muffin => &MUFFIN_PEDAL_RENDER_SPEC,
         DeviceModel::Minotaur => &MINOTAUR_PEDAL_RENDER_SPEC,
         DeviceModel::Monarch => &MONARCH_PEDAL_RENDER_SPEC,
@@ -10444,6 +10666,9 @@ fn draw_pedal(
         );
     } else {
         draw_pedal_controls(frame, origin, size, app_profile, device);
+        if device.model == DeviceModel::NamPedal {
+            draw_nam_pedal_selector(frame, origin, size, &device.name);
+        }
     }
 
     if uses_asset {
@@ -10479,6 +10704,89 @@ fn draw_pedal(
     {
         draw_footswitch(frame, render_control_center(control, origin, size));
     }
+}
+
+fn nam_pedal_selector_bounds(origin: Point, size: Size) -> Rectangle {
+    Rectangle {
+        x: origin.x + size.width * 0.12,
+        y: origin.y + size.height * 0.415,
+        width: size.width * 0.76,
+        height: size.height * 0.09,
+    }
+}
+
+fn draw_nam_pedal_selector(frame: &mut Frame, origin: Point, size: Size, name: &str) {
+    let selector = nam_pedal_selector_bounds(origin, size);
+    if render_assets_enabled() {
+        draw_text(
+            frame,
+            name,
+            Point::new(
+                selector.x + selector.width * 0.50,
+                selector.y + selector.height * 0.52,
+            ),
+            10.0,
+            Color::from_rgb(0.66, 0.90, 0.95),
+            Horizontal::Center,
+        );
+        return;
+    }
+    let shape = rounded_rect(
+        Point::new(selector.x, selector.y),
+        Size::new(selector.width, selector.height),
+        7.0,
+    );
+    frame.fill(&shape, Color::from_rgb(0.025, 0.035, 0.045));
+    frame.stroke(
+        &shape,
+        Stroke::default()
+            .with_color(Color::from_rgb(0.32, 0.58, 0.68))
+            .with_width(1.2),
+    );
+    draw_text(
+        frame,
+        "MODEL",
+        Point::new(selector.x + selector.width * 0.5, selector.y + 17.0),
+        11.0,
+        Color::from_rgb(0.42, 0.70, 0.78),
+        Horizontal::Center,
+    );
+    draw_text(
+        frame,
+        name,
+        Point::new(
+            selector.x + selector.width * 0.5,
+            selector.y + selector.height * 0.68,
+        ),
+        13.0,
+        Color::from_rgb(0.88, 0.93, 0.96),
+        Horizontal::Center,
+    );
+}
+
+fn hit_test_nam_pedal_selector(devices: &[BoardDeviceSlot], size: Size, position: Point) -> bool {
+    let layout = board_layout(devices.len(), size);
+    let y = pedal_board_y(size, layout.pedal_h);
+    devices.iter().enumerate().any(|(index, slot)| {
+        slot.device.model == DeviceModel::NamPedal
+            && point_in_rectangle(
+                position,
+                nam_pedal_selector_bounds(
+                    Point::new(
+                        layout.start_x + index as f32 * (layout.pedal_w + layout.gap),
+                        y,
+                    ),
+                    Size::new(layout.pedal_w, layout.pedal_h),
+                ),
+            )
+    })
+}
+
+fn point_in_rectangle(point: Point, rectangle: Rectangle) -> bool {
+    point.x >= rectangle.x
+        && point.x <= rectangle.x + rectangle.width
+        && point.y >= rectangle.y
+        && point.y <= rectangle.y + rectangle.height
 }
 
 fn draw_pedal_controls(
@@ -12298,10 +12606,10 @@ mod tests {
     }
 
     #[test]
-    fn free_runtime_snapshot_places_bypassed_monarch_before_minotaur() {
+    fn free_runtime_snapshot_places_nam_pedal_last_before_the_amp() {
         let snapshot = GreyboundUi::default().runtime_audio_snapshot();
 
-        assert_eq!(snapshot.devices.len(), 6);
+        assert_eq!(snapshot.devices.len(), 7);
         assert!(matches!(
             snapshot.devices[0].controls,
             CoreDeviceControls::Lumen(_)
@@ -12322,6 +12630,35 @@ mod tests {
             CoreDeviceControls::Minotaur(_)
         ));
         assert!(!snapshot.devices[3].bypassed);
+        assert!(matches!(
+            snapshot.devices[4].controls,
+            CoreDeviceControls::Minotaur(_)
+        ));
+        assert!(snapshot.devices[4].bypassed);
+    }
+
+    #[test]
+    fn pedal_nam_selection_activates_the_last_pedal_and_keeps_in_out_trims() {
+        let mut ui = GreyboundUi::default();
+        ui.update(Message::PedalNamFileSelected(Some(PathBuf::from(
+            "/tmp/fuzz-capture.nam",
+        ))));
+
+        let pedal = ui
+            .devices
+            .iter()
+            .find(|device| device.model == DeviceModel::NamPedal)
+            .expect("Free profile must include the NAM pedal");
+        assert_eq!(pedal.name, "fuzz-capture.nam");
+        assert!(!pedal.bypassed);
+
+        let snapshot = ui.runtime_audio_snapshot();
+        let CoreDeviceControls::Minotaur(controls) = snapshot.devices[4].controls else {
+            panic!("NAM pedal must use its IN/OUT control transport");
+        };
+        assert!((controls.gain - 0.5).abs() < 1.0e-6);
+        assert!((controls.output - 0.5).abs() < 1.0e-6);
+        assert!(!snapshot.devices[4].bypassed);
     }
 
     #[test]
@@ -12420,6 +12757,30 @@ mod tests {
         assert!(render_control_asset_handle(MUFFIN_FOOTSWITCH_ASSET, 0.0).is_some());
         assert!(render_asset_handle(MUFFIN_SLIDE_RAIL_ASSET).is_some());
         assert!(render_asset_handle(MUFFIN_SLIDE_CAP_ASSET).is_some());
+    }
+
+    #[test]
+    fn nam_pedal_visual_asset_decodes() {
+        let image = image::load_from_memory(include_bytes!("../assets/pedals/nam-pedal@4x.png"))
+            .expect("NAM pedal faceplate asset must decode");
+        assert_eq!(image.width(), 1200);
+        assert_eq!(image.height(), 2172);
+        assert!(image.color().has_alpha());
+        assert!(render_asset_handle(
+            NAM_PEDAL_RENDER_SPEC
+                .asset
+                .expect("NAM pedal must have a faceplate asset")
+        )
+        .is_some());
+        assert_eq!(
+            NAM_PEDAL_RENDER_SPEC.typography,
+            RenderTypographyPolicy::BakedIntoAsset
+        );
+        assert!(render_asset_handle(NAM_PEDAL_FILE_SELECTOR_ASSET).is_some());
+        assert!(render_control_asset_handle(NAM_PEDAL_BLACK_KNOB_ASSET, 0.5).is_some());
+        assert!(render_control_asset_handle(NAM_PEDAL_FOOTSWITCH_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(NAM_PEDAL_JEWEL_LED_ASSET, 0.0).is_some());
+        assert!(render_control_asset_handle(NAM_PEDAL_JEWEL_LED_ASSET, 1.0).is_some());
     }
 
     #[test]

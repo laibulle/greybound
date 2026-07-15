@@ -181,6 +181,7 @@ impl RigDeviceSlot {
         let controls = match parse_device_config(&self.device)? {
             DeviceConfig::Lumen => DeviceControls::Lumen(self.controls.lumen()),
             DeviceConfig::Muon => DeviceControls::Muon(self.controls.muon()),
+            DeviceConfig::NamPedal => DeviceControls::Minotaur(self.controls.minotaur()),
             DeviceConfig::Muffin => DeviceControls::Muffin(self.controls.muffin()),
             DeviceConfig::Minotaur => DeviceControls::Minotaur(self.controls.minotaur()),
             DeviceConfig::Monarch => DeviceControls::Monarch(self.controls.monarch()),
@@ -435,6 +436,7 @@ fn parse_device_config(device: &str) -> Result<DeviceConfig> {
     match device {
         "lumen" => Ok(DeviceConfig::Lumen),
         "muon" => Ok(DeviceConfig::Muon),
+        "nam-pedal" | "nam_pedal" => Ok(DeviceConfig::NamPedal),
         "muffin" => Ok(DeviceConfig::Muffin),
         "minotaur" | "minotaur-experimental" => Ok(DeviceConfig::Minotaur),
         "monarch" => Ok(DeviceConfig::Monarch),

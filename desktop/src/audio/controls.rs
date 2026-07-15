@@ -30,6 +30,9 @@ pub(super) struct SharedRuntimeControls {
     lumen_gain: Arc<AtomicU32>,
     lumen_emphasis: Arc<AtomicU32>,
     lumen_mix: Arc<AtomicU32>,
+    nam_pedal_bypassed: Arc<AtomicBool>,
+    nam_pedal_input: Arc<AtomicU32>,
+    nam_pedal_output: Arc<AtomicU32>,
     muffin_bypassed: Arc<AtomicBool>,
     muffin_sustain: Arc<AtomicU32>,
     muffin_tone: Arc<AtomicU32>,
@@ -109,6 +112,9 @@ impl SharedRuntimeControls {
             lumen_gain: atomic_f32(LumenControls::default().gain),
             lumen_emphasis: atomic_f32(LumenControls::default().emphasis),
             lumen_mix: atomic_f32(LumenControls::default().mix),
+            nam_pedal_bypassed: Arc::new(AtomicBool::new(true)),
+            nam_pedal_input: atomic_f32(0.5),
+            nam_pedal_output: atomic_f32(0.5),
             muffin_bypassed: Arc::new(AtomicBool::new(true)),
             muffin_sustain: atomic_f32(MuffinControls::default().sustain),
             muffin_tone: atomic_f32(MuffinControls::default().tone),
@@ -225,7 +231,16 @@ impl SharedRuntimeControls {
             .store(snapshot.tuner_muted, Ordering::Relaxed);
         store_f32(&self.tuner_reference_hz, snapshot.tuner_reference_hz);
 
-        for slot in &snapshot.devices {
+        for (runtime_slot, slot) in self.runtime_devices.iter().zip(&snapshot.devices) {
+            if runtime_slot.config == DeviceConfig::NamPedal {
+                if let DeviceControls::Minotaur(controls) = slot.controls {
+                    self.nam_pedal_bypassed
+                        .store(slot.bypassed, Ordering::Relaxed);
+                    store_f32(&self.nam_pedal_input, controls.gain);
+                    store_f32(&self.nam_pedal_output, controls.output);
+                }
+                continue;
+            }
             match slot.controls {
                 DeviceControls::Lumen(controls) => {
                     self.lumen_bypassed.store(slot.bypassed, Ordering::Relaxed);
@@ -342,6 +357,14 @@ impl SharedRuntimeControls {
                         gain: load_f32(&self.lumen_gain),
                         emphasis: load_f32(&self.lumen_emphasis),
                         mix: load_f32(&self.lumen_mix),
+                    }),
+                }),
+                DeviceConfig::NamPedal => target.push(DeviceSlotControls {
+                    bypassed: self.nam_pedal_bypassed.load(Ordering::Relaxed),
+                    controls: DeviceControls::Minotaur(MinotaurControls {
+                        gain: load_f32(&self.nam_pedal_input),
+                        treble: 0.5,
+                        output: load_f32(&self.nam_pedal_output),
                     }),
                 }),
                 DeviceConfig::Muffin => target.push(DeviceSlotControls {
@@ -505,7 +528,7 @@ mod tests {
 
         controls.load_device_controls_into(&mut slots);
 
-        assert_eq!(slots.len(), 6);
+        assert_eq!(slots.len(), 7);
         match slots[0].controls {
             DeviceControls::Lumen(controls) => {
                 assert!(slots[0].bypassed);
@@ -544,8 +567,16 @@ mod tests {
             other => panic!("expected active Minotaur controls, got {other:?}"),
         }
         match slots[4].controls {
+            DeviceControls::Minotaur(controls) => {
+                assert!(slots[4].bypassed);
+                assert!((controls.gain - 0.50).abs() < 1.0e-6);
+                assert!((controls.output - 0.50).abs() < 1.0e-6);
+            }
+            other => panic!("expected bypassed NAM pedal controls, got {other:?}"),
+        }
+        match slots[5].controls {
             DeviceControls::Auralith(controls) => {
-                assert!(!slots[4].bypassed);
+                assert!(!slots[5].bypassed);
                 assert!((controls.decay - 0.52).abs() < 1.0e-6);
                 assert!((controls.size - 0.55).abs() < 1.0e-6);
                 assert!((controls.texture - 0.68).abs() < 1.0e-6);
@@ -555,9 +586,9 @@ mod tests {
             }
             other => panic!("expected active Auralith controls, got {other:?}"),
         }
-        match slots[5].controls {
+        match slots[6].controls {
             DeviceControls::Springfield(controls) => {
-                assert!(slots[5].bypassed);
+                assert!(slots[6].bypassed);
                 assert!((controls.dwell - 0.48).abs() < 1.0e-6);
                 assert!((controls.tone - 0.58).abs() < 1.0e-6);
                 assert!((controls.mix - 0.26).abs() < 1.0e-6);

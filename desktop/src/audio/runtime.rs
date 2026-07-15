@@ -29,6 +29,7 @@ impl AudioRuntime {
         input: Consumer<f32>,
         amp_model: &str,
         app_profile: AppProfile,
+        pedal_nam_path: Option<&std::path::Path>,
     ) -> Result<Self> {
         let mut config = SignalChainConfig::amp_only(amp_model);
         for slot in app_profile.runtime_devices {
@@ -41,6 +42,9 @@ impl AudioRuntime {
                 RuntimeDeviceSection::PreAmp => config.pre_amp.push(device),
                 RuntimeDeviceSection::PostAmp => config.post_amp.push(device),
             }
+        }
+        if let Some(path) = pedal_nam_path {
+            config = config.with_nam_pedal_path(path);
         }
 
         Ok(Self {
@@ -169,7 +173,7 @@ mod tests {
         let meters = MeterStats::default();
         let (mut producer, consumer) = RingBuffer::<f32>::new(1024);
         let mut runtime =
-            AudioRuntime::new(48_000.0, consumer, ui.amp_model_id(), ui.app_profile).unwrap();
+            AudioRuntime::new(48_000.0, consumer, ui.amp_model_id(), ui.app_profile, None).unwrap();
 
         for sample_idx in 0..512 {
             let input = (std::f32::consts::TAU * 880.0 * sample_idx as f32 / 48_000.0).sin() * 0.2;

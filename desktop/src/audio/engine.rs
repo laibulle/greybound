@@ -132,6 +132,7 @@ impl LiveAudioEngine {
             consumer,
             amp_model.as_str(),
             app_profile,
+            ui.pedal_nam_loader.path.as_deref(),
         )?;
         let output_stream = output_device.build_output_stream(
             &output_config,

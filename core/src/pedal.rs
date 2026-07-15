@@ -21,6 +21,7 @@ mod minotaur;
 mod monarch;
 mod muffin;
 mod muon;
+mod nam_pedal;
 mod springfield;
 mod studio_delay;
 mod studio_verb;
@@ -46,6 +47,7 @@ pub use minotaur::{
 pub use monarch::{Monarch, MonarchControls};
 pub use muffin::{Muffin, MuffinControls, MuffinNodeVoltages};
 pub use muon::{Muon, MuonControls};
+pub use nam_pedal::NamPedal;
 pub use springfield::{Springfield, SpringfieldControls};
 pub use studio_delay::{StudioDelay, StudioDelayControls};
 pub use studio_verb::{StudioVerb, StudioVerbAlgorithm, StudioVerbControls};

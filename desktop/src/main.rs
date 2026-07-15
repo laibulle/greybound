@@ -158,6 +158,11 @@ impl Application for Desktop {
             return Command::perform(pick_nam_file(), Message::NamFileSelected);
         }
 
+        if matches!(message, Message::LoadPedalNamRequested) {
+            self.ui.update(message);
+            return Command::perform(pick_nam_file(), Message::PedalNamFileSelected);
+        }
+
         if matches!(message, Message::SelectAmpModel(AmpModel::NamLoader))
             && !self.ui.has_loaded_nam_model()
         {
@@ -284,6 +289,7 @@ impl Application for Desktop {
             | Message::AudioBufferSizeSelected(_)
             | Message::WavFileSelected(Some(_))
             | Message::NamFileSelected(Some(_))
+            | Message::PedalNamFileSelected(Some(_))
             | Message::SelectAmpModel(_) => true,
             Message::AudioInputSourceSelected(AudioInputSource::LiveInput) => true,
             Message::AudioInputSourceSelected(AudioInputSource::WavFile) => {

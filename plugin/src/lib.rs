@@ -825,11 +825,17 @@ mod tests {
     fn plugin_uses_free_runtime_devices() {
         let config = plugin_signal_chain_config(AppProfile::greybound_free(), "nox30");
 
-        assert_eq!(config.pre_amp.len(), 2);
+        assert_eq!(config.pre_amp.len(), 5);
         assert_eq!(config.pre_amp[0].device, greybound::DeviceConfig::Lumen);
         assert!(config.pre_amp[0].bypassed);
-        assert_eq!(config.pre_amp[1].device, greybound::DeviceConfig::Minotaur);
-        assert!(!config.pre_amp[1].bypassed);
+        assert_eq!(config.pre_amp[1].device, greybound::DeviceConfig::Muffin);
+        assert!(config.pre_amp[1].bypassed);
+        assert_eq!(config.pre_amp[2].device, greybound::DeviceConfig::Monarch);
+        assert!(config.pre_amp[2].bypassed);
+        assert_eq!(config.pre_amp[3].device, greybound::DeviceConfig::Minotaur);
+        assert!(!config.pre_amp[3].bypassed);
+        assert_eq!(config.pre_amp[4].device, greybound::DeviceConfig::NamPedal);
+        assert!(config.pre_amp[4].bypassed);
         assert!(config.fx_loop.is_empty());
         assert_eq!(config.post_amp.len(), 2);
         assert_eq!(config.post_amp[0].device, greybound::DeviceConfig::Auralith);

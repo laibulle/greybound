@@ -43,7 +43,8 @@ pub use pedal::{
     DartfordControls, DartfordWave, ElectricalSignal, GodessOne, GodessOneControls, GodessOneMode,
     Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls,
     MinotaurNodeVoltages, Monarch, MonarchControls, Muffin, MuffinControls, MuffinNodeVoltages,
-    Muon, MuonControls, Springfield, SpringfieldControls, StudioDelay, StudioDelayControls,
-    StudioVerb, StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls, LUMEN_AUDIO_CIRCUIT,
+    Muon, MuonControls, NamPedal, Springfield, SpringfieldControls, StudioDelay,
+    StudioDelayControls, StudioVerb, StudioVerbAlgorithm, StudioVerbControls, Tron, TronControls,
+    LUMEN_AUDIO_CIRCUIT,
 };
 pub use rig::RigConfig;

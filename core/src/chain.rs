@@ -4,10 +4,11 @@ use crate::pedal::{
     Auralith, AuralithControls, Brigade, BrigadeControls, Celeste, CelesteControls,
     ConnectionState, Dartford, DartfordControls, ElectricalSignal, GodessOne, GodessOneControls,
     Jetstream, JetstreamControls, Load, Lumen, LumenControls, Minotaur, MinotaurControls, Monarch,
-    MonarchControls, Muffin, MuffinControls, Muon, MuonControls, Springfield, SpringfieldControls,
-    StudioDelay, StudioDelayControls, StudioVerb, StudioVerbControls, Tron, TronControls,
-    AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS, LUMEN_AUDIO_CIRCUIT,
+    MonarchControls, Muffin, MuffinControls, Muon, MuonControls, NamPedal, Springfield,
+    SpringfieldControls, StudioDelay, StudioDelayControls, StudioVerb, StudioVerbControls, Tron,
+    TronControls, AMP_INPUT_IMPEDANCE_OHMS, GUITAR_SOURCE_IMPEDANCE_OHMS, LUMEN_AUDIO_CIRCUIT,
 };
+use std::path::{Path, PathBuf};
 
 const DEFAULT_CABLE_CAPACITANCE_FARADS: f32 = 470e-12;
 const AMP_OUTPUT_SOURCE_IMPEDANCE_OHMS: f32 = 10_000.0;
@@ -21,6 +22,7 @@ pub struct SignalChainConfig {
     pub fx_loop: Vec<DeviceSlotConfig>,
     pub post_amp: Vec<DeviceSlotConfig>,
     pub cable_capacitance_farads: f32,
+    pub nam_pedal_path: Option<PathBuf>,
 }
 
 impl SignalChainConfig {
@@ -31,11 +33,17 @@ impl SignalChainConfig {
             fx_loop: Vec::new(),
             post_amp: Vec::new(),
             cable_capacitance_farads: DEFAULT_CABLE_CAPACITANCE_FARADS,
+            nam_pedal_path: None,
         }
     }
 
     pub fn with_pre_amp_device(mut self, device: DeviceConfig) -> Self {
         self.pre_amp.push(DeviceSlotConfig::active(device));
+        self
+    }
+
+    pub fn with_nam_pedal_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.nam_pedal_path = Some(path.into());
         self
     }
 }
@@ -66,6 +74,7 @@ impl DeviceSlotConfig {
 pub enum DeviceConfig {
     Lumen,
     Muon,
+    NamPedal,
     Muffin,
     Minotaur,
     Monarch,
@@ -353,6 +362,8 @@ const MUON_CONTROLS: &[ControlDescriptor] = &[
     unit_pot("resonance", "reso"),
     unit_pot("mix", "mix"),
 ];
+const NAM_PEDAL_CONTROLS: &[ControlDescriptor] =
+    &[unit_pot("input", "in"), unit_pot("output", "out")];
 
 const fn unit_pot(id: &'static str, label: &'static str) -> ControlDescriptor {
     ControlDescriptor {
@@ -396,6 +407,16 @@ impl DeviceConfig {
                     ..STANDARD_PEDAL_VISUAL
                 },
                 controls: MUON_CONTROLS,
+            },
+            Self::NamPedal => DeviceModelDescriptor {
+                id: "nam-pedal",
+                label: "NAM Pedal",
+                category: "capture",
+                visual: DeviceVisualDescriptor {
+                    color: "graphite",
+                    ..STANDARD_PEDAL_VISUAL
+                },
+                controls: NAM_PEDAL_CONTROLS,
             },
             Self::Muffin => DeviceModelDescriptor {
                 id: "muffin",
@@ -655,17 +676,38 @@ impl SignalChain {
             pre_amp: config
                 .pre_amp
                 .into_iter()
-                .map(|slot| DeviceSlot::new(sample_rate, cable_capacitance, slot))
+                .map(|slot| {
+                    DeviceSlot::new(
+                        sample_rate,
+                        cable_capacitance,
+                        slot,
+                        config.nam_pedal_path.as_deref(),
+                    )
+                })
                 .collect(),
             fx_loop: config
                 .fx_loop
                 .into_iter()
-                .map(|slot| DeviceSlot::new(sample_rate, cable_capacitance, slot))
+                .map(|slot| {
+                    DeviceSlot::new(
+                        sample_rate,
+                        cable_capacitance,
+                        slot,
+                        config.nam_pedal_path.as_deref(),
+                    )
+                })
                 .collect(),
             post_amp: config
                 .post_amp
                 .into_iter()
-                .map(|slot| DeviceSlot::new(sample_rate, cable_capacitance, slot))
+                .map(|slot| {
+                    DeviceSlot::new(
+                        sample_rate,
+                        cable_capacitance,
+                        slot,
+                        config.nam_pedal_path.as_deref(),
+                    )
+                })
                 .collect(),
             amp_input_connection: ConnectionState::new(sample_rate, cable_capacitance),
             fx_return_connection: ConnectionState::new(sample_rate, cable_capacitance),
@@ -782,11 +824,16 @@ struct DeviceSlot {
 }
 
 impl DeviceSlot {
-    fn new(sample_rate: f32, cable_capacitance_farads: f32, config: DeviceSlotConfig) -> Self {
+    fn new(
+        sample_rate: f32,
+        cable_capacitance_farads: f32,
+        config: DeviceSlotConfig,
+        nam_pedal_path: Option<&Path>,
+    ) -> Self {
         Self {
             bypassed: config.bypassed,
             input_connection: ConnectionState::new(sample_rate, cable_capacitance_farads),
-            processor: DeviceProcessor::new(sample_rate, config.device),
+            processor: DeviceProcessor::new(sample_rate, config.device, nam_pedal_path),
         }
     }
 
@@ -837,6 +884,7 @@ impl DeviceSlot {
 enum DeviceProcessor {
     Lumen(Lumen),
     Muon(Muon),
+    NamPedal(NamPedal),
     Muffin(Muffin),
     Minotaur(Minotaur),
     Monarch(Monarch),
@@ -853,10 +901,11 @@ enum DeviceProcessor {
 }
 
 impl DeviceProcessor {
-    fn new(sample_rate: f32, config: DeviceConfig) -> Self {
+    fn new(sample_rate: f32, config: DeviceConfig, nam_pedal_path: Option<&Path>) -> Self {
         match config {
             DeviceConfig::Lumen => Self::Lumen(Lumen::new(sample_rate)),
             DeviceConfig::Muon => Self::Muon(Muon::new(sample_rate)),
+            DeviceConfig::NamPedal => Self::NamPedal(NamPedal::new(nam_pedal_path)),
             DeviceConfig::Muffin => Self::Muffin(Muffin::new(sample_rate)),
             DeviceConfig::Minotaur => Self::Minotaur(Minotaur::new(sample_rate)),
             DeviceConfig::Monarch => Self::Monarch(Monarch::new(sample_rate)),
@@ -877,6 +926,7 @@ impl DeviceProcessor {
         match self {
             Self::Lumen(pedal) => pedal.reset(),
             Self::Muon(pedal) => pedal.reset(),
+            Self::NamPedal(pedal) => pedal.reset(),
             Self::Muffin(pedal) => pedal.reset(),
             Self::Minotaur(pedal) => pedal.reset(),
             Self::Monarch(pedal) => pedal.reset(),
@@ -897,6 +947,7 @@ impl DeviceProcessor {
         match self {
             Self::Lumen(_) => Lumen::INPUT_IMPEDANCE_OHMS,
             Self::Muon(_) => Muon::INPUT_IMPEDANCE_OHMS,
+            Self::NamPedal(_) => NamPedal::INPUT_IMPEDANCE_OHMS,
             Self::Muffin(_) => Muffin::INPUT_IMPEDANCE_OHMS,
             Self::Minotaur(_) => Minotaur::INPUT_IMPEDANCE_OHMS,
             Self::Monarch(_) => Monarch::INPUT_IMPEDANCE_OHMS,
@@ -959,6 +1010,17 @@ impl DeviceProcessor {
                     DeviceControls::Auralith(_) => MuonControls::default(),
                     DeviceControls::StudioVerb(_) => MuonControls::default(),
                     DeviceControls::StudioDelay(_) => MuonControls::default(),
+                },
+            ),
+            Self::NamPedal(pedal) => pedal.process_loaded_voltage(
+                input_voltage,
+                match controls {
+                    DeviceControls::Minotaur(controls) => controls,
+                    _ => MinotaurControls {
+                        gain: 0.5,
+                        treble: 0.5,
+                        output: 0.5,
+                    },
                 },
             ),
             Self::Muffin(pedal) => pedal.process_loaded_voltage(
