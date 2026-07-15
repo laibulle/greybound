@@ -158,11 +158,12 @@ into its one Tone Wicker selector: the macro is the no-scoop mode, with Q3
 routed directly to Q4. This makes the selected mode materially different from
 the classic Big Muff response instead of being merely brighter.
 
-The runtime retains a 10% companion-capacitor residual for the opened filters.
-This is a numerical conditioning value, not a hardware capacitor: at a 0.8 V
-peak, 1 kHz hot-drive diagnostic it prevents Q3 from settling into the false
-DC-only root that made the following coupling capacitor mute the pedal. A
-regression now requires sustained Tone Wicker output under that condition.
+The runtime retains a 20% companion-capacitor residual for the opened filters.
+This is a numerical conditioning value, not a hardware capacitor: across a
+1.2 V peak, 1 kHz hot-drive diagnostic — including Sustain at 95%, 98%, and
+100% — it prevents Q3 from settling into the false DC-only root that made the
+following coupling capacitor mute the pedal. A regression now requires
+sustained Tone Wicker output under those conditions.
 
 The bypass is also modelled as Q3's finite collector source driving Q4's
 nonlinear base/feedback load, rather than as a unity ideal voltage wire between

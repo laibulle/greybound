@@ -51,7 +51,7 @@ to compare their settled AC RMS/crête per boundary; the procedure and initial
 four-voice result are in `lab/experiments/011-muffin-rust-spice-node-comparison.md`.
 
 `muffin_v3_wicker.cir` separately validates the implemented one-control Tone
-Wicker macro at 1, 3, and 6 kHz. It opens C2/C6/C9 to the same bounded 10%
+Wicker macro at 1, 3, and 6 kHz. It opens C2/C6/C9 to the same bounded 20%
 numerical residual used by Rust and routes Q3 around the passive Tone stack.
 EHX exposes those functions as independent switches; Greybound combines them
 because this model has one Wicker selector.

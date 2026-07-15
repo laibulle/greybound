@@ -553,15 +553,35 @@ impl MuffinShuntFeedbackStage {
             let Some(delta) = solve_3x3(jacobian, residual) else {
                 break;
             };
-            for index in 0..3 {
-                nodes[index] -= delta[index].clamp(-0.10, 0.10);
+            // Q4 is driven directly by Q3 in Tone Wicker mode. Near the
+            // upper Sustain end, an undamped Newton update can jump from the
+            // continuous audio root to a low-output saturated root. Accept
+            // only a residual-reducing step, shortening it as needed.
+            let residual_energy = residual.iter().map(|value| value.powi(2)).sum::<f32>();
+            let mut accepted = false;
+            for damping in [1.0, 0.5, 0.25, 0.125] {
+                let mut candidate = nodes;
+                for index in 0..3 {
+                    candidate[index] -= delta[index].clamp(-0.10, 0.10) * damping;
+                }
+                self.clamp_nodes(&mut candidate);
+                let candidate_energy = self
+                    .residual(source_v, candidate)
+                    .iter()
+                    .map(|value| value.powi(2))
+                    .sum::<f32>();
+                if candidate_energy <= residual_energy {
+                    nodes = candidate;
+                    accepted = true;
+                    break;
+                }
             }
-            nodes[0] = nodes[0].clamp(-1.5, 1.5);
-            nodes[1] = nodes[1].clamp(
-                -self.negative_collector_headroom_v() - 0.1,
-                self.positive_collector_headroom_v() + 0.1,
-            );
-            nodes[2] = nodes[2].clamp(-1.5, 1.5);
+            if !accepted {
+                for index in 0..3 {
+                    nodes[index] -= delta[index].clamp(-0.025, 0.025);
+                }
+                self.clamp_nodes(&mut nodes);
+            }
             if delta.iter().all(|value| value.abs() < 1.0e-5) {
                 break;
             }
@@ -606,6 +626,15 @@ impl MuffinShuntFeedbackStage {
             emitter_v / self.emitter_resistance_ohms
                 - collector_current * (1.0 + 1.0 / self.current_gain),
         ]
+    }
+
+    fn clamp_nodes(&self, nodes: &mut [f32; 3]) {
+        nodes[0] = nodes[0].clamp(-1.5, 1.5);
+        nodes[1] = nodes[1].clamp(
+            -self.negative_collector_headroom_v() - 0.1,
+            self.positive_collector_headroom_v() + 0.1,
+        );
+        nodes[2] = nodes[2].clamp(-1.5, 1.5);
     }
 
     fn negative_collector_headroom_v(&self) -> f32 {
@@ -849,10 +878,10 @@ impl TrapezoidalCapacitor {
     /// The hardware Wicker switch opens the three collector-to-base filters.
     /// In the bounded Newton companion model, a tiny residual conductance
     /// keeps the switched feedback topology numerically well-conditioned;
-    /// at 10% of 470 pF it remains above the guitar-band filter corner while
+    /// at 20% of 470 pF it remains above the guitar-band filter corner while
     /// preventing Q3 from converging to a false DC-only root under hot drive.
     fn set_wicker_lifted(&mut self, lifted: bool) {
-        let conductance = self.nominal_conductance * if lifted { 0.10 } else { 1.0 };
+        let conductance = self.nominal_conductance * if lifted { 0.20 } else { 1.0 };
         if self.conductance != conductance {
             self.conductance = conductance;
             self.reset();

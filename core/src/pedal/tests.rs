@@ -358,8 +358,8 @@ fn muffin_wicker_stays_audible_under_hot_drive() {
 
 #[test]
 fn muffin_tone_wicker_sustain_travel_never_drops_out() {
-    for input_peak in [0.12, 0.30, 0.80] {
-        for sustain in [0.50, 0.75, 1.0] {
+    for input_peak in [0.12, 0.30, 0.80, 1.20] {
+        for sustain in [0.50, 0.75, 0.95, 0.98, 1.0] {
             let mut pedal = Muffin::new(48_000.0);
             let controls = MuffinControls {
                 sustain,
