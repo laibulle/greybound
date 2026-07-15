@@ -93,6 +93,12 @@ impl Muffin {
     // well below the nominal 100 kOhm shunt resistor.  This value is the
     // V3/SPICE operating-region approximation used to retain that loading.
     const SUSTAIN_WIPER_LOAD_OHMS: f32 = 16_000.0;
+    // Tone Bypass connects Q3 to Q4, but it is not a lossless voltage wire:
+    // Q3's finite collector source and Q4's nonlinear base/feedback load form
+    // a substantial divider. This is the calibrated loaded transfer used by
+    // the split stage solvers; feeding Q3 into Q4 at unity creates a false
+    // recovery-stage root and a dropout near the upper Sustain settings.
+    const TONE_WICKER_BYPASS_TRANSFER: f32 = 0.50;
 
     pub fn new(sample_rate: f32) -> Self {
         let circuit_sample_rate = sample_rate * OVERSAMPLING_FACTOR;
@@ -249,9 +255,11 @@ impl Muffin {
         // classic Muff mid scoop. Greybound has one selector rather than the
         // two independent EHX switches, so its Tone Wicker macro also takes
         // the Q3-to-Q4 path around the passive stack. That is the deliberate
-        // no-scoop mode; Tone is inactive while it is selected.
+        // no-scoop mode; Tone is inactive while it is selected. Retain the
+        // finite Q3-to-Q4 loading rather than treating the bypass as an ideal
+        // voltage source into the recovery-stage solver.
         let tone_output = if wicker {
-            q3
+            q3 * Self::TONE_WICKER_BYPASS_TRANSFER
         } else {
             self.tone_stack
                 .process(q3, tone, 10_000.0, Self::RECOVERY_STAGE_INPUT_LOAD_OHMS)

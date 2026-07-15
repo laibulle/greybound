@@ -164,6 +164,12 @@ peak, 1 kHz hot-drive diagnostic it prevents Q3 from settling into the false
 DC-only root that made the following coupling capacitor mute the pedal. A
 regression now requires sustained Tone Wicker output under that condition.
 
+The bypass is also modelled as Q3's finite collector source driving Q4's
+nonlinear base/feedback load, rather than as a unity ideal voltage wire between
+the split solvers. Its calibrated loaded transfer prevents Q4 from selecting a
+low-output root during the upper half of Sustain travel while retaining the
+macro's no-scoop response.
+
 ## Remaining evidence needed
 
 Per-unit component tolerances cannot be inferred from this comparison. The

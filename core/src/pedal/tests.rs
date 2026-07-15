@@ -357,6 +357,43 @@ fn muffin_wicker_stays_audible_under_hot_drive() {
 }
 
 #[test]
+fn muffin_tone_wicker_sustain_travel_never_drops_out() {
+    for input_peak in [0.12, 0.30, 0.80] {
+        for sustain in [0.50, 0.75, 1.0] {
+            let mut pedal = Muffin::new(48_000.0);
+            let controls = MuffinControls {
+                sustain,
+                tone: 0.50,
+                level: 0.70,
+                wicker: 1.0,
+                voicing: 0.0,
+            };
+            let mut sustained_energy = 0.0;
+
+            for sample_idx in 0..12_000 {
+                let input = (std::f32::consts::TAU * 1_000.0 * sample_idx as f32 / 48_000.0).sin()
+                    * input_peak;
+                let output = pedal
+                    .process(
+                        ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                        controls,
+                    )
+                    .voltage;
+                assert!(output.is_finite(), "input={input_peak}, sustain={sustain}");
+                if sample_idx >= 6_000 {
+                    sustained_energy += output.powi(2);
+                }
+            }
+
+            assert!(
+                sustained_energy > 500.0,
+                "Tone Wicker dropped out: input={input_peak}, sustain={sustain}, energy={sustained_energy}"
+            );
+        }
+    }
+}
+
+#[test]
 fn muffin_voice_switch_keeps_a_continuous_output_state() {
     let mut pedal = Muffin::new(48_000.0);
     let mut previous_output = 0.0;

@@ -539,7 +539,7 @@ impl MuffinShuntFeedbackStage {
 
     pub fn process(&mut self, source_v: f32) -> f32 {
         let mut nodes = [self.base_v, self.collector_v, self.emitter_v];
-        for _ in 0..10 {
+        for _ in 0..20 {
             let residual = self.residual(source_v, nodes);
             let mut jacobian = [[0.0; 3]; 3];
             for column in 0..3 {
@@ -554,7 +554,7 @@ impl MuffinShuntFeedbackStage {
                 break;
             };
             for index in 0..3 {
-                nodes[index] -= delta[index].clamp(-0.25, 0.25);
+                nodes[index] -= delta[index].clamp(-0.10, 0.10);
             }
             nodes[0] = nodes[0].clamp(-1.5, 1.5);
             nodes[1] = nodes[1].clamp(
