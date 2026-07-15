@@ -849,9 +849,10 @@ impl TrapezoidalCapacitor {
     /// The hardware Wicker switch opens the three collector-to-base filters.
     /// In the bounded Newton companion model, a tiny residual conductance
     /// keeps the switched feedback topology numerically well-conditioned;
-    /// at 5% of 470 pF it sits well below the audible circuit filter corner.
+    /// at 10% of 470 pF it remains above the guitar-band filter corner while
+    /// preventing Q3 from converging to a false DC-only root under hot drive.
     fn set_wicker_lifted(&mut self, lifted: bool) {
-        let conductance = self.nominal_conductance * if lifted { 0.05 } else { 1.0 };
+        let conductance = self.nominal_conductance * if lifted { 0.10 } else { 1.0 };
         if self.conductance != conductance {
             self.conductance = conductance;
             self.reset();

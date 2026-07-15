@@ -150,22 +150,19 @@ instability or a SPICE mismatch: its 200 mV node comparison remains within
 setting until a Triangle hardware level reference is available; do not add a
 hidden voice-volume compensation to a circuit model.
 
-## Tone Wicker macro — separate limit
+## Tone Wicker macro — corrected hot-drive limit
 
-The Wicker implementation is deliberately tested in a separate SPICE fixture:
-the three Miller capacitors are opened to the same 5% residual conductance
-used by Rust and Q3 is coupled directly to Q4. At 1 kHz / 40 mVpk its direct
-path agrees at the meaningful nonlinear boundaries: Q3/tone +0.16 dB, Q4
--0.23 dB, output -0.27 dB. This confirms that the bypass itself is not an
-inactive control.
+EHX exposes independent Wicker (three high-frequency filters) and Tone Bypass
+(passive tone stack removed) switches. Greybound intentionally combines both
+into its one Tone Wicker selector: the macro is the no-scoop mode, with Q3
+routed directly to Q4. This makes the selected mode materially different from
+the classic Big Muff response instead of being merely brighter.
 
-At 3 and 6 kHz, Q3 remains close (+0.27/+0.34 dB) but the simplified Rust Q4
-cell is respectively -3.07/-2.97 dB below the fully coupled SPICE recovery
-collector. Its host-rate output is lower still because the deliberately
-anti-aliased decimator removes high-order Wicker harmonics which analogue
-SPICE keeps. This is a known recovery-stage modelling limit, **not** a reason
-to add a Wicker-only gain or EQ compensation: Q4 is unchanged by the physical
-Wicker switches and such a patch would break the normal-mode validation.
+The runtime retains a 10% companion-capacitor residual for the opened filters.
+This is a numerical conditioning value, not a hardware capacitor: at a 0.8 V
+peak, 1 kHz hot-drive diagnostic it prevents Q3 from settling into the false
+DC-only root that made the following coupling capacitor mute the pedal. A
+regression now requires sustained Tone Wicker output under that condition.
 
 ## Remaining evidence needed
 

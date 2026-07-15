@@ -324,6 +324,39 @@ fn muffin_tone_wicker_bypasses_tone_control() {
 }
 
 #[test]
+fn muffin_wicker_stays_audible_under_hot_drive() {
+    let mut pedal = Muffin::new(48_000.0);
+    let controls = MuffinControls {
+        sustain: 1.0,
+        tone: 0.50,
+        level: 1.0,
+        wicker: 1.0,
+        voicing: 0.0,
+    };
+    let mut sustained_energy = 0.0;
+
+    for sample_idx in 0..48_000 {
+        let input = (std::f32::consts::TAU * 1_000.0 * sample_idx as f32 / 48_000.0).sin() * 0.8;
+        let output = pedal
+            .process(
+                ElectricalSignal::new(input, GUITAR_SOURCE_IMPEDANCE_OHMS),
+                controls,
+            )
+            .voltage;
+        assert!(output.is_finite(), "sample={sample_idx}");
+        assert!(output.abs() <= 4.5, "sample={sample_idx}");
+        if sample_idx >= 24_000 {
+            sustained_energy += output.powi(2);
+        }
+    }
+
+    assert!(
+        sustained_energy > 100.0,
+        "Wicker latched into a near-silent DC state: energy={sustained_energy}"
+    );
+}
+
+#[test]
 fn muffin_voice_switch_keeps_a_continuous_output_state() {
     let mut pedal = Muffin::new(48_000.0);
     let mut previous_output = 0.0;

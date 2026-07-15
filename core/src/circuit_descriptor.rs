@@ -2018,7 +2018,7 @@ const MUFFIN_CONTROLS: &[CircuitControlBinding] = &[
         control_id: "wicker",
         node_id: "tone_stack",
         role:
-            "Tone Wicker routes around this passive tone stack, so Tone is inactive while engaged.",
+            "Greybound's Tone Wicker macro routes around this passive tone stack, so Tone is inactive while engaged.",
     },
     CircuitControlBinding {
         control_id: "level",

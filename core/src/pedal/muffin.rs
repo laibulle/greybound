@@ -11,6 +11,8 @@ pub struct MuffinControls {
     pub tone: f32,
     pub level: f32,
     /// Tone Wicker macro: lifts C2/C6/C9 and bypasses the passive tone stack.
+    /// The hardware exposes those as two switches; Greybound combines them
+    /// into its single, deliberately more pronounced Wicker mode.
     pub wicker: f32,
     /// 0 = V3, 1 = 1974 Violet Ram's Head, 2 = Green Russian, 3 = Triangle.
     pub voicing: f32,
@@ -243,10 +245,11 @@ impl Muffin {
         let q2 = self.q2.process(self.sustain_to_q2.process(sustain_wiper));
         let q3 = self.q3.process(self.q2_to_q3.process(q2));
 
-        // The single Tone Wicker control is deliberately a macro: it opens
-        // the three high-frequency filters and routes around the lossy tone
-        // stack. This is the useful one-control form of the EHX Tone Wicker
-        // behavior; Tone is intentionally inactive while it is engaged.
+        // A Wicker-only lift opens high-frequency filters but retains the
+        // classic Muff mid scoop. Greybound has one selector rather than the
+        // two independent EHX switches, so its Tone Wicker macro also takes
+        // the Q3-to-Q4 path around the passive stack. That is the deliberate
+        // no-scoop mode; Tone is inactive while it is selected.
         let tone_output = if wicker {
             q3
         } else {
