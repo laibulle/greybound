@@ -1,0 +1,17 @@
+[package]
+name = "greybound-lab"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Human-facing desktop workbench for reproducible Greybound audio analysis."
+
+[[bin]]
+name = "greybound-lab-desktop"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+greybound-lab-core = { path = "../lab-core" }
+iced = { version = "0.10", features = ["tokio"] }
+rfd = "0.15"
+serde_json = "1.0"

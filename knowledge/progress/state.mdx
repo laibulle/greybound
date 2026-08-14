@@ -94,6 +94,23 @@ description: Decisions and open questions that should steer upcoming implementat
   separate. Implemented tools can list assets, inspect rigs, render bounded
   WAVs with temporary control overrides, parse monitor/WAV health, call the lab
   comparison workflow, and summarize run metadata.
+- The first distributable Lab vertical is now split into `greybound-lab-core`
+  and the `greybound-lab` Iced workbench. Both MCP and the human UI create the
+  same `greybound.lab.run.v1` artifacts under `lab/renders/mcp/`; the UI offers
+  bounded render setup, run history, health cards, warnings, waveform/spectrum
+  previews, a bounded aligned A/B null preview, and an excerpt of the persisted
+  full Markdown comparison report; MCP exposes the same history, visual data,
+  A/B metrics, and report generation. External plugin or hardware output can
+  already be imported as a WAV by the desktop or `import_wav` MCP tool, without
+  an arbitrary-command surface. A declarative host-adapter contract now runs
+  AU/VST3/CLAP-compatible offline renderers out of process, via direct argument
+  expansion (never a shell), and records host stdout/stderr plus the normal Lab
+  artifact. Native in-process SDK-specific loading remains deliberately out of
+  scope: vendor hosts are isolated so their crashes and licensing constraints
+  cannot take down the Lab UI or MCP server. `make lab-desktop-dist` now stages
+  separate desktop/MCP binaries and the Python report runtime, while
+  `GREYBOUND_LAB_HOME` lets the product operate from an independent designer
+  workspace rather than requiring a Greybound source checkout.
 - The desktop top control bar no longer exposes `cable` or a duplicate
   `SPRING` mix as user controls. Cable capacitance remains a rig/lab parameter,
   and Springfield mix belongs on the Springfield pedal surface. The visible

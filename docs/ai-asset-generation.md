@@ -2,6 +2,13 @@
 
 Use this guide when generating or regenerating photorealistic Greybound hardware assets.
 
+> Pedal faceplates now use the mandatory [industrial pedal asset pipeline](./pedal-asset-pipeline.md).
+> Do not use the legacy complete-faceplate prompt below for a new or replacement
+> pedal: it delegates mechanical placement and labels to the image model. Use
+> `cargo xtask pedal-assets prompt <model-id>` and its exported construction
+> guide instead. The remaining sections are retained for legacy assets and
+> isolated runtime-control generation.
+
 ## When To Regenerate
 
 Do not regenerate a working asset only to satisfy the new ratio. Keep Minotaur and Springfield as visual references unless the composition itself must change. Regenerate when:

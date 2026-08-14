@@ -145,6 +145,9 @@ DESKTOP_DMG_STAGING_DIR ?= $(DESKTOP_DIST_DIR)/dmg
 DESKTOP_DMG ?= $(DESKTOP_DIST_DIR)/$(DESKTOP_APP_NAME).dmg
 DESKTOP_DMG_VOLUME_NAME ?= $(DESKTOP_APP_NAME)
 DESKTOP_CODESIGN_IDENTITY ?= -
+LAB_DESKTOP := target/release/greybound-lab-desktop
+LAB_MCP := target/release/greybound-audio-lab-mcp
+LAB_DIST_DIR ?= target/release/greybound-lab-dist
 PLUGIN_PACKAGE ?= greybound-plugin
 CLAP_BUNDLE_NAME ?= greybound-plugin.clap
 LEGACY_CLAP_BUNDLE_NAME ?= Greybound.clap
@@ -304,6 +307,27 @@ desktop-dist: desktop-dmg
 
 desktop-package-open: desktop-package
 	open "$(DESKTOP_APP_DIR)"
+
+lab-desktop-dist:
+	cargo build --release -p greybound-lab -p greybound-audio-lab-mcp
+	rm -rf "$(LAB_DIST_DIR)"
+	mkdir -p "$(LAB_DIST_DIR)/bin" "$(LAB_DIST_DIR)/lab/adapters" "$(LAB_DIST_DIR)/runtime/lab"
+	cp "$(LAB_DESKTOP)" "$(LAB_DIST_DIR)/bin/greybound-lab-desktop"
+	cp "$(LAB_MCP)" "$(LAB_DIST_DIR)/bin/greybound-audio-lab-mcp"
+	ditto lab/src "$(LAB_DIST_DIR)/runtime/lab/src"
+	cp lab/pyproject.toml lab/uv.lock lab/README.md "$(LAB_DIST_DIR)/runtime/lab/"
+	cp lab/adapters/.gitkeep "$(LAB_DIST_DIR)/lab/adapters/.gitkeep"
+	@{ \
+		printf '%s\n' 'Greybound Lab distribution'; \
+		printf '%s\n' ''; \
+		printf '%s\n' '1. Create or choose an analysis workspace.'; \
+		printf '%s\n' '2. Set GREYBOUND_LAB_HOME to that directory.'; \
+		printf '%s\n' '3. Start bin/greybound-lab-desktop or configure bin/greybound-audio-lab-mcp as an MCP stdio server.'; \
+		printf '%s\n' '4. Put approved host-adapter manifests in $$GREYBOUND_LAB_HOME/lab/adapters.'; \
+		printf '%s\n' ''; \
+		printf '%s\n' 'The bundled Python comparison project is found automatically. It requires uv on PATH the first time a full report is generated.'; \
+	} > "$(LAB_DIST_DIR)/README.txt"
+	@echo "Packaged $(LAB_DIST_DIR)"
 
 lab-download-tone3000-inputs:
 	uv --project lab run greybound-lab download-tone3000-inputs \
@@ -716,6 +740,8 @@ docs-deploy: docs-vercel-build
 site-deploy: landing-deploy docs-deploy
 
 vercel-deploy: landing-deploy
+
+.PHONY: lab-desktop-dist
 
 .PHONY: lab-spice-daybreaker-sss002-u5-volume-u4 lab-spice-daybreaker-sss002-tone-deep-asc lab-spice-daybreaker-sss002-tone-deep-layout
 .PHONY: standalone standalone-with-ir standalone-run standalone-run-wave standalone-run-wavetofile devices desktop desktop-release run-desktop desktop-package desktop-dmg desktop-dist desktop-package-open lab-download-tone3000-inputs lab-download-tone3000-irs lab-inspect-nam-pack lab-inspect-none-star-nam lab-inspect-daybreaker-nam lab-download-daybreaker-nam lab-render-nam lab-render-none-star-nam lab-render-daybreaker-nam lab-render-klon-nam lab-render-minotaur-pedal lab-compare-minotaur-klon lab-sweep-minotaur-klon lab-benchmark-minotaur-klon lab-spice-klon lab-spice-none-star-tone-presence lab-spice-daybreaker-presence-filter lab-spice-daybreaker-classic-tmb lab-spice-daybreaker-sss002-classic-tmb lab-spice-daybreaker-sss002-high-low-filters lab-spice-daybreaker-sss002-high-low-chain lab-spice-daybreaker-sss002-high-low-u37-recovery lab-spice-daybreaker-sss002-u4-plate-stage lab-spice-daybreaker-tmb-recovery lab-triage-minotaur-klon lab-fetch-klon-spice lab-check-ltspice lab-run-klon-spice-ltspice lab-spice-run lab-spice-dataset lab-spice-klon-dataset lab-train-neural-cell lab-train-klon-neural-cell lab-fit-graybox-cell lab-evaluate-graybox-cell-rust lab-export-neural-cell-vectors lab-check-neural-cell-rust lab-evaluate-neural-cell lab-shadow-nox30-first-stage lab-evaluate-integrated-neural-cell lab-evaluate-integrated-graybox-cell lab-sweep-neural-blend lab-evaluate-analytic-common-cathode web-wasm web-build landing-build docs-build site-build landing-vercel-build docs-vercel-build vercel-build landing-deploy docs-deploy site-deploy vercel-deploy

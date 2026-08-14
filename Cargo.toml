@@ -5,6 +5,8 @@ members = [
     "ui",
     "wasm",
     "desktop",
+    "lab-core",
+    "lab-desktop",
     "audio-lab-mcp",
     "plugin",
     "plugin-ui",

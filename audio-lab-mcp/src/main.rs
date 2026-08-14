@@ -1,13 +1,16 @@
 use anyhow::{anyhow, bail, Context, Result};
 use greybound::rig::RigDeviceSlot;
 use greybound::{amp_model_descriptor, ControlKind, DeviceConfig, RigConfig, SignalChainConfig};
+use greybound_lab_core::{
+    ComparisonReportRequest, LabCore, PluginRenderRequest, RenderRequest, RenderRuntime,
+    WavAnalysisRequest,
+};
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -23,7 +26,14 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let server = Server::new(env::current_dir()?);
+    let root = if let Some(root) = env::var_os("GREYBOUND_LAB_HOME") {
+        let root = PathBuf::from(root);
+        fs::create_dir_all(&root)?;
+        root
+    } else {
+        env::current_dir()?
+    };
+    let server = Server::new(root);
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
@@ -105,6 +115,12 @@ impl Server {
 
         let structured = match name {
             "list_audio_assets" => self.list_audio_assets(&arguments)?,
+            "list_runs" => self.list_runs()?,
+            "import_wav" => self.import_wav(&arguments)?,
+            "preview_wav" => self.preview_wav(&arguments)?,
+            "compare_preview" => self.compare_preview(&arguments)?,
+            "list_host_adapters" => self.list_host_adapters()?,
+            "render_plugin" => self.render_plugin(&arguments)?,
             "inspect_rig" => self.inspect_rig(&arguments)?,
             "render_rig" => self.render_rig(&arguments)?,
             "monitor_render" => self.monitor_render(&arguments)?,
@@ -160,6 +176,115 @@ impl Server {
         }
 
         Ok(Value::Object(result))
+    }
+
+    fn list_runs(&self) -> Result<Value> {
+        Ok(serde_json::to_value(
+            LabCore::new(&self.root).load_workspace()?,
+        )?)
+    }
+
+    fn import_wav(&self, arguments: &Value) -> Result<Value> {
+        let candidate_wav = required_path(arguments, "candidate_wav")?;
+        let run_id = arguments
+            .get("run_id")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| format!("external-{}", run_id_now()));
+        let metadata_path = arguments
+            .get("metadata")
+            .and_then(Value::as_str)
+            .map(|path| self.resolve(path))
+            .unwrap_or_else(|| {
+                self.root
+                    .join("lab/renders/mcp")
+                    .join(format!("{run_id}.run.json"))
+            });
+        let label = arguments
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or("External WAV")
+            .to_string();
+        let artifact = LabCore::new(&self.root).record_wav_analysis(WavAnalysisRequest {
+            run_id,
+            candidate_wav: self.resolve(candidate_wav),
+            metadata_path,
+            label,
+            context: json!({ "initiator": "mcp", "experiment_kind": "external_wav_analysis" }),
+        })?;
+        Ok(serde_json::to_value(artifact)?)
+    }
+
+    fn preview_wav(&self, arguments: &Value) -> Result<Value> {
+        let candidate_wav = required_path(arguments, "candidate_wav")?;
+        let bins = arguments.get("bins").and_then(Value::as_u64).unwrap_or(96) as usize;
+        let core = LabCore::new(&self.root);
+        Ok(json!({
+            "diagnostics": core.analyse_wav(&candidate_wav)?,
+            "waveform": core.waveform_preview(&candidate_wav, bins)?,
+            "spectrum": core.spectrum_preview(&candidate_wav, bins)?,
+        }))
+    }
+
+    fn compare_preview(&self, arguments: &Value) -> Result<Value> {
+        let candidate = required_path(arguments, "candidate")?;
+        let reference = required_path(arguments, "reference")?;
+        Ok(serde_json::to_value(
+            LabCore::new(&self.root).compare_wavs(candidate, reference)?,
+        )?)
+    }
+
+    fn list_host_adapters(&self) -> Result<Value> {
+        let adapters = LabCore::new(&self.root)
+            .list_host_adapters()?
+            .into_iter()
+            .map(|(path, manifest)| json!({ "path": path, "manifest": manifest }))
+            .collect::<Vec<_>>();
+        Ok(json!({ "adapters": adapters }))
+    }
+
+    fn render_plugin(&self, arguments: &Value) -> Result<Value> {
+        let adapter = required_path(arguments, "adapter")?;
+        let plugin = required_path(arguments, "plugin")?;
+        let input_wav = required_path(arguments, "input_wav")?;
+        let run_id = arguments
+            .get("run_id")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| format!("plugin-{}", run_id_now()));
+        let runtime = arguments.get("runtime").cloned().unwrap_or_default();
+        let output_wav = runtime_path(
+            &runtime,
+            "output_wav",
+            self.root
+                .join("lab/renders/mcp")
+                .join(format!("{run_id}.wav")),
+        );
+        let metadata_path = runtime_path(
+            &runtime,
+            "metadata",
+            self.root
+                .join("lab/renders/mcp")
+                .join(format!("{run_id}.run.json")),
+        );
+        let artifact = LabCore::new(&self.root).run_plugin_host(PluginRenderRequest {
+            run_id,
+            adapter_path: self.resolve(&adapter),
+            plugin_path: self.resolve(&plugin),
+            input_wav: self.resolve(&input_wav),
+            output_wav: self.resolve(output_wav),
+            metadata_path: self.resolve(metadata_path),
+            sample_rate: runtime_u64(&runtime, "sample_rate", 48_000),
+            block_size: runtime_u64(&runtime, "block_size", 64),
+            render_seconds: runtime_f64(&runtime, "render_seconds", 10.0),
+            context: json!({
+                "initiator": "mcp",
+                "experiment_kind": "external_plugin_render",
+                "adapter": adapter,
+                "plugin": plugin,
+            }),
+        })?;
+        Ok(serde_json::to_value(artifact)?)
     }
 
     fn inspect_rig(&self, arguments: &Value) -> Result<Value> {
@@ -231,11 +356,11 @@ impl Server {
             "output_wav",
             render_dir.join(format!("{run_id}.wav")),
         );
-        let monitor_log = runtime_path(
+        let monitor_log = self.resolve(runtime_path(
             &runtime,
             "monitor_log",
             render_dir.join(format!("{run_id}.monitor.log")),
-        );
+        ));
         let metadata_path = render_dir.join(format!("{run_id}.run.json"));
         let sample_rate = runtime_u64(&runtime, "sample_rate", 48_000);
         let period_size = runtime_u64(&runtime, "period_size", 32);
@@ -252,89 +377,40 @@ impl Server {
             self.ensure_release_cli()?;
         }
 
-        let cli = self.root.join("target/release/greybound-cli");
-        let mut command = Command::new(&cli);
-        command
-            .current_dir(&self.root)
-            .arg("--rig")
-            .arg(&rig_arg)
-            .arg("--input-wav")
-            .arg(&input_wav)
-            .arg("--input-channel")
-            .arg((input_channel + 1).to_string())
-            .arg("--output-wav")
-            .arg(&output_wav)
-            .arg("--render-seconds")
-            .arg(render_seconds.to_string())
-            .arg("--sample-rate")
-            .arg(sample_rate.to_string())
-            .arg("--period-size")
-            .arg(period_size.to_string())
-            .arg("--ir")
-            .arg(&ir)
-            .arg("--monitor-log")
-            .arg(&monitor_log);
-        if monitor {
-            command.arg("--monitor");
-        }
-
-        let command_vec = command_to_vec(&cli, &command);
-        let output = command
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .with_context(|| format!("failed to launch {}", cli.display()))?;
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let diagnostics = self.monitor_render_paths(&monitor_log, &output_wav)?;
-        let status = if !output.status.success() {
-            "severe"
-        } else {
-            diagnostics
-                .get("status")
-                .and_then(Value::as_str)
-                .unwrap_or("warning")
-        };
-        let git_revision = self
-            .git_revision()
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        let metadata = json!({
-            "run_id": run_id,
-            "status": status,
-            "command": command_vec,
-            "exit_status": output.status.code(),
-            "stdout": stdout,
-            "stderr": stderr,
-            "git_revision": git_revision,
-            "rig": rig,
-            "effective_rig": path_for_json(&rig_arg),
-            "runtime": {
-                "sample_rate": sample_rate,
-                "period_size": period_size,
-                "render_seconds": render_seconds,
-                "input_wav": path_for_json(&input_wav),
-                "input_channel": input_channel,
-                "ir": path_for_json(&ir),
-                "output_wav": path_for_json(&output_wav),
-                "monitor": monitor
+        let git_revision = self.git_revision().ok();
+        let artifact = LabCore::new(&self.root).run_render(RenderRequest {
+            run_id,
+            cli: self.root.join("target/release/greybound-cli"),
+            rig: rig.to_string(),
+            effective_rig: rig_arg,
+            runtime: RenderRuntime {
+                sample_rate,
+                period_size,
+                render_seconds,
+                input_wav: path_for_json(&input_wav),
+                input_channel,
+                ir: path_for_json(&ir),
+                output_wav: path_for_json(&output_wav),
+                monitor,
             },
-            "overrides": overrides,
-            "diagnostics": diagnostics
-        });
-        fs::write(&metadata_path, serde_json::to_vec_pretty(&metadata)?)?;
+            monitor_log,
+            metadata_path,
+            git_revision,
+            context: json!({ "initiator": "mcp", "overrides": overrides }),
+        })?;
+        let diagnostics = serde_json::to_value(&artifact.diagnostics)?;
 
         Ok(json!({
-            "run_id": run_id,
-            "status": status,
-            "candidate_wav": path_for_json(&output_wav),
-            "monitor_log": path_for_json(&monitor_log),
-            "metadata": path_for_json(&metadata_path),
+            "run_id": artifact.run_id,
+            "status": artifact.status,
+            "candidate_wav": artifact.artifacts.candidate_wav,
+            "monitor_log": artifact.artifacts.monitor_log,
+            "metadata": artifact.artifacts.metadata,
             "report": null,
             "diagnostics": diagnostics,
-            "command": command_vec,
-            "stdout": stdout,
-            "stderr": stderr
+            "command": artifact.command,
+            "stdout": artifact.stdout,
+            "stderr": artifact.stderr
         }))
     }
 
@@ -366,42 +442,21 @@ impl Server {
                     .join("lab/reports/mcp")
                     .join(format!("{}-comparison.md", run_id_now()))
             });
-        fs::create_dir_all(parent_or_root(&report))?;
-
-        let mut command = Command::new("uv");
-        command
-            .current_dir(&self.root)
-            .arg("--project")
-            .arg("lab")
-            .arg("run")
-            .arg("greybound-lab")
-            .arg("compare-wav")
-            .arg("--candidate")
-            .arg(self.resolve(&candidate))
-            .arg("--reference")
-            .arg(self.resolve(&reference))
-            .arg("--report")
-            .arg(&report);
-        if let Some(metadata) = arguments.get("metadata").and_then(Value::as_str) {
-            command.arg("--metadata").arg(self.resolve(metadata));
-        }
-        if let Some(segments) = arguments.get("segments").and_then(Value::as_str) {
-            command.arg("--segments").arg(self.resolve(segments));
-        }
-
-        let command_vec = command_to_vec(Path::new("uv"), &command);
-        let output = command
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()?;
-        Ok(json!({
-            "status": if output.status.success() { "clean" } else { "severe" },
-            "report": path_for_json(&report),
-            "command": command_vec,
-            "stdout": String::from_utf8_lossy(&output.stdout).trim(),
-            "stderr": String::from_utf8_lossy(&output.stderr).trim(),
-            "exit_status": output.status.code()
-        }))
+        let comparison =
+            LabCore::new(&self.root).generate_comparison_report(ComparisonReportRequest {
+                candidate: self.resolve(candidate),
+                reference: self.resolve(reference),
+                metadata: arguments
+                    .get("metadata")
+                    .and_then(Value::as_str)
+                    .map(|path| self.resolve(path)),
+                segments: arguments
+                    .get("segments")
+                    .and_then(Value::as_str)
+                    .map(|path| self.resolve(path)),
+                report,
+            })?;
+        Ok(serde_json::to_value(comparison)?)
     }
 
     fn evaluate_wav(&self, arguments: &Value) -> Result<Value> {
@@ -410,7 +465,7 @@ impl Server {
         let diagnostics = if let Some(monitor_log) = monitor_log {
             self.monitor_render_paths(&self.resolve(monitor_log), &self.resolve(&candidate))?
         } else {
-            wav_summary(&self.resolve(&candidate))?
+            serde_json::to_value(LabCore::new(&self.root).analyse_wav(&candidate)?)?
         };
         Ok(json!({
             "status": diagnostics.get("status").and_then(Value::as_str).unwrap_or("warning"),
@@ -444,87 +499,9 @@ impl Server {
     }
 
     fn monitor_render_paths(&self, monitor_log: &Path, candidate_wav: &Path) -> Result<Value> {
-        let mut diagnostics = Map::new();
-        diagnostics.insert("monitor_log".to_string(), json!(path_for_json(monitor_log)));
-        if candidate_wav.exists() {
-            diagnostics.insert(
-                "candidate_wav".to_string(),
-                json!(path_for_json(candidate_wav)),
-            );
-            if let Value::Object(wav) = wav_summary(candidate_wav)? {
-                diagnostics.extend(wav);
-            }
-        }
-
-        let monitor = parse_monitor_log(monitor_log)?;
-        let mut warnings = Vec::new();
-        let xrun_count = monitor.input_xruns + monitor.output_xruns;
-        let hard_clip_count = monitor.input_hard_clips + monitor.output_hard_clips;
-        let near_clip_count = monitor.input_near_clips + monitor.output_near_clips;
-        if xrun_count > 0 {
-            warnings.push(format!("xrun count is {xrun_count}"));
-        }
-        if hard_clip_count > 0 {
-            warnings.push(format!("hard clip count is {hard_clip_count}"));
-        }
-        if near_clip_count > 0 {
-            warnings.push(format!("near clip count is {near_clip_count}"));
-        }
-        if monitor.entries == 0 {
-            warnings.push("monitor log has no MON entries".to_string());
-        }
-        if let Some(output_peak) = diagnostics.get("peak").and_then(Value::as_f64) {
-            if output_peak <= 0.000001 {
-                warnings.push("candidate output appears silent".to_string());
-            }
-        }
-
-        let status = if xrun_count > 0 || hard_clip_count > 0 {
-            "severe"
-        } else if warnings.is_empty() {
-            "clean"
-        } else {
-            "warning"
-        };
-
-        diagnostics.insert("status".to_string(), json!(status));
-        diagnostics.insert("warnings".to_string(), json!(warnings));
-        diagnostics.insert("monitor_entries".to_string(), json!(monitor.entries));
-        diagnostics.insert("input_rms_dbfs".to_string(), json!(monitor.input_rms_dbfs));
-        diagnostics.insert(
-            "input_peak_dbfs".to_string(),
-            json!(monitor.input_peak_dbfs),
-        );
-        diagnostics.insert(
-            "output_rms_dbfs".to_string(),
-            json!(monitor.output_rms_dbfs),
-        );
-        diagnostics.insert(
-            "output_peak_dbfs".to_string(),
-            json!(monitor.output_peak_dbfs),
-        );
-        diagnostics.insert("xrun_count".to_string(), json!(xrun_count));
-        diagnostics.insert("hard_clip_count".to_string(), json!(hard_clip_count));
-        diagnostics.insert("near_clip_count".to_string(), json!(near_clip_count));
-        diagnostics.insert(
-            "input_near_clip_count".to_string(),
-            json!(monitor.input_near_clips),
-        );
-        diagnostics.insert(
-            "input_hard_clip_count".to_string(),
-            json!(monitor.input_hard_clips),
-        );
-        diagnostics.insert(
-            "output_near_clip_count".to_string(),
-            json!(monitor.output_near_clips),
-        );
-        diagnostics.insert(
-            "output_hard_clip_count".to_string(),
-            json!(monitor.output_hard_clips),
-        );
-        diagnostics.insert("input_xruns".to_string(), json!(monitor.input_xruns));
-        diagnostics.insert("output_xruns".to_string(), json!(monitor.output_xruns));
-        Ok(Value::Object(diagnostics))
+        Ok(serde_json::to_value(
+            LabCore::new(&self.root).analyse_render(monitor_log, candidate_wav)?,
+        )?)
     }
 
     fn list_paths(&self, dir: &str, extensions: &[&str]) -> Result<Value> {
@@ -627,21 +604,6 @@ struct JsonRpcRequest {
     params: Option<Value>,
 }
 
-#[derive(Default)]
-struct MonitorAggregate {
-    entries: usize,
-    input_rms_dbfs: Option<f64>,
-    input_peak_dbfs: Option<f64>,
-    output_rms_dbfs: Option<f64>,
-    output_peak_dbfs: Option<f64>,
-    input_near_clips: u64,
-    input_hard_clips: u64,
-    output_near_clips: u64,
-    output_hard_clips: u64,
-    input_xruns: u64,
-    output_xruns: u64,
-}
-
 fn tools() -> Value {
     json!([
         tool(
@@ -650,6 +612,72 @@ fn tools() -> Value {
             json!({
                 "type": "object",
                 "properties": { "kind": { "type": "string", "enum": ["all", "rigs", "inputs", "irs", "renders", "reports"], "default": "all" } }
+            })
+        ),
+        tool(
+            "list_runs",
+            "List versioned experiment artifacts shared with Greybound Lab desktop.",
+            json!({ "type": "object" })
+        ),
+        tool(
+            "import_wav",
+            "Create a versioned Lab artifact from a WAV rendered by any external plugin host or hardware workflow.",
+            json!({
+                "type": "object",
+                "required": ["candidate_wav"],
+                "properties": {
+                    "candidate_wav": { "type": "string" },
+                    "label": { "type": "string" },
+                    "run_id": { "type": "string" },
+                    "metadata": { "type": "string" }
+                }
+            })
+        ),
+        tool(
+            "preview_wav",
+            "Return shared health, waveform, and spectrum preview data for a WAV artifact.",
+            json!({
+                "type": "object",
+                "required": ["candidate_wav"],
+                "properties": { "candidate_wav": { "type": "string" }, "bins": { "type": "integer", "default": 96 } }
+            })
+        ),
+        tool(
+            "compare_preview",
+            "Fast aligned A/B diagnostic: latency, gain correction, and null residual. Use compare_wav for the full report.",
+            json!({
+                "type": "object",
+                "required": ["candidate", "reference"],
+                "properties": { "candidate": { "type": "string" }, "reference": { "type": "string" } }
+            })
+        ),
+        tool(
+            "list_host_adapters",
+            "List valid declarative AU/VST3/CLAP/external host adapters installed under lab/adapters.",
+            json!({ "type": "object" })
+        ),
+        tool(
+            "render_plugin",
+            "Run a plugin through a selected declarative host adapter. The adapter uses direct process arguments, never a shell command.",
+            json!({
+                "type": "object",
+                "required": ["adapter", "plugin", "input_wav"],
+                "properties": {
+                    "adapter": { "type": "string", "description": "Path to a greybound.lab.host-adapter.v1 JSON file." },
+                    "plugin": { "type": "string", "description": "AU/VST3/CLAP bundle or plugin file consumed by the adapter." },
+                    "input_wav": { "type": "string" },
+                    "run_id": { "type": "string" },
+                    "runtime": {
+                        "type": "object",
+                        "properties": {
+                            "output_wav": { "type": "string" },
+                            "metadata": { "type": "string" },
+                            "sample_rate": { "type": "integer", "default": 48000 },
+                            "block_size": { "type": "integer", "default": 64 },
+                            "render_seconds": { "type": "number", "default": 10.0 }
+                        }
+                    }
+                }
             })
         ),
         tool(
@@ -968,168 +996,6 @@ fn merge_object(target: &mut Value, source: &Value) -> Result<()> {
     Ok(())
 }
 
-fn parse_monitor_log(path: &Path) -> Result<MonitorAggregate> {
-    if !path.exists() {
-        return Ok(MonitorAggregate::default());
-    }
-    let text = fs::read_to_string(path)?;
-    let mut aggregate = MonitorAggregate::default();
-    for line in text.lines().filter(|line| line.contains(" MON ")) {
-        aggregate.entries += 1;
-        let fields = parse_monitor_line(line);
-        aggregate.input_rms_dbfs = fields.get("input_rms_dbfs").copied();
-        aggregate.input_peak_dbfs = fields.get("input_peak_dbfs").copied();
-        aggregate.output_rms_dbfs = fields.get("output_rms_dbfs").copied();
-        aggregate.output_peak_dbfs = fields.get("output_peak_dbfs").copied();
-        aggregate.input_near_clips += fields.get("input_near").copied().unwrap_or(0.0) as u64;
-        aggregate.input_hard_clips += fields.get("input_clip").copied().unwrap_or(0.0) as u64;
-        aggregate.output_near_clips += fields.get("output_near").copied().unwrap_or(0.0) as u64;
-        aggregate.output_hard_clips += fields.get("output_clip").copied().unwrap_or(0.0) as u64;
-        aggregate.input_xruns += fields.get("xrun_in").copied().unwrap_or(0.0) as u64;
-        aggregate.output_xruns += fields.get("xrun_out").copied().unwrap_or(0.0) as u64;
-    }
-    Ok(aggregate)
-}
-
-fn parse_monitor_line(line: &str) -> BTreeMap<&'static str, f64> {
-    let mut fields = BTreeMap::new();
-    if let Some(value) = value_after(line, "input rms ") {
-        fields.insert("input_rms", value);
-    }
-    if let Some(value) = db_after(line, "input rms ") {
-        fields.insert("input_rms_dbfs", value);
-    }
-    if let Some(value) = value_after(line, "peak ") {
-        fields.insert("input_peak", value);
-    }
-    if let Some(value) = db_after(line, "peak ") {
-        fields.insert("input_peak_dbfs", value);
-    }
-    if let Some(value) = pair_after(line, "near/clip ", 0) {
-        fields.insert("input_near", value);
-    }
-    if let Some(value) = pair_after(line, "near/clip ", 1) {
-        fields.insert("input_clip", value);
-    }
-    if let Some(output) = line.split(" | output ").nth(1) {
-        if let Some(value) = value_after(output, "rms ") {
-            fields.insert("output_rms", value);
-        }
-        if let Some(value) = db_after(output, "rms ") {
-            fields.insert("output_rms_dbfs", value);
-        }
-        if let Some(value) = value_after(output, "peak ") {
-            fields.insert("output_peak", value);
-        }
-        if let Some(value) = db_after(output, "peak ") {
-            fields.insert("output_peak_dbfs", value);
-        }
-        if let Some(value) = pair_after(output, "near/clip ", 0) {
-            fields.insert("output_near", value);
-        }
-        if let Some(value) = pair_after(output, "near/clip ", 1) {
-            fields.insert("output_clip", value);
-        }
-    }
-    if let Some(value) = pair_after(line, "xrun in/out ", 0) {
-        fields.insert("xrun_in", value);
-    }
-    if let Some(value) = pair_after(line, "xrun in/out ", 1) {
-        fields.insert("xrun_out", value);
-    }
-    fields
-}
-
-fn value_after(text: &str, marker: &str) -> Option<f64> {
-    text.split(marker)
-        .nth(1)?
-        .split_whitespace()
-        .next()?
-        .parse()
-        .ok()
-}
-
-fn db_after(text: &str, marker: &str) -> Option<f64> {
-    text.split(marker)
-        .nth(1)?
-        .split('(')
-        .nth(1)?
-        .split(" dBFS")
-        .next()?
-        .parse()
-        .ok()
-}
-
-fn pair_after(text: &str, marker: &str, index: usize) -> Option<f64> {
-    text.split(marker)
-        .nth(1)?
-        .split_whitespace()
-        .next()?
-        .split('/')
-        .nth(index)?
-        .parse()
-        .ok()
-}
-
-fn wav_summary(path: &Path) -> Result<Value> {
-    let mut reader = hound::WavReader::open(path)?;
-    let spec = reader.spec();
-    let mut samples = 0_u64;
-    let mut sum_sq = 0.0_f64;
-    let mut peak = 0.0_f64;
-
-    match (spec.sample_format, spec.bits_per_sample) {
-        (hound::SampleFormat::Float, 32) => {
-            for sample in reader.samples::<f32>() {
-                let value = sample? as f64;
-                samples += 1;
-                sum_sq += value * value;
-                peak = peak.max(value.abs());
-            }
-        }
-        (hound::SampleFormat::Int, bits) if bits <= 16 => {
-            let scale = i16::MAX as f64;
-            for sample in reader.samples::<i16>() {
-                let value = sample? as f64 / scale;
-                samples += 1;
-                sum_sq += value * value;
-                peak = peak.max(value.abs());
-            }
-        }
-        (hound::SampleFormat::Int, _) => {
-            let scale = i32::MAX as f64;
-            for sample in reader.samples::<i32>() {
-                let value = sample? as f64 / scale;
-                samples += 1;
-                sum_sq += value * value;
-                peak = peak.max(value.abs());
-            }
-        }
-        _ => {}
-    }
-
-    let rms = if samples == 0 {
-        0.0
-    } else {
-        (sum_sq / samples as f64).sqrt()
-    };
-    Ok(json!({
-        "sample_rate": spec.sample_rate,
-        "channels": spec.channels,
-        "samples": samples,
-        "duration_seconds": if spec.sample_rate == 0 || spec.channels == 0 { 0.0 } else { samples as f64 / spec.sample_rate as f64 / spec.channels as f64 },
-        "rms": rms,
-        "rms_dbfs": amp_to_db(rms),
-        "peak": peak,
-        "peak_dbfs": amp_to_db(peak),
-        "status": if samples == 0 || peak <= 0.000001 { "warning" } else { "clean" }
-    }))
-}
-
-fn amp_to_db(value: f64) -> Option<f64> {
-    (value > 0.0).then(|| 20.0 * value.log10())
-}
-
 fn collect_paths(dir: &Path, extensions: &[&str], output: &mut Vec<PathBuf>) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -1176,22 +1042,8 @@ fn required_path(arguments: &Value, key: &str) -> Result<String> {
         .ok_or_else(|| anyhow!("{key} is required"))
 }
 
-fn parent_or_root(path: &Path) -> &Path {
-    path.parent().unwrap_or_else(|| Path::new("."))
-}
-
 fn path_for_json(path: &Path) -> String {
     path.to_string_lossy().to_string()
-}
-
-fn command_to_vec(program: &Path, command: &Command) -> Vec<String> {
-    let mut values = vec![program.to_string_lossy().to_string()];
-    values.extend(
-        command
-            .get_args()
-            .map(|arg| arg.to_string_lossy().to_string()),
-    );
-    values
 }
 
 fn run_id_from(rig: &str) -> String {

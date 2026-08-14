@@ -42,14 +42,16 @@ The source of truth for project knowledge is `knowledge/`.
 
 ## Pedal Visual Asset Generation
 
-When asked to generate, regenerate, or iterate on a pedal visual asset, default
-to generating a clean empty enclosure PNG, not a complete pedal with baked
-controls. Greybound renders knobs, LEDs, control labels, and footswitches
-separately unless the user explicitly asks for those details to be baked into the
-faceplate.
-The pedal model name is allowed, and usually preferred, as baked typography in
-the enclosure artwork because it belongs to the visual identity rather than the
-interactive control layer.
+When asked to generate, regenerate, or iterate on a pedal visual asset, use
+`docs/pedal-asset-pipeline.md` and the `cargo xtask pedal-assets` commands.
+The model-owned `PedalAssetGenerationSpec` plus `RenderControlSpec` coordinates
+are the source of truth. Never hand-copy coordinates into a prompt or adjust a
+PNG manually.
+
+Generate only a clean empty enclosure PNG. Greybound renders knobs, LEDs,
+control labels, footswitches, and jacks separately from the model contract.
+The pedal model name is the sole permitted baked typography because it belongs
+to the visual identity rather than the interactive control layer.
 
 Read the full rendering contract before integrating or replacing assets:
 
@@ -57,6 +59,8 @@ Read the full rendering contract before integrating or replacing assets:
   control asset contract.
 - `docs/ai-asset-generation.md`: reusable AI prompt guidance and integration
   checklist.
+- `docs/pedal-asset-pipeline.md`: mandatory zero-manual-intervention pipeline,
+  exported contracts, validation gate, and ImageGen handoff.
 - `docs/templates/pedal-standard-1200x2172.svg`: layout reference for new
   `1200 x 2172` pedal body renders.
 

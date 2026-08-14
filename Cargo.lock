@@ -1753,7 +1753,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "greybound",
- "hound",
+ "greybound-lab-core",
  "json5",
  "serde",
  "serde_json",
@@ -1785,6 +1785,28 @@ dependencies = [
  "png",
  "rfd",
  "rtrb",
+]
+
+[[package]]
+name = "greybound-lab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "greybound-lab-core",
+ "iced",
+ "rfd",
+ "serde_json",
+]
+
+[[package]]
+name = "greybound-lab-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hound",
+ "rustfft",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6029,7 +6051,10 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "greybound-ui",
+ "image",
  "nih_plug_xtask",
+ "serde_json",
 ]
 
 [[package]]

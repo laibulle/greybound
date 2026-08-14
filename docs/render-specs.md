@@ -51,6 +51,18 @@ Controls are placed in normalized coordinates relative to the logical frame:
 
 The app renders dynamic controls above the static faceplate PNG. If a model has `typography = BakedIntoAsset`, the UI must not draw any text for that model.
 
+### Regenerated pedal faceplates
+
+New industrial-pipeline faceplates use `typography = DrawnByUi`. Their PNG is
+an empty enclosure plus optional immutable model wordmark; it contains no
+control labels, jacks, or functional hardware. The UI then renders canonical
+side jacks, knobs, LEDs, footswitches, and labels from the model contract.
+
+This policy is intentionally not retroactive: legacy `BakedIntoAsset` files
+keep their existing faceplate contents until their replacement has passed
+`cargo xtask pedal-assets validate`. Promote the PNG and typography policy in
+the same change, never one at a time.
+
 ## Amp Assets
 
 - Logical size: `1240 x 500`
