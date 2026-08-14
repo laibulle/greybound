@@ -1,11 +1,39 @@
+#[cfg(target_arch = "wasm32")]
 mod audio;
+
+// `greybound-wasm` belongs to the workspace and is checked on native hosts as
+// well. Keep that check meaningful without compiling browser-only WebAudio
+// futures, which are intentionally !Send.
+#[cfg(not(target_arch = "wasm32"))]
+mod audio {
+    use greybound_ui::GreyboundUi;
+
+    #[derive(Clone)]
+    pub struct WebAudioSnapshot;
+
+    impl WebAudioSnapshot {
+        pub fn from_ui(_ui: &GreyboundUi) -> Self {
+            Self
+        }
+    }
+
+    pub fn stop() {}
+
+    pub fn store_controls_from_ui(_ui: &GreyboundUi) {}
+
+    pub fn meter_levels() -> (f32, f32, f32) {
+        (0.0, 0.0, 0.0)
+    }
+}
 
 use greybound_ui::{preload_render_assets, GreyboundUi, Message, DESIGN_HEIGHT, DESIGN_WIDTH};
 use iced::{Application, Command, Element, Settings, Subscription};
+#[cfg(target_arch = "wasm32")]
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
 
 const UI_FONT: &[u8] = include_bytes!("../assets/fonts/Geist-Regular.ttf");
+#[cfg(target_arch = "wasm32")]
 const METER_REFRESH_MS: u64 = 250;
 
 #[wasm_bindgen]
@@ -13,17 +41,21 @@ pub fn run() {
     console_error_panic_hook::set_once();
     let initial_size =
         browser_viewport_size().unwrap_or((DESIGN_WIDTH as u32, DESIGN_HEIGHT as u32));
+    #[allow(unused_mut)]
+    let mut window = iced::window::Settings {
+        size: initial_size,
+        min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
+        ..iced::window::Settings::default()
+    };
+    #[cfg(target_arch = "wasm32")]
+    {
+        window.platform_specific.target = Some("greybound-web-root".to_string());
+    }
+
     let _ = WebApp::run(Settings {
         flags: initial_size,
         default_font: iced::Font::with_name("Geist"),
-        window: iced::window::Settings {
-            size: initial_size,
-            min_size: Some(((DESIGN_WIDTH * 0.55) as u32, (DESIGN_HEIGHT * 0.55) as u32)),
-            platform_specific: iced::window::PlatformSpecific {
-                target: Some("greybound-web-root".to_string()),
-            },
-            ..iced::window::Settings::default()
-        },
+        window,
         antialiasing: true,
         ..Settings::default()
     });
@@ -143,19 +175,32 @@ impl Application for WebApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
-            iced::subscription::events_with(|event, _status| match event {
-                iced::Event::Window(iced::window::Event::Resized { width, height }) => {
-                    Some(Message::WindowResized { width, height })
-                }
-                _ => None,
-            }),
-            iced::time::every(Duration::from_millis(METER_REFRESH_MS))
-                .map(|_| Message::MeterProbeTick),
-        ])
+        let window_events = iced::subscription::events_with(|event, _status| match event {
+            iced::Event::Window(iced::window::Event::Resized { width, height }) => {
+                Some(Message::WindowResized { width, height })
+            }
+            _ => None,
+        });
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            Subscription::batch([
+                window_events,
+                iced::time::every(Duration::from_millis(METER_REFRESH_MS))
+                    .map(|_| Message::MeterProbeTick),
+            ])
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // Native workspace checks compile this web host without a browser
+            // executor, which does not provide iced::time::every.
+            window_events
+        }
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn start_audio_command(snapshot: audio::WebAudioSnapshot) -> Command<Message> {
     Command::perform(audio::start(snapshot), |result| {
         Message::AudioStatusChanged(match result {
@@ -163,6 +208,13 @@ fn start_audio_command(snapshot: audio::WebAudioSnapshot) -> Command<Message> {
             Err(error) => format!("WebAudio unavailable: {error}"),
         })
     })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn start_audio_command(_snapshot: audio::WebAudioSnapshot) -> Command<Message> {
+    // `wasm` is also compiled by native workspace builds. WebAudio futures
+    // contain browser `Rc` handles and must stay on the browser event loop.
+    Command::none()
 }
 
 fn should_restart_audio(message: &Message) -> bool {

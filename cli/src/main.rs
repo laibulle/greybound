@@ -2027,6 +2027,9 @@ fn default_device_controls(device: DeviceConfig) -> DeviceControls {
         DeviceConfig::Muon => DeviceControls::Muon(MuonControls::default()),
         DeviceConfig::Muffin => DeviceControls::Muffin(MuffinControls::default()),
         DeviceConfig::Minotaur => DeviceControls::Minotaur(MinotaurControls::default()),
+        // NAM pedal exposes the same external input/output trims as Minotaur;
+        // the captured model itself is loaded separately by the chain.
+        DeviceConfig::NamPedal => DeviceControls::Minotaur(MinotaurControls::default()),
         DeviceConfig::Monarch => DeviceControls::Monarch(MonarchControls::default()),
         DeviceConfig::GodessOne => DeviceControls::GodessOne(GodessOneControls::default()),
         DeviceConfig::Dartford => DeviceControls::Dartford(DartfordControls::default()),
